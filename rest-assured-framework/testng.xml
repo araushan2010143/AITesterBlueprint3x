@@ -3,7 +3,9 @@
 <suite name="RestAssuredApiSuite">
   <test name="ApiTests">
     <classes>
-      <class name="com.api.framework.tests.UserApiTests"/>
+      <class name="com.api.framework.tests.AuthApiTests"/>
+      <class name="com.api.framework.tests.BookingIdsTests"/>
+      <class name="com.api.framework.tests.BookingCrudTests"/>
     </classes>
   </test>
 </suite>
