@@ -1,6 +1,6 @@
 {
   "name": "qa",
-  "baseUrl": "https://qa.api.example.com",
+  "baseUrl": "https://restful-booker.herokuapp.com",
   "apiVersion": "v1",
   "timeout": 30000,
   "logging": true

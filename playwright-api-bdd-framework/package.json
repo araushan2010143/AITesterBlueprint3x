@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test:qa": "cross-env NODE_ENV=qa npx cucumber-js --require-module ts-node/register --require tests/steps/**/*.ts tests/features",
-    "test:dev": "cross-env NODE_ENV=dev npx cucumber-js --require-module ts-node/register --require tests/steps/**/*.ts tests/features",
-    "test:prod": "cross-env NODE_ENV=prod npx cucumber-js --require-module ts-node/register --require tests/steps/**/*.ts tests/features",
+    "test:qa": "cross-env NODE_ENV=qa npx cucumber-js --require-module ts-node/register --require tests/steps/**/*.ts --format json:reports/cucumber-qa.json tests/features",
+    "test:dev": "cross-env NODE_ENV=dev npx cucumber-js --require-module ts-node/register --require tests/steps/**/*.ts --format json:reports/cucumber-dev.json tests/features",
+    "test:prod": "cross-env NODE_ENV=prod npx cucumber-js --require-module ts-node/register --require tests/steps/**/*.ts --format json:reports/cucumber-prod.json tests/features",
+    "report": "node ./scripts/generate-report.js",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write ."
   },
@@ -14,7 +15,8 @@
     "@playwright/test": "^1.45.0",
     "chai": "^4.3.8",
     "cross-env": "^7.0.3",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "cucumber-html-reporter": "^5.5.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

@@ -30,11 +30,18 @@ jobs:
       - name: Cucumber dry-run
         run: npx cucumber-js --require-module ts-node/register --require tests/steps/**/*.ts tests/features --dry-run
         working-directory: ./playwright-api-bdd-framework
-
       - name: Run tests (QA environment)
         env:
           NODE_ENV: qa
-        run: npm run test:qa
+        run: |
+          npm run test:qa
+          npm run report
         working-directory: ./playwright-api-bdd-framework
         # Note: This step runs cucumber features against QA endpoints. If your tests make
         # real API calls, consider using a dedicated test environment or mocking.
+
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-test-reports
+          path: playwright-api-bdd-framework/reports
