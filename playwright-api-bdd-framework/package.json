@@ -3,24 +3,28 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test:qa": "cross-env NODE_ENV=qa npx cucumber-js --require-module ts-node/register --require tests/steps/**/*.ts --format json:reports/cucumber-qa.json tests/features",
-    "test:dev": "cross-env NODE_ENV=dev npx cucumber-js --require-module ts-node/register --require tests/steps/**/*.ts --format json:reports/cucumber-dev.json tests/features",
-    "test:prod": "cross-env NODE_ENV=prod npx cucumber-js --require-module ts-node/register --require tests/steps/**/*.ts --format json:reports/cucumber-prod.json tests/features",
+    "test:qa": "cross-env NODE_ENV=qa npx cucumber-js --require-module ts-node/register --require-module allure-cucumberjs --require tests/steps/**/*.ts --format json:reports/cucumber-qa.json tests/features",
+    "test:dev": "cross-env NODE_ENV=dev npx cucumber-js --require-module ts-node/register --require-module allure-cucumberjs --require tests/steps/**/*.ts --format json:reports/cucumber-dev.json tests/features",
+    "test:prod": "cross-env NODE_ENV=prod npx cucumber-js --require-module ts-node/register --require-module allure-cucumberjs --require tests/steps/**/*.ts --format json:reports/cucumber-prod.json tests/features",
     "report": "node ./scripts/generate-report.js",
+    "allure:generate": "allure generate ./allure-results -o ./reports/allure-report --clean",
+    "allure:open": "allure open ./reports/allure-report",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write ."
   },
   "dependencies": {
     "@cucumber/cucumber": "^9.1.0",
     "@playwright/test": "^1.45.0",
+    "allure-commandline": "^2.21.0",
+    "allure-cucumberjs": "^3.9.0",
     "chai": "^4.3.8",
     "cross-env": "^7.0.3",
-    "dotenv": "^16.3.1",
-    "cucumber-html-reporter": "^5.5.0"
+    "cucumber-html-reporter": "^5.5.0",
+    "dotenv": "^16.3.1"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
     "@types/chai": "^4.3.5",
+    "@types/node": "^20.11.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-import": "^2.29.6",

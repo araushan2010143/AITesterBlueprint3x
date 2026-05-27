@@ -36,6 +36,7 @@ jobs:
         run: |
           npm run test:qa
           npm run report
+          npm run allure:generate
         working-directory: ./playwright-api-bdd-framework
         # Note: This step runs cucumber features against QA endpoints. If your tests make
         # real API calls, consider using a dedicated test environment or mocking.
@@ -44,4 +45,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: api-test-reports
-          path: playwright-api-bdd-framework/reports
+          path: |
+            playwright-api-bdd-framework/reports
+            playwright-api-bdd-framework/allure-results
+            playwright-api-bdd-framework/reports/allure-report
