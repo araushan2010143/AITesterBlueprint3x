@@ -3,6 +3,7 @@ package com.api.framework;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
+import java.util.Map;
 
 import static io.restassured.RestAssured.given;
 
@@ -44,6 +45,43 @@ public class ApiClient {
       .post(endpoint)
       .then()
       .contentType(ContentType.JSON)
+      .extract()
+      .response();
+  }
+  
+  public Response post(String endpoint, Object body, Map<String, ?> headers) {
+    return given()
+      .spec(spec)
+      .headers(headers)
+      .body(body)
+      .when()
+      .post(endpoint)
+      .then()
+      .contentType(ContentType.JSON)
+      .extract()
+      .response();
+  }
+  
+  public Response put(String endpoint, Object body, Map<String, ?> headers) {
+    return given()
+      .spec(spec)
+      .headers(headers)
+      .body(body)
+      .when()
+      .put(endpoint)
+      .then()
+      .contentType(ContentType.JSON)
+      .extract()
+      .response();
+  }
+  
+  public Response delete(String endpoint, Map<String, ?> headers) {
+    return given()
+      .spec(spec)
+      .headers(headers)
+      .when()
+      .delete(endpoint)
+      .then()
       .extract()
       .response();
   }
