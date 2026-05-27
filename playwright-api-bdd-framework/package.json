@@ -1,0 +1,29 @@
+{
+  "name": "playwright-api-bdd-framework",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test:qa": "cross-env NODE_ENV=qa npx cucumber-js --require-module ts-node/register --require tests/steps/**/*.ts tests/features",
+    "test:dev": "cross-env NODE_ENV=dev npx cucumber-js --require-module ts-node/register --require tests/steps/**/*.ts tests/features",
+    "test:prod": "cross-env NODE_ENV=prod npx cucumber-js --require-module ts-node/register --require tests/steps/**/*.ts tests/features",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@cucumber/cucumber": "^9.1.0",
+    "@playwright/test": "^1.45.0",
+    "chai": "^4.3.8",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/chai": "^4.3.5",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-import": "^2.29.6",
+    "prettier": "^3.2.2",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.5.4"
+  }
+}

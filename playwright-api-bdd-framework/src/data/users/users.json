@@ -1,0 +1,17 @@
+{
+  "qa": {
+    "username": "qa_user",
+    "password": "QaPassword!23",
+    "email": "qa_user@example.com"
+  },
+  "dev": {
+    "username": "dev_user",
+    "password": "DevPassword!23",
+    "email": "dev_user@example.com"
+  },
+  "prod": {
+    "username": "prod_user",
+    "password": "ProdPassword!23",
+    "email": "prod_user@example.com"
+  }
+}
