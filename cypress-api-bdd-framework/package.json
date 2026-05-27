@@ -1,0 +1,29 @@
+{
+  "name": "cypress-api-bdd-framework",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Enterprise-grade Cypress API BDD automation framework with Allure reporting.",
+  "scripts": {
+    "test:qa": "CYPRESS_ENV=qa npx cypress run",
+    "test:dev": "CYPRESS_ENV=dev npx cypress run",
+    "open": "npx cypress open",
+    "allure:generate": "npx allure generate allure-results --clean -o reports/allure-report",
+    "allure:open": "npx allure open reports/allure-report",
+    "verify": "npx cypress verify"
+  },
+  "dependencies": {
+    "chai": "^4.3.8",
+    "dotenv": "^16.4.3"
+  },
+  "devDependencies": {
+    "@bahmutov/cypress-esbuild-preprocessor": "^2.2.8",
+    "@badeball/cypress-cucumber-preprocessor": "^24.0.1",
+    "@shelex/cypress-allure-plugin": "^2.41.2",
+    "@types/chai": "^4.3.5",
+    "@types/node": "^20.11.0",
+    "cypress": "^15.16.0",
+    "esbuild": "^0.25.12",
+    "typescript": "^5.5.4",
+    "allure-commandline": "^2.23.6"
+  }
+}
