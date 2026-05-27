@@ -13,7 +13,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
-    "@cucumber/cucumber": "^9.1.0",
+    "@cucumber/cucumber": "^11.3.0",
     "@playwright/test": "^1.45.0",
     "allure-commandline": "^2.21.0",
     "allure-cucumberjs": "^3.9.0",
