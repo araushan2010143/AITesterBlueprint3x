@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+DIRNAME="$(cd "$(dirname "$0")" && pwd -P)"
+exec java -jar "$DIRNAME/.mvn/wrapper/maven-wrapper.jar" org.apache.maven.wrapper.MavenWrapperMain "$@"
