@@ -1,13 +1,16 @@
 import OpenAI from 'openai';
 
-// Groq is OpenAI-compatible and has a free tier — no billing required
-const client = new OpenAI({
-  apiKey: process.env.GROQ_API_KEY ?? '',
-  baseURL: 'https://api.groq.com/openai/v1',
-});
-
 export const AI_MODEL = 'llama-3.3-70b-versatile';
 export const AI_MODEL_HEAVY = 'llama-3.3-70b-versatile';
+
+// Lazy-init: only construct when called so build-time import doesn't throw
+// when GROQ_API_KEY is absent from the build environment.
+function getClient() {
+  return new OpenAI({
+    apiKey: process.env.GROQ_API_KEY ?? '',
+    baseURL: 'https://api.groq.com/openai/v1',
+  });
+}
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -32,7 +35,7 @@ export async function chatCompletion(options: ChatOptions): Promise<string> {
       )
     : messages;
 
-  const response = await client.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: AI_MODEL,
     max_tokens,
     temperature,
