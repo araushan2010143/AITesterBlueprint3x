@@ -25,18 +25,28 @@ export async function proxy(request: NextRequest) {
     }
   );
 
+  // Refresh session if expired and forward updated tokens downstream.
+  // getUser() validates the JWT server-side; getSession() only reads storage.
   const { data: { user } } = await supabase.auth.getUser();
 
-  const isAuthPage = request.nextUrl.pathname.startsWith('/login');
-  const isApiRoute = request.nextUrl.pathname.startsWith('/api');
+  const { pathname } = request.nextUrl;
+  const isLoginPage  = pathname.startsWith('/login');
+  const isAuthRoute  = pathname.startsWith('/auth');   // /auth/callback must run freely
+  const isApiRoute   = pathname.startsWith('/api');
 
-  if (!user && !isAuthPage && !isApiRoute) {
+  // Guard protected routes — but NEVER intercept /auth/* (OAuth callback)
+  // or /api/* (they handle their own auth).
+  // BUG that was here: /auth/callback was not excluded, so the proxy
+  // redirected to /login before the route handler could exchange the code.
+  if (!user && !isLoginPage && !isAuthRoute && !isApiRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
+    url.search = '';
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPage) {
+  // Bounce already-authenticated users away from the login page
+  if (user && isLoginPage) {
     const url = request.nextUrl.clone();
     url.pathname = '/tracker';
     return NextResponse.redirect(url);
@@ -46,5 +56,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|robots\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
 };
