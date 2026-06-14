@@ -33,12 +33,37 @@ export async function GET(request: NextRequest) {
   // is returned to the browser, so it carries the Set-Cookie headers.
   const successResponse = NextResponse.redirect(`${BASE}${next}`);
 
+  // Derive the cookie key prefix the server expects from its own env var.
+  // If NEXT_PUBLIC_SUPABASE_URL was ever wrong in an old Vercel JS bundle,
+  // the browser stored the PKCE code verifier under a different cookie name
+  // (e.g. sb-best-job-tracker-ai-auth-token-code-verifier instead of
+  // sb-mdcveewdguugggwwlpjw-auth-token-code-verifier). getAll() below
+  // detects any *-auth-token-code-verifier cookie and re-maps it to the
+  // correct key so exchangeCodeForSession() always finds the verifier.
+  const supabaseRef = (() => {
+    try { return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname.split('.')[0]; }
+    catch { return null; }
+  })();
+  const expectedVerifierKey = supabaseRef ? `sb-${supabaseRef}-auth-token-code-verifier` : null;
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll: () => request.cookies.getAll(),
+        getAll: () => {
+          const all = request.cookies.getAll();
+          if (!expectedVerifierKey) return all;
+          // Already correct — nothing to remap
+          if (all.some(c => c.name === expectedVerifierKey)) return all;
+          // Find any misnamed verifier (from a stale/wrong build) and alias it
+          const stale = all.find(c => c.name.endsWith('-auth-token-code-verifier'));
+          if (stale) {
+            console.log(`[auth/callback] remapping verifier cookie "${stale.name}" → "${expectedVerifierKey}"`);
+            return [...all, { name: expectedVerifierKey, value: stale.value }];
+          }
+          return all;
+        },
         setAll: (cookiesToSet) => {
           cookiesToSet.forEach(({ name, value, options }) =>
             successResponse.cookies.set(name, value, options)
