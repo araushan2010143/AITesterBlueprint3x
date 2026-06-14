@@ -1,30 +1,59 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
 import { sendEmail, APP_URL } from '@/lib/email';
 import { welcomeEmail } from '@/lib/emails/templates';
 
-// Always redirect to the canonical production URL, never to a deployment-
-// specific Vercel URL. Using NEXT_PUBLIC_APP_URL prevents the case where
-// window.location.origin returns e.g. best-job-tracker-ai-abc123.vercel.app
-// (a unique deployment URL) which is not registered in Google Cloud Console.
-const CANONICAL_BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://best-job-tracker-ai.vercel.app';
+// The canonical production URL. Never use window.location.origin or
+// request.url origin here — Vercel assigns a unique URL per deployment
+// (e.g. best-job-tracker-ai-abc123.vercel.app) that is NOT registered in
+// Google Cloud Console. Always redirect to this fixed base.
+const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://best-job-tracker-ai.vercel.app';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const next = searchParams.get('next') ?? '/tracker';
 
   if (!code) {
-    return NextResponse.redirect(`${CANONICAL_BASE}/login?error=no_code`);
+    return NextResponse.redirect(`${BASE}/login?error=no_code`);
   }
 
-  const supabase = await createClient();
+  // Pre-create the success redirect so we can attach session cookies to it.
+  //
+  // Root cause of the 2-click bug:
+  // Using createClient() from lib/supabase/server.ts (which calls `await cookies()`
+  // from next/headers) sets cookies on Next.js's *internal* response object.
+  // When we then return a separate NextResponse.redirect(), Next.js does NOT
+  // guarantee merging those cookies into the redirect response — so the session
+  // tokens never reach the browser, /tracker sees no user, and the user is
+  // bounced back to /login.
+  //
+  // Fix: create the Supabase client inline here, reading from request.cookies
+  // and writing directly onto successResponse.cookies. The same response object
+  // is returned to the browser, so it carries the Set-Cookie headers.
+  const successResponse = NextResponse.redirect(`${BASE}${next}`);
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll: () => request.cookies.getAll(),
+        setAll: (cookiesToSet) => {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            successResponse.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
     console.error('[auth/callback] exchangeCodeForSession error:', error.message);
     return NextResponse.redirect(
-      `${CANONICAL_BASE}/login?error=${encodeURIComponent(error.message)}`
+      `${BASE}/login?error=${encodeURIComponent(error.message)}`
     );
   }
 
@@ -55,9 +84,8 @@ export async function GET(request: Request) {
         void sendEmail({ to: data.user.email, ...template });
       }
     }
-
-    return NextResponse.redirect(`${CANONICAL_BASE}${next}`);
   }
 
-  return NextResponse.redirect(`${CANONICAL_BASE}/login?error=auth_callback_failed`);
+  // Return the redirect with session cookies attached — single click login.
+  return successResponse;
 }
