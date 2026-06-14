@@ -39,10 +39,11 @@ export default function LoginPage() {
     setError('');
 
     if (isSignUp) {
+      const canonicalBase = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        options: { emailRedirectTo: `${canonicalBase}/auth/callback` },
       });
       if (error) setError(error.message);
       else setMessage('Check your email to confirm your account.');
@@ -58,9 +59,15 @@ export default function LoginPage() {
   async function handleGoogleLogin() {
     setLoading(true);
     setError('');
+    // Use the canonical app URL so the OAuth redirect always targets the
+    // production domain — Vercel generates unique per-deployment URLs like
+    // best-job-tracker-ai-abc123.vercel.app that are NOT registered in Google
+    // Cloud Console, causing the callback to fail if window.location.origin
+    // returns one of those deployment-specific URLs.
+    const canonicalBase = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: `${canonicalBase}/auth/callback` },
     });
     if (error) {
       setError(error.message);
