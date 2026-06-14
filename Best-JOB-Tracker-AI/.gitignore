@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Local env — NEVER COMMIT
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Next.js
+.next/
+out/
+build/
+
+# Misc
+.DS_Store
+*.pem
+.vercel
+*.log
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Supabase
+.supabase/
+
+# B.L.A.S.T. temp
+.tmp/

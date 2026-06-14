@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Best JOB Tracker AI</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 340px;
+      min-height: 200px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #f1f5f9;
+    }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .header img { width: 28px; height: 28px; border-radius: 6px; }
+    .header h1 { font-size: 14px; font-weight: 700; color: #f8fafc; flex: 1; }
+    .header .version { font-size: 10px; color: #64748b; }
+
+    /* ── Screens ─────────────────────────────────────────────── */
+    .screen { display: none; padding: 16px; }
+    .screen.active { display: block; }
+
+    /* ── Auth (login) screen ─────────────────────────────────── */
+    .auth-hero {
+      text-align: center;
+      padding: 20px 0 18px;
+    }
+    .auth-hero .icon {
+      width: 52px;
+      height: 52px;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 12px;
+      font-size: 22px;
+    }
+    .auth-hero h2 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+    .auth-hero p  { font-size: 12px; color: #94a3b8; line-height: 1.5; }
+
+    .btn-google {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 11px 16px;
+      margin-top: 18px;
+      background: #fff;
+      color: #1e293b;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-google:hover { background: #f1f5f9; }
+    .btn-google:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-google svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 14px 0;
+      color: #475569;
+      font-size: 11px;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #1e293b;
+    }
+
+    .btn-web-login {
+      display: block;
+      width: 100%;
+      padding: 9px;
+      background: transparent;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #94a3b8;
+      font-size: 12px;
+      cursor: pointer;
+      text-align: center;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-web-login:hover { border-color: #4f46e5; color: #f1f5f9; }
+
+    /* ── Main (logged-in) screen ─────────────────────────────── */
+    .user-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .user-info { flex: 1; min-width: 0; }
+    .user-info .email {
+      font-size: 11px;
+      color: #94a3b8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .user-info .status {
+      font-size: 10px;
+      color: #22c55e;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 1px;
+    }
+    .status-dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; }
+
+    .btn-logout {
+      background: transparent;
+      border: none;
+      color: #475569;
+      font-size: 11px;
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .btn-logout:hover { color: #f87171; background: #1e293b; }
+
+    /* ── Job panel ───────────────────────────────────────────── */
+    .job-panel {
+      background: #1e293b;
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .job-panel.empty {
+      text-align: center;
+      color: #475569;
+      font-size: 12px;
+      padding: 20px 14px;
+    }
+    .job-panel.empty .job-icon { font-size: 24px; margin-bottom: 8px; }
+
+    .job-meta { margin-bottom: 12px; }
+    .job-meta .role { font-size: 14px; font-weight: 600; color: #f8fafc; margin-bottom: 2px; }
+    .job-meta .company { font-size: 12px; color: #94a3b8; }
+    .job-meta .location { font-size: 11px; color: #475569; margin-top: 3px; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    .badge.linkedin { background: #1d3a5f; color: #60a5fa; }
+    .badge.naukri   { background: #2d1b4e; color: #a78bfa; }
+    .badge.other    { background: #1e293b; color: #64748b; border: 1px solid #334155; }
+
+    .btn-capture {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 10px;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-capture:hover { opacity: 0.9; }
+    .btn-capture:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Recent captures ─────────────────────────────────────── */
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .recent-list { list-style: none; }
+    .recent-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      border-bottom: 1px solid #1e293b;
+    }
+    .recent-item:last-child { border-bottom: none; }
+    .recent-item .dot { width: 6px; height: 6px; background: #4f46e5; border-radius: 50%; flex-shrink: 0; }
+    .recent-item .info { flex: 1; min-width: 0; }
+    .recent-item .r-title {
+      font-size: 12px;
+      color: #e2e8f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .recent-item .r-co {
+      font-size: 10px;
+      color: #64748b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .recent-item .r-time { font-size: 10px; color: #475569; flex-shrink: 0; }
+
+    /* ── Footer ──────────────────────────────────────────────── */
+    .footer-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px 16px 14px;
+      border-top: 1px solid #1e293b;
+      color: #475569;
+      font-size: 11px;
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .footer-link:hover { color: #94a3b8; }
+
+    /* ── Toast ───────────────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .toast.show { opacity: 1; }
+    .toast.success { background: #166534; color: #86efac; }
+    .toast.error   { background: #7f1d1d; color: #fca5a5; }
+    .toast.info    { background: #1e3a5f; color: #93c5fd; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <img src="icons/icon32.png" alt="" />
+    <h1>Best JOB Tracker</h1>
+    <span class="version">v1.0</span>
+  </div>
+
+  <!-- ── Screen: not logged in ── -->
+  <div id="screen-auth" class="screen active">
+    <div class="auth-hero">
+      <div class="icon">🎯</div>
+      <h2>Track jobs with AI</h2>
+      <p>Sign in to capture LinkedIn, Naukri &amp;<br>Wellfound jobs in one click</p>
+    </div>
+
+    <button id="btn-google-login" class="btn-google">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Continue with Google
+    </button>
+
+    <div class="divider">or</div>
+
+    <button id="btn-web-login" class="btn-web-login">Open web app to sign in</button>
+  </div>
+
+  <!-- ── Screen: logged in ── -->
+  <div id="screen-main" class="screen">
+    <div class="user-bar">
+      <div class="user-avatar" id="user-avatar">A</div>
+      <div class="user-info">
+        <div class="email" id="user-email">user@example.com</div>
+        <div class="status"><span class="status-dot"></span>Connected</div>
+      </div>
+      <button class="btn-logout" id="btn-logout">Sign out</button>
+    </div>
+
+    <div id="job-panel" class="job-panel empty">
+      <div class="job-icon">📋</div>
+      <p>Open a job listing on LinkedIn,<br>Naukri, or Wellfound to capture it</p>
+    </div>
+
+    <div id="recent-section" style="display:none">
+      <div class="section-title">Recently captured</div>
+      <ul id="recent-list" class="recent-list"></ul>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <a id="open-app" class="footer-link" href="https://best-job-tracker-ai.vercel.app/tracker" target="_blank">
+    Open full dashboard ↗
+  </a>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

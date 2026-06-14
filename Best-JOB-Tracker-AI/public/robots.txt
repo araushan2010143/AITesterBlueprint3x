@@ -1,0 +1,17 @@
+User-agent: *
+# Block all authenticated/private routes
+Disallow: /dashboard
+Disallow: /tracker
+Disallow: /applications
+Disallow: /saved
+Disallow: /analytics
+Disallow: /settings
+Disallow: /ai/
+Disallow: /api/
+Disallow: /auth/
+
+# Allow public pages only
+Allow: /
+Allow: /login
+
+Sitemap: https://best-job-tracker-ai.vercel.app/sitemap.xml

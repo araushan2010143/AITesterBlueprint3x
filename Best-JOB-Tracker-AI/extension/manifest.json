@@ -1,0 +1,65 @@
+{
+  "manifest_version": 3,
+  "name": "Best JOB Tracker AI",
+  "version": "1.0.0",
+  "description": "One-click job capture from LinkedIn, Naukri, and Wellfound — powered by Best JOB Tracker AI",
+
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA76Vq5Jmus4R5B02bXngTSST3luQhCaaypGbKcEi9m5717hOAZjhnwEq443AixJZxW8fWjFGjzXvpMrz2gRUH7RUkQvmB3KYOlI0RWcTogzNEIznxOWltN+oAJFz+eHi8wh4W7WiDlR6bPbTbmT8c/cBZs9NPrAgvCsrxwronqmv4Ua7N4MaPz/KiUCle4AYsSGgmlUlVMzma8+2u2c6fPuYmqWW33SO/ZiRCl8cA/KQ4fBGj483inrpr0QDinCqSUiQRNnNJciCT+wIOiDCjJxRXNoFhCZsmbnhyFH18fZiPpMNifd+8ghe55GEK9ETEvFydZxJdZDG7FXBj3W8KPwIDAQAB",
+
+  "permissions": [
+    "storage",
+    "activeTab",
+    "notifications",
+    "identity"
+  ],
+  "host_permissions": [
+    "https://best-job-tracker-ai.vercel.app/*",
+    "http://localhost:3000/*"
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://best-job-tracker-ai.vercel.app/*",
+      "http://localhost:3000/*"
+    ]
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://www.linkedin.com/jobs/*",
+        "*://linkedin.com/jobs/*",
+        "*://www.naukri.com/*",
+        "*://naukri.com/*",
+        "*://wellfound.com/jobs/*",
+        "*://angel.co/jobs/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "oauth2": {
+    "client_id": "158470437418-4ls2bm2hof1nteaq8q3jk441ob99sh39.apps.googleusercontent.com",
+    "scopes": [
+      "openid",
+      "email",
+      "profile"
+    ]
+  }
+}
