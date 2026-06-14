@@ -73,7 +73,7 @@ export async function PATCH(request: Request, { params }: Params) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Fire milestone email when status advances to a key stage
-  const MILESTONES = new Set(['phone_screen', 'technical', 'final_round', 'offer']);
+  const MILESTONES = new Set(['applied', 'phone_screen', 'technical', 'final_round', 'offer']);
   const newStatus = parsed.data.status;
   if (newStatus && MILESTONES.has(newStatus) && existing?.status !== newStatus) {
     const { data: profile } = await supabase

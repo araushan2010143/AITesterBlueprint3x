@@ -110,6 +110,14 @@ export function welcomeEmail({
 // ── Status milestone ──────────────────────────────────────────────────────────
 
 const MILESTONE_CONFIG: Record<string, { emoji: string; headline: string; body: string; cta_label: string; cta_path: string; color: string }> = {
+  applied: {
+    emoji: '🚀',
+    headline: 'Application submitted!',
+    body: "You took the leap and applied. Great first step — now stay on top of it. Use AI Prep to get ready in case they reach out fast.",
+    cta_label: 'Track your application →',
+    cta_path: '/tracker',
+    color: '#4F46E5',
+  },
   phone_screen: {
     emoji: '📞',
     headline: 'You got a phone screen!',
