@@ -1,6 +1,5 @@
 import { Resend } from 'resend';
 
-// Use verified domain in production; Resend's onboarding address works for testing
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
@@ -14,15 +13,24 @@ export async function sendEmail({
   to: string;
   subject: string;
   html: string;
-}) {
-  if (!process.env.RESEND_API_KEY) return; // no-op if not configured
-  // Lazy-init: only construct when the key is present so build-time import
-  // doesn't throw when RESEND_API_KEY is absent from the build environment.
+}): Promise<{ ok: boolean; error?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[email] RESEND_API_KEY not set — skipping send');
+    return { ok: false, error: 'RESEND_API_KEY not configured' };
+  }
+
   const resend = new Resend(process.env.RESEND_API_KEY);
   try {
-    await resend.emails.send({ from: FROM, to, subject, html });
+    const result = await resend.emails.send({ from: FROM, to, subject, html });
+    if (result.error) {
+      console.error('[email] Resend error:', result.error);
+      return { ok: false, error: result.error.message };
+    }
+    console.log('[email] sent to', to, '| id:', result.data?.id);
+    return { ok: true };
   } catch (err) {
-    // Email failures must never break the main request
-    console.error('[email] send failed:', err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[email] send failed:', msg);
+    return { ok: false, error: msg };
   }
 }

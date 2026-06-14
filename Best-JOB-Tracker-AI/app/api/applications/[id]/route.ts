@@ -75,18 +75,20 @@ export async function PATCH(request: Request, { params }: Params) {
   // Fire milestone email when status advances to a key stage
   const MILESTONES = new Set(['applied', 'phone_screen', 'technical', 'final_round', 'offer']);
   const newStatus = parsed.data.status;
+  let emailResult: { ok: boolean; error?: string } | null = null;
+
   if (newStatus && MILESTONES.has(newStatus) && existing?.status !== newStatus) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('full_name, email, email_notifications')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
     const emailEnabled = profile?.email_notifications !== false; // default on
     const toEmail = profile?.email ?? user.email;
 
     if (emailEnabled && toEmail) {
-      const email = milestoneEmail({
+      const template = milestoneEmail({
         toName: profile?.full_name ?? toEmail.split('@')[0],
         company: existing?.company ?? data.company,
         role: existing?.role_title ?? data.role_title,
@@ -94,11 +96,15 @@ export async function PATCH(request: Request, { params }: Params) {
         appUrl: APP_URL,
         applicationId: id,
       });
-      if (email) void sendEmail({ to: toEmail, ...email });
+      if (template) {
+        emailResult = await sendEmail({ to: toEmail, ...template });
+      }
+    } else {
+      emailResult = { ok: false, error: emailEnabled ? 'no recipient email' : 'notifications disabled' };
     }
   }
 
-  return NextResponse.json({ data });
+  return NextResponse.json({ data, ...(emailResult && { email: emailResult }) });
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
