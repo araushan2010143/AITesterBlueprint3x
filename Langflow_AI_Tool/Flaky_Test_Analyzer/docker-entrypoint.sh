@@ -7,9 +7,9 @@ export PATH="/app/.venv/bin:$PATH"
 # Render injects PORT (usually 10000). Langflow reads LANGFLOW_PORT env var.
 export LANGFLOW_PORT="${PORT:-7860}"
 export LANGFLOW_HOST="0.0.0.0"
-export LANGFLOW_AUTO_LOGIN="true"
-export LANGFLOW_SUPERUSER="langflow"
-export LANGFLOW_SUPERUSER_PASSWORD="langflow"
+export LANGFLOW_AUTO_LOGIN="false"
+export LANGFLOW_SUPERUSER="admin"
+# Password comes from HF Space secret — never hardcode credentials here
 
 echo "[startup] python  : $(which python3)"
 echo "[startup] langflow: $(which langflow 2>/dev/null || echo NOT FOUND)"
@@ -37,9 +37,10 @@ done
 
 if [ "$READY" -eq 1 ]; then
     # Auto-import the Flaky Test Analyzer flow on first boot
+    LF_PASS="${LANGFLOW_SUPERUSER_PASSWORD:-langflow}"
     TOKEN=$(curl -sf -X POST "http://localhost:$LANGFLOW_PORT/api/v1/login" \
         -H "Content-Type: application/x-www-form-urlencoded" \
-        -d "username=langflow&password=langflow" 2>/dev/null \
+        -d "username=admin&password=${LF_PASS}" 2>/dev/null \
         | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null || true)
 
     if [ -n "$TOKEN" ]; then

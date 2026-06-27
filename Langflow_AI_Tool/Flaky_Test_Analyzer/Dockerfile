@@ -10,9 +10,9 @@ COPY flaky_analyzer.langflow.json /app/flows/flaky_analyzer.langflow.json
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
-ENV LANGFLOW_AUTO_LOGIN=true
-ENV LANGFLOW_SUPERUSER=langflow
-ENV LANGFLOW_SUPERUSER_PASSWORD=langflow
+ENV LANGFLOW_AUTO_LOGIN=false
+ENV LANGFLOW_SUPERUSER=admin
+# LANGFLOW_SUPERUSER_PASSWORD must be set as a Secret in HF Space settings (never hardcode it)
 
 EXPOSE 7860
 
