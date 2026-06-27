@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bug-triage-ai/schemas/triage_output_schema.json",
+  "title": "Universal Bug Triage AI Output",
+  "description": "Structured triage decision produced by the LLM Intelligence Agent after analyzing canonical bug + risk + duplicate data.",
+  "type": "object",
+  "required": [
+    "severity", "priority", "risk_level", "confidence", "regression",
+    "root_cause_category", "root_cause_hypothesis",
+    "customer_impact", "customer_impact_description", "business_impact",
+    "duplicate_probability", "is_likely_duplicate", "related_issue_ids",
+    "recommended_owner", "suggested_labels",
+    "recommended_action", "action_rationale",
+    "estimated_fix_priority", "sla_breach_risk", "ai_notes"
+  ],
+  "properties": {
+    "severity": {
+      "type": "string",
+      "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+      "description": "Bug severity — impact scope and user harm"
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["P1", "P2", "P3", "P4"],
+      "description": "Fix priority: P1=<4h, P2=<24h, P3=<72h, P4=<1w"
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+      "description": "Overall business risk level"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "LLM confidence in this triage (≥0.80 = auto-action, <0.80 = human review)"
+    },
+    "regression": {
+      "type": "boolean",
+      "description": "Whether this is a regression from a previously working state"
+    },
+    "regression_introduced_by": {
+      "type": ["string", "null"],
+      "description": "Version, deploy, or commit that likely introduced the regression"
+    },
+    "root_cause_category": {
+      "type": "string",
+      "enum": [
+        "code_defect", "configuration_error", "infrastructure_failure",
+        "data_corruption", "dependency_issue", "race_condition",
+        "memory_leak", "security_flaw", "regression", "ui_ux_issue",
+        "integration_failure", "unknown"
+      ],
+      "description": "Classified root cause category"
+    },
+    "root_cause_hypothesis": {
+      "type": "string",
+      "minLength": 10,
+      "description": "1-2 sentence hypothesis of what went wrong"
+    },
+    "customer_impact": {
+      "type": "string",
+      "enum": ["High", "Medium", "Low"],
+      "description": "Impact level on end users"
+    },
+    "customer_impact_description": {
+      "type": "string",
+      "description": "Concise description of the user-facing impact"
+    },
+    "business_impact": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["Revenue", "Security", "Availability", "Data Integrity", "Compliance", "Operational", "Reputation"]
+      },
+      "description": "Business areas impacted"
+    },
+    "duplicate_probability": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Probability (0-1) that this is a duplicate of an existing issue"
+    },
+    "is_likely_duplicate": {
+      "type": "boolean",
+      "description": "true if duplicate_probability ≥ 0.75"
+    },
+    "related_issue_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "IDs of similar or duplicate issues found in historical knowledge base"
+    },
+    "recommended_owner": {
+      "type": "string",
+      "description": "Suggested team or individual owner with reasoning"
+    },
+    "suggested_labels": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 2,
+      "maxItems": 8,
+      "description": "Labels to apply to the bug ticket"
+    },
+    "recommended_action": {
+      "type": "string",
+      "enum": [
+        "AUTO_CLOSE_DUPLICATE",
+        "ASSIGN_AND_ESCALATE",
+        "ASSIGN_TO_TEAM",
+        "NEEDS_MORE_INFO",
+        "SECURITY_INCIDENT_RESPONSE",
+        "MARK_DUPLICATE"
+      ],
+      "description": "The recommended action to take"
+    },
+    "action_rationale": {
+      "type": "string",
+      "description": "1-2 sentence explanation of why this action was chosen"
+    },
+    "estimated_fix_priority": {
+      "type": "string",
+      "enum": [
+        "Immediate (<4h)",
+        "This Sprint (<24h)",
+        "Next Sprint (<72h)",
+        "Backlog"
+      ],
+      "description": "When this bug should be fixed"
+    },
+    "sla_breach_risk": {
+      "type": "boolean",
+      "description": "Whether the current timeline risks breaching SLA commitments"
+    },
+    "ai_notes": {
+      "type": "string",
+      "description": "Additional observations, caveats, or context for human reviewers"
+    }
+  },
+  "additionalProperties": false
+}

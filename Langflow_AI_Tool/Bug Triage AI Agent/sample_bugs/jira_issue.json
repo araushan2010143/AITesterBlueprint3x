@@ -1,0 +1,36 @@
+{
+  "id": "10045231",
+  "key": "AUTH-2341",
+  "self": "https://mycompany.atlassian.net/rest/api/2/issue/10045231",
+  "fields": {
+    "summary": "SSO login broken — SAML assertion validation fails for all enterprise customers",
+    "description": "**Problem:**\nAll enterprise customers using SSO (SAML 2.0) are unable to log in since the identity-service deployment at 09:00 UTC today.\n\nError observed: `SAML assertion signature validation failed: certificate mismatch`\n\n**Affected customers:** All ~340 enterprise SSO tenants (approx. 12,000 users)\n\n**Workaround:** None available. Password-based login works but SSO customers may not have passwords set.\n\n**Steps to reproduce:**\n1. Navigate to company login URL\n2. Select 'Sign in with SSO'\n3. Enter company domain\n4. Redirected to IdP, authenticate successfully\n5. Redirected back → 'Authentication failed'\n\n**Expected:** Successful login and redirect to dashboard.\n\n**Error from identity-service logs:**\n```\n[ERROR] SAMLValidator: Certificate fingerprint mismatch.\n  Expected: sha256:a1b2c3d4...\n  Got: sha256:e5f6g7h8...\n  Issuer: https://sso.enterprise-idp.com/saml/metadata\n```\n\n**Root cause hypothesis:** The identity-service deploy rotated or overrode the SAML signing certificate configuration.",
+    "issuetype": { "name": "Bug" },
+    "status": { "name": "In Progress" },
+    "priority": { "name": "Critical" },
+    "customfield_10300": { "value": "Critical" },
+    "assignee": { "displayName": "Sarah Chen", "emailAddress": "sarah.chen@mycompany.com" },
+    "reporter": { "displayName": "DevOps On-Call", "emailAddress": "oncall@mycompany.com" },
+    "labels": ["sso", "authentication", "enterprise", "regression", "production"],
+    "environment": "Production — EU and US regions",
+    "components": [{ "name": "Identity Service" }, { "name": "Auth Gateway" }],
+    "created": "2026-06-27T09:14:00.000+0000",
+    "updated": "2026-06-27T11:30:00.000+0000",
+    "comment": {
+      "comments": [
+        {
+          "author": { "displayName": "Sarah Chen" },
+          "body": "Confirmed: the deploy rolled the SAML cert config. Reverting identity-service to v3.1.4.",
+          "created": "2026-06-27T09:45:00.000+0000"
+        },
+        {
+          "author": { "displayName": "Customer Success" },
+          "body": "10 enterprise customers have raised tickets. SLA breach imminent for Tier-1 customers.",
+          "created": "2026-06-27T10:02:00.000+0000"
+        }
+      ]
+    },
+    "attachment": [],
+    "fixVersions": [{ "name": "23.7.1-hotfix" }]
+  }
+}

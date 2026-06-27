@@ -1,0 +1,473 @@
+{
+  "id": "bug-triage-ai-agent-v1",
+  "name": "Universal Bug Triage AI Agent",
+  "description": "Multi-tracker AI triage agent: Jira, GitHub, Azure DevOps, GitLab, Linear, YouTrack. Normalizes → Risk Scores → Deduplicates → LLM Analyzes → Routes to auto-action or human review.",
+  "data": {
+    "nodes": [
+      {
+        "id": "node-input-bug",
+        "type": "CustomComponent",
+        "position": { "x": 80, "y": 300 },
+        "data": {
+          "type": "CustomComponent",
+          "node": {
+            "template": {
+              "code": {
+                "type": "code",
+                "value": "# Paste BugConnectorNormalizer.py content here or load via components-path"
+              },
+              "raw_input": {
+                "display_name": "Raw Bug Input",
+                "type": "str",
+                "value": "",
+                "info": "Paste raw bug JSON from any tracker"
+              }
+            },
+            "display_name": "Bug Connector & Normalizer",
+            "description": "Detects tracker and normalizes to canonical schema",
+            "base_classes": ["Message"]
+          }
+        }
+      },
+      {
+        "id": "node-knowledge-base",
+        "type": "TextInput",
+        "position": { "x": 80, "y": 600 },
+        "data": {
+          "type": "TextInput",
+          "node": {
+            "template": {
+              "input_value": {
+                "display_name": "Historical Bugs Knowledge Base",
+                "type": "str",
+                "value": "",
+                "info": "Paste contents of knowledge_base/historical_bugs.json here"
+              }
+            },
+            "display_name": "Knowledge Base Input",
+            "base_classes": ["Message"]
+          }
+        }
+      },
+      {
+        "id": "node-risk-scorer",
+        "type": "CustomComponent",
+        "position": { "x": 500, "y": 180 },
+        "data": {
+          "type": "CustomComponent",
+          "node": {
+            "template": {
+              "code": {
+                "type": "code",
+                "value": "# RiskScoringEngine.py"
+              },
+              "canonical_bug": {
+                "display_name": "Canonical Bug JSON",
+                "type": "str",
+                "value": ""
+              }
+            },
+            "display_name": "Risk Scoring Engine",
+            "description": "Deterministic rule-based risk scoring",
+            "base_classes": ["Message"]
+          }
+        }
+      },
+      {
+        "id": "node-duplicate-detector",
+        "type": "CustomComponent",
+        "position": { "x": 500, "y": 480 },
+        "data": {
+          "type": "CustomComponent",
+          "node": {
+            "template": {
+              "code": {
+                "type": "code",
+                "value": "# DuplicateDetector.py"
+              },
+              "canonical_bug": {
+                "display_name": "Canonical Bug JSON",
+                "type": "str",
+                "value": ""
+              },
+              "knowledge_base": {
+                "display_name": "Historical Bugs Knowledge Base (JSON)",
+                "type": "str",
+                "value": ""
+              }
+            },
+            "display_name": "Duplicate Detector",
+            "description": "TF-IDF RAG-lite duplicate detection",
+            "base_classes": ["Message"]
+          }
+        }
+      },
+      {
+        "id": "node-prompt-builder",
+        "type": "PromptComponent",
+        "position": { "x": 920, "y": 300 },
+        "data": {
+          "type": "PromptComponent",
+          "node": {
+            "template": {
+              "template": {
+                "display_name": "Prompt Template",
+                "type": "prompt",
+                "value": "You are an expert Bug Triage AI Agent.\n\nAnalyze the following structured data and return a single JSON triage decision.\n\n## CANONICAL BUG\n{canonical_bug}\n\n## RISK REPORT (deterministic rule-based)\n{risk_report}\n\n## DUPLICATE DETECTION REPORT\n{duplicate_report}\n\n## INSTRUCTIONS\nReturn ONLY a valid JSON object with these exact keys:\n- severity: CRITICAL|HIGH|MEDIUM|LOW\n- priority: P1|P2|P3|P4\n- risk_level: CRITICAL|HIGH|MEDIUM|LOW\n- confidence: 0.0 to 1.0\n- regression: true|false\n- regression_introduced_by: string or null\n- root_cause_category: code_defect|configuration_error|infrastructure_failure|data_corruption|dependency_issue|race_condition|memory_leak|security_flaw|regression|ui_ux_issue|integration_failure|unknown\n- root_cause_hypothesis: 1-2 sentence hypothesis\n- customer_impact: High|Medium|Low\n- customer_impact_description: concise user impact\n- business_impact: array of Revenue|Security|Availability|Data Integrity|Compliance|Operational\n- duplicate_probability: 0.0 to 1.0\n- is_likely_duplicate: true|false\n- related_issue_ids: array of strings\n- recommended_owner: team or role with reasoning\n- suggested_labels: array of 3-6 labels\n- recommended_action: AUTO_CLOSE_DUPLICATE|ASSIGN_AND_ESCALATE|ASSIGN_TO_TEAM|NEEDS_MORE_INFO|SECURITY_INCIDENT_RESPONSE|MARK_DUPLICATE\n- action_rationale: 1-2 sentences\n- estimated_fix_priority: Immediate (<4h)|This Sprint (<24h)|Next Sprint (<72h)|Backlog\n- sla_breach_risk: true|false\n- ai_notes: additional observations\n\nNo markdown. No explanation. JSON only."
+              },
+              "canonical_bug": {
+                "display_name": "Canonical Bug",
+                "type": "str",
+                "value": "",
+                "field_type": "Message"
+              },
+              "risk_report": {
+                "display_name": "Risk Report",
+                "type": "str",
+                "value": "",
+                "field_type": "Message"
+              },
+              "duplicate_report": {
+                "display_name": "Duplicate Report",
+                "type": "str",
+                "value": "",
+                "field_type": "Message"
+              }
+            },
+            "display_name": "Bug Intelligence Prompt",
+            "base_classes": ["Message"]
+          }
+        }
+      },
+      {
+        "id": "node-groq-llm",
+        "type": "ChatOpenAI",
+        "position": { "x": 1340, "y": 300 },
+        "data": {
+          "type": "ChatOpenAI",
+          "node": {
+            "template": {
+              "openai_api_base": {
+                "display_name": "Base URL",
+                "type": "str",
+                "value": "https://api.groq.com/openai/v1"
+              },
+              "openai_api_key": {
+                "display_name": "Groq API Key",
+                "type": "str",
+                "value": "",
+                "password": true
+              },
+              "model_name": {
+                "display_name": "Model",
+                "type": "str",
+                "value": "llama-3.3-70b-versatile"
+              },
+              "temperature": {
+                "display_name": "Temperature",
+                "type": "float",
+                "value": 0.1
+              },
+              "max_tokens": {
+                "display_name": "Max Tokens",
+                "type": "int",
+                "value": 2048
+              }
+            },
+            "display_name": "Groq LLM (llama-3.3-70b)",
+            "description": "Fast LLM inference via Groq",
+            "base_classes": ["LanguageModel"]
+          }
+        }
+      },
+      {
+        "id": "node-llm-chain",
+        "type": "LLMChain",
+        "position": { "x": 1340, "y": 480 },
+        "data": {
+          "type": "LLMChain",
+          "node": {
+            "template": {
+              "llm": {
+                "display_name": "LLM",
+                "type": "BaseLanguageModel",
+                "value": ""
+              },
+              "prompt": {
+                "display_name": "Prompt",
+                "type": "BasePromptTemplate",
+                "value": ""
+              }
+            },
+            "display_name": "LLM Intelligence Chain",
+            "base_classes": ["Chain", "BaseCustomChain", "LLMChain"]
+          }
+        }
+      },
+      {
+        "id": "node-confidence-router",
+        "type": "CustomComponent",
+        "position": { "x": 1760, "y": 300 },
+        "data": {
+          "type": "CustomComponent",
+          "node": {
+            "template": {
+              "code": {
+                "type": "code",
+                "value": "# ConfidenceRouter.py"
+              },
+              "triage_result": {
+                "display_name": "LLM Triage JSON",
+                "type": "str",
+                "value": ""
+              },
+              "canonical_bug": {
+                "display_name": "Canonical Bug JSON",
+                "type": "str",
+                "value": ""
+              }
+            },
+            "display_name": "Confidence Router",
+            "description": "Routes to AUTO_ACTION or HUMAN_REVIEW based on confidence score",
+            "base_classes": ["Message"]
+          }
+        }
+      },
+      {
+        "id": "node-output",
+        "type": "ChatOutput",
+        "position": { "x": 2180, "y": 300 },
+        "data": {
+          "type": "ChatOutput",
+          "node": {
+            "template": {
+              "input_value": {
+                "display_name": "Routing Decision",
+                "type": "str",
+                "value": ""
+              },
+              "sender_name": {
+                "display_name": "Sender",
+                "type": "str",
+                "value": "Bug Triage AI"
+              }
+            },
+            "display_name": "Final Triage Decision",
+            "base_classes": ["Message"]
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-normalizer-to-risk",
+        "source": "node-input-bug",
+        "target": "node-risk-scorer",
+        "data": {
+          "sourceHandle": {
+            "dataType": "CustomComponent",
+            "id": "node-input-bug",
+            "name": "normalized_bug",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "canonical_bug",
+            "id": "node-risk-scorer",
+            "inputTypes": ["Message"],
+            "type": "str"
+          }
+        }
+      },
+      {
+        "id": "edge-normalizer-to-dedup",
+        "source": "node-input-bug",
+        "target": "node-duplicate-detector",
+        "data": {
+          "sourceHandle": {
+            "dataType": "CustomComponent",
+            "id": "node-input-bug",
+            "name": "normalized_bug",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "canonical_bug",
+            "id": "node-duplicate-detector",
+            "inputTypes": ["Message"],
+            "type": "str"
+          }
+        }
+      },
+      {
+        "id": "edge-kb-to-dedup",
+        "source": "node-knowledge-base",
+        "target": "node-duplicate-detector",
+        "data": {
+          "sourceHandle": {
+            "dataType": "TextInput",
+            "id": "node-knowledge-base",
+            "name": "text",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "knowledge_base",
+            "id": "node-duplicate-detector",
+            "inputTypes": ["Message"],
+            "type": "str"
+          }
+        }
+      },
+      {
+        "id": "edge-normalizer-to-prompt",
+        "source": "node-input-bug",
+        "target": "node-prompt-builder",
+        "data": {
+          "sourceHandle": {
+            "dataType": "CustomComponent",
+            "id": "node-input-bug",
+            "name": "normalized_bug",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "canonical_bug",
+            "id": "node-prompt-builder",
+            "inputTypes": ["Message"],
+            "type": "str"
+          }
+        }
+      },
+      {
+        "id": "edge-risk-to-prompt",
+        "source": "node-risk-scorer",
+        "target": "node-prompt-builder",
+        "data": {
+          "sourceHandle": {
+            "dataType": "CustomComponent",
+            "id": "node-risk-scorer",
+            "name": "risk_report",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "risk_report",
+            "id": "node-prompt-builder",
+            "inputTypes": ["Message"],
+            "type": "str"
+          }
+        }
+      },
+      {
+        "id": "edge-dedup-to-prompt",
+        "source": "node-duplicate-detector",
+        "target": "node-prompt-builder",
+        "data": {
+          "sourceHandle": {
+            "dataType": "CustomComponent",
+            "id": "node-duplicate-detector",
+            "name": "similar_bugs",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "duplicate_report",
+            "id": "node-prompt-builder",
+            "inputTypes": ["Message"],
+            "type": "str"
+          }
+        }
+      },
+      {
+        "id": "edge-prompt-to-chain",
+        "source": "node-prompt-builder",
+        "target": "node-llm-chain",
+        "data": {
+          "sourceHandle": {
+            "dataType": "PromptComponent",
+            "id": "node-prompt-builder",
+            "name": "prompt",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "prompt",
+            "id": "node-llm-chain",
+            "inputTypes": ["BasePromptTemplate"],
+            "type": "BasePromptTemplate"
+          }
+        }
+      },
+      {
+        "id": "edge-llm-to-chain",
+        "source": "node-groq-llm",
+        "target": "node-llm-chain",
+        "data": {
+          "sourceHandle": {
+            "dataType": "ChatOpenAI",
+            "id": "node-groq-llm",
+            "name": "model",
+            "output_types": ["BaseLanguageModel"]
+          },
+          "targetHandle": {
+            "fieldName": "llm",
+            "id": "node-llm-chain",
+            "inputTypes": ["BaseLanguageModel"],
+            "type": "BaseLanguageModel"
+          }
+        }
+      },
+      {
+        "id": "edge-chain-to-router",
+        "source": "node-llm-chain",
+        "target": "node-confidence-router",
+        "data": {
+          "sourceHandle": {
+            "dataType": "LLMChain",
+            "id": "node-llm-chain",
+            "name": "text",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "triage_result",
+            "id": "node-confidence-router",
+            "inputTypes": ["Message"],
+            "type": "str"
+          }
+        }
+      },
+      {
+        "id": "edge-normalizer-to-router",
+        "source": "node-input-bug",
+        "target": "node-confidence-router",
+        "data": {
+          "sourceHandle": {
+            "dataType": "CustomComponent",
+            "id": "node-input-bug",
+            "name": "normalized_bug",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "canonical_bug",
+            "id": "node-confidence-router",
+            "inputTypes": ["Message"],
+            "type": "str"
+          }
+        }
+      },
+      {
+        "id": "edge-router-to-output",
+        "source": "node-confidence-router",
+        "target": "node-output",
+        "data": {
+          "sourceHandle": {
+            "dataType": "CustomComponent",
+            "id": "node-confidence-router",
+            "name": "decision",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "input_value",
+            "id": "node-output",
+            "inputTypes": ["Message"],
+            "type": "str"
+          }
+        }
+      }
+    ]
+  }
+}
