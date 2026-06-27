@@ -2,7 +2,7 @@ from langflow.custom import Component
 from langflow.inputs import MessageTextInput
 from langflow.template import Output
 from langflow.schema.message import Message
-import json, math, re, urllib.request, urllib.error
+import json, math, re, urllib.request, urllib.error, os
 from collections import Counter
 
 
@@ -276,7 +276,8 @@ class BugTriagePipeline(Component):
 
     def run_pipeline(self) -> Message:
         raw = self.raw_bug_input or ""
-        api_key = self.groq_api_key or ""
+        # Input field takes priority; fall back to GROQ_API_KEY env var (set in HF Space secrets)
+        api_key = self.groq_api_key or os.environ.get("GROQ_API_KEY", "")
 
         # Parse input
         try:
@@ -285,7 +286,7 @@ class BugTriagePipeline(Component):
             return Message(text=json.dumps({"error":f"Invalid JSON: {e}","tip":"Paste a valid bug JSON from any tracker."},indent=2))
 
         if not api_key:
-            return Message(text=json.dumps({"error":"Groq API key is required. Set it in the component inputs."},indent=2))
+            return Message(text=json.dumps({"error":"Groq API key not found. Add GROQ_API_KEY to HF Space secrets (Settings → Repository secrets) or paste it in the Groq API Key field."},indent=2))
 
         # Step 1 — Normalize
         canonical = self._normalize(data, raw)
