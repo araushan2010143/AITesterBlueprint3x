@@ -2,11 +2,12 @@ FROM langflowai/langflow:latest
 
 USER root
 
-# Copy all 4 custom components to a temp staging area
+# Copy all 5 custom components to a temp staging area
 COPY components/BugConnectorNormalizer.py /tmp/bug_connector_normalizer_src.py
 COPY components/RiskScoringEngine.py      /tmp/risk_scoring_engine_src.py
 COPY components/DuplicateDetector.py      /tmp/duplicate_detector_src.py
 COPY components/ConfidenceRouter.py       /tmp/confidence_router_src.py
+COPY components/BugTriagePipeline.py      /tmp/bug_triage_pipeline_src.py
 
 # Run setup: normalizes langflow/lfx imports and writes to /app/custom_components/
 COPY setup.py /tmp/setup.py

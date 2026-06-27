@@ -12,6 +12,7 @@ components = [
     ("RiskScoringEngine",      "/tmp/risk_scoring_engine_src.py",      "risk_scoring_engine.py"),
     ("DuplicateDetector",      "/tmp/duplicate_detector_src.py",       "duplicate_detector.py"),
     ("ConfidenceRouter",       "/tmp/confidence_router_src.py",        "confidence_router.py"),
+    ("BugTriagePipeline",      "/tmp/bug_triage_pipeline_src.py",      "bug_triage_pipeline.py"),
 ]
 
 for name, src_path, dest_name in components:
