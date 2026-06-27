@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  flaky-analyzer:
+    build: .
+    ports:
+      - "7860:7860"
+    environment:
+      - LANGFLOW_AUTO_LOGIN=true
+      - LANGFLOW_SUPERUSER=langflow
+      - LANGFLOW_SUPERUSER_PASSWORD=langflow
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+    volumes:
+      - langflow_data:/app/langflow
+    restart: unless-stopped
+
+volumes:
+  langflow_data:

@@ -4,6 +4,26 @@ Compares two Playwright JSON test runs, detects flaky / consistent-failure / ret
 
 ---
 
+## Deploy (one command)
+
+```bash
+# Clone and run — flow auto-imports on first boot
+git clone https://github.com/araushan2010143/AITesterBlueprint3x.git
+cd AITesterBlueprint3x/Langflow_AI_Tool/Flaky_Test_Analyzer
+GROQ_API_KEY=gsk_your_key_here docker-compose up
+# Open http://localhost:7860
+```
+
+**Cloud options (free tiers):**
+
+| Platform | How |
+|----------|-----|
+| **Render** | New Web Service → Docker → repo `araushan2010143/AITesterBlueprint3x` → Root dir `Langflow_AI_Tool/Flaky_Test_Analyzer` → Add env var `GROQ_API_KEY` |
+| **Railway** | New Project → Deploy from GitHub → same repo/path → add `GROQ_API_KEY` env var |
+| **HuggingFace Spaces** | New Space → Docker SDK → paste Dockerfile contents → add `GROQ_API_KEY` secret |
+
+---
+
 ## Architecture
 
 ```
