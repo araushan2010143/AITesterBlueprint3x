@@ -8,6 +8,7 @@ export PATH="/app/.venv/bin:$PATH"
 export LANGFLOW_PORT="${PORT:-7860}"
 export LANGFLOW_HOST="0.0.0.0"
 export LANGFLOW_AUTO_LOGIN="true"
+export LANGFLOW_SKIP_AUTH_AUTO_LOGIN="true"
 export LANGFLOW_SUPERUSER="langflow"
 export LANGFLOW_SUPERUSER_PASSWORD="langflow"
 

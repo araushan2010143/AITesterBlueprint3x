@@ -11,6 +11,7 @@ COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
 ENV LANGFLOW_AUTO_LOGIN=true
+ENV LANGFLOW_SKIP_AUTH_AUTO_LOGIN=true
 ENV LANGFLOW_SUPERUSER=langflow
 ENV LANGFLOW_SUPERUSER_PASSWORD=langflow
 
