@@ -19,6 +19,7 @@ echo "[startup] port    : $LANGFLOW_PORT"
 python3 -m langflow run \
     --host "$LANGFLOW_HOST" \
     --port "$LANGFLOW_PORT" \
+    --components-path /app/custom_components \
     --workers 1 &
 LF_PID=$!
 
