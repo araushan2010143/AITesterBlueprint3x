@@ -1,0 +1,57 @@
+{
+  "build": "build-2",
+  "timestamp": "2026-06-26T11:30:00Z",
+  "tests": [
+    {
+      "title": "Login Test",
+      "status": "passed",
+      "retries": 0,
+      "duration": 2000
+    },
+    {
+      "title": "Checkout Test",
+      "status": "failed",
+      "retries": 0,
+      "duration": 3600,
+      "error": "Payment API timeout after 3000ms"
+    },
+    {
+      "title": "Search Test",
+      "status": "failed",
+      "retries": 0,
+      "duration": 1600,
+      "error": "TimeoutError: locator('.search-results') waited 5000ms"
+    },
+    {
+      "title": "Profile Update Test",
+      "status": "passed",
+      "retries": 0,
+      "duration": 1800
+    },
+    {
+      "title": "Logout Test",
+      "status": "passed",
+      "retries": 0,
+      "duration": 900
+    },
+    {
+      "title": "Add to Cart Test",
+      "status": "passed",
+      "retries": 0,
+      "duration": 1100
+    },
+    {
+      "title": "Filter Products Test",
+      "status": "failed",
+      "retries": 0,
+      "duration": 2100,
+      "error": "AssertionError: expected 12 items but received 0"
+    },
+    {
+      "title": "Image Upload Test",
+      "status": "passed",
+      "retries": 1,
+      "duration": 3800
+    }
+  ]
+}

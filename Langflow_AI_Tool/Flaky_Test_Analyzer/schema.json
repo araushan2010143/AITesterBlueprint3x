@@ -1,0 +1,105 @@
+{
+  "type": "object",
+  "properties": {
+    "flaky_tests": {
+      "type": "array",
+      "description": "Tests whose pass/fail status changed between the two builds.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "root_cause_hypothesis": { "type": "string" },
+          "recommendation": { "type": "string" }
+        },
+        "required": ["title", "root_cause_hypothesis", "recommendation"]
+      }
+    },
+    "retry_only_flaky": {
+      "type": "array",
+      "description": "Tests that passed in both builds but only after retries.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "recommendation": { "type": "string" }
+        },
+        "required": ["title", "recommendation"]
+      }
+    },
+    "consistent_failures": {
+      "type": "array",
+      "description": "Tests that failed in both builds — genuine bugs, not flakiness.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "error_summary": { "type": "string" },
+          "recommendation": { "type": "string" }
+        },
+        "required": ["title", "error_summary", "recommendation"]
+      }
+    },
+    "stable_tests": {
+      "type": "array",
+      "description": "Tests that passed cleanly in both builds with no retries.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rerun_recommendation": {
+      "type": "string",
+      "description": "Should the CI pipeline rerun tests? Which ones and why?"
+    },
+    "priority_fix_list": {
+      "type": "array",
+      "description": "All issues ranked from highest to lowest priority.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rank": { "type": "integer" },
+          "test_title": { "type": "string" },
+          "issue_type": {
+            "type": "string",
+            "enum": ["consistent_failure", "flaky", "retry_only_flaky"]
+          },
+          "justification": { "type": "string" }
+        },
+        "required": ["rank", "test_title", "issue_type", "justification"]
+      }
+    },
+    "overall_health_score": {
+      "type": "string",
+      "enum": ["CRITICAL", "UNSTABLE", "DEGRADED", "HEALTHY"],
+      "description": "Overall stability rating of the test suite."
+    },
+    "health_score_reason": {
+      "type": "string",
+      "description": "One sentence explaining the health score."
+    },
+    "flaky_count": {
+      "type": "integer",
+      "description": "Number of flaky tests detected."
+    },
+    "consistent_failure_count": {
+      "type": "integer",
+      "description": "Number of consistent failures detected."
+    },
+    "summary": {
+      "type": "string",
+      "description": "2-3 sentence executive summary of the test run comparison for stakeholders."
+    }
+  },
+  "required": [
+    "flaky_tests",
+    "retry_only_flaky",
+    "consistent_failures",
+    "stable_tests",
+    "rerun_recommendation",
+    "priority_fix_list",
+    "overall_health_score",
+    "health_score_reason",
+    "flaky_count",
+    "consistent_failure_count",
+    "summary"
+  ]
+}
