@@ -19,7 +19,7 @@ echo "[startup] port    : $LANGFLOW_PORT"
 python3 -m langflow run \
     --host "$LANGFLOW_HOST" \
     --port "$LANGFLOW_PORT" \
-    --no-open-browser &
+    --workers 1 &
 LF_PID=$!
 
 # Wait up to 3 minutes for the health endpoint to respond
