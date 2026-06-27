@@ -9,7 +9,8 @@ export LANGFLOW_PORT="${PORT:-7860}"
 export LANGFLOW_HOST="0.0.0.0"
 export LANGFLOW_AUTO_LOGIN="false"
 export LANGFLOW_SUPERUSER="admin"
-# Password comes from HF Space secret — never hardcode credentials here
+# Use HF secret if set, otherwise fall back to default (change via HF secret for security)
+export LANGFLOW_SUPERUSER_PASSWORD="${LANGFLOW_SUPERUSER_PASSWORD:-FlakeyAI@2026}"
 
 echo "[startup] python  : $(which python3)"
 echo "[startup] langflow: $(which langflow 2>/dev/null || echo NOT FOUND)"
@@ -37,10 +38,9 @@ done
 
 if [ "$READY" -eq 1 ]; then
     # Auto-import the Flaky Test Analyzer flow on first boot
-    LF_PASS="${LANGFLOW_SUPERUSER_PASSWORD:-langflow}"
     TOKEN=$(curl -sf -X POST "http://localhost:$LANGFLOW_PORT/api/v1/login" \
         -H "Content-Type: application/x-www-form-urlencoded" \
-        -d "username=admin&password=${LF_PASS}" 2>/dev/null \
+        -d "username=admin&password=${LANGFLOW_SUPERUSER_PASSWORD}" 2>/dev/null \
         | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null || true)
 
     if [ -n "$TOKEN" ]; then
