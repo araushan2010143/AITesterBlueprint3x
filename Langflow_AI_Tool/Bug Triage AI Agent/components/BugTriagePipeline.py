@@ -347,17 +347,53 @@ Return ONLY this JSON (no markdown, no explanation):
         # Step 5 — Route
         routing = self._route(triage, canonical)
 
-        # Final output
+        # Final output — compact view to avoid Langflow UI overflow
+        conf = triage.get("confidence", 0.0)
         result = {
-            "bug_id":    canonical.get("bug_id"),
-            "tracker":   canonical.get("tracker"),
-            "title":     canonical.get("title","")[:100],
-            "canonical_bug":   canonical,
-            "risk_report":     risk,
-            "duplicate_report": dup,
-            "triage":    triage,
-            "routing":   routing,
+            "═══ BUG TRIAGE DECISION ═══": None,
+            "bug_id":              canonical.get("bug_id"),
+            "tracker":             canonical.get("tracker"),
+            "title":               canonical.get("title","")[:120],
+            "═══ AI TRIAGE ═══": None,
+            "severity":            triage.get("severity", "?"),
+            "priority":            triage.get("priority", "?"),
+            "confidence":          f"{conf:.0%}",
+            "regression":          triage.get("regression", False),
+            "regression_by":       triage.get("regression_introduced_by"),
+            "root_cause_category": triage.get("root_cause_category"),
+            "root_cause":          triage.get("root_cause_hypothesis"),
+            "customer_impact":     triage.get("customer_impact"),
+            "business_impact":     triage.get("business_impact", []),
+            "recommended_owner":   triage.get("recommended_owner"),
+            "suggested_labels":    triage.get("suggested_labels", []),
+            "recommended_action":  triage.get("recommended_action"),
+            "action_rationale":    triage.get("action_rationale"),
+            "fix_priority":        triage.get("estimated_fix_priority"),
+            "sla_breach_risk":     triage.get("sla_breach_risk"),
+            "ai_notes":            triage.get("ai_notes"),
+            "═══ ROUTING ═══": None,
+            "routing":             routing.get("routing"),
+            "review_reason":       routing.get("review_reason"),
+            "auto_actions":        routing.get("auto_actions", []),
+            "═══ RISK SCORE ═══": None,
+            "risk_score":          risk.get("risk_score"),
+            "rule_based_priority": risk.get("rule_based_priority"),
+            "is_regression":       risk.get("is_regression"),
+            "sla_hours":           risk.get("sla_hours"),
+            "triggered_rules":     risk.get("triggered_rules", []),
+            "═══ DUPLICATES ═══": None,
+            "duplicate_probability": dup.get("duplicate_probability"),
+            "is_likely_duplicate": dup.get("is_likely_duplicate"),
+            "similar_incidents":   [
+                {"id": s["bug_id"], "sim": s["similarity"], "title": s["title"][:60]}
+                for s in dup.get("similar_incidents", [])[:3]
+            ],
         }
+        # Remove section headers (None values) for clean JSON
+        result = {k: v for k, v in result.items() if v is not None or k.startswith("═")}
 
-        self.status = f"{routing.get('routing')} | {triage.get('severity','?')}/{triage.get('priority','?')} | conf={triage.get('confidence',0):.0%}"
-        return Message(text=json.dumps(result, indent=2, default=str))
+        self.status = f"{routing.get('routing')} | {triage.get('severity','?')}/{triage.get('priority','?')} | conf={conf:.0%}"
+        try:
+            return Message(text=json.dumps(result, indent=2, default=str))
+        except Exception as e:
+            return Message(text=json.dumps({"error": str(e), "severity": triage.get("severity"), "priority": triage.get("priority")}, indent=2))
