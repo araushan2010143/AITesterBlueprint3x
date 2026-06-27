@@ -1,5 +1,5 @@
 from langflow.custom import Component
-from langflow.inputs import MessageTextInput, SecretStrInput
+from langflow.inputs import MessageTextInput
 from langflow.template import Output
 from langflow.schema.message import Message
 import json, math, re, urllib.request, urllib.error
@@ -28,10 +28,11 @@ class BugTriagePipeline(Component):
             info='Paste contents of knowledge_base/historical_bugs.json here, or leave empty to skip duplicate detection.',
             value="",
         ),
-        SecretStrInput(
+        MessageTextInput(
             name="groq_api_key",
             display_name="Groq API Key",
-            info="Your Groq API key from console.groq.com",
+            info="Your Groq API key from console.groq.com (gsk_...)",
+            value="",
         ),
         MessageTextInput(
             name="groq_model",
@@ -177,12 +178,20 @@ class BugTriagePipeline(Component):
         if any(h in bug.get("component","").lower() for h in self.HIGH_COMP): score+=7; evidence.append("High-risk component (+7)")
         score = min(score, 100)
         p = "P1" if score>=75 else ("P2" if score>=55 else ("P3" if score>=35 else "P4"))
-        return {"rule_based_priority":p,"risk_score":score,"is_regression":bool(rgh),
-                "business_impact":([("Revenue Loss" if rh else None),("Security Risk" if sh else None),
-                                    ("Service Availability" if ih else None),("Data Integrity" if dh else None)].__class__(filter(None,[
-                                    "Revenue Loss" if rh else None,"Security Risk" if sh else None,
-                                    "Service Availability" if ih else None,"Data Integrity" if dh else None])) or ["Operational"],
-                "triggered_rules":evidence, "sla_hours":{"P1":4,"P2":24,"P3":72,"P4":168}[p]}
+        biz = [x for x in [
+            "Revenue Loss" if rh else None,
+            "Security Risk" if sh else None,
+            "Service Availability" if ih else None,
+            "Data Integrity" if dh else None,
+        ] if x] or ["Operational"]
+        return {
+            "rule_based_priority": p,
+            "risk_score": score,
+            "is_regression": bool(rgh),
+            "business_impact": biz,
+            "triggered_rules": evidence,
+            "sla_hours": {"P1":4,"P2":24,"P3":72,"P4":168}[p],
+        }
 
     # ── Step 3: Duplicate Detection ───────────────────────────────────────────
 
