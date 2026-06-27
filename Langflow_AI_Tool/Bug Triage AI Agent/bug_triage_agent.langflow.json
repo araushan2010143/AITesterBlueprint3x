@@ -1,564 +1,832 @@
 {
-  "id": "df3a4612-208a-4725-a60a-50ee7f74b088",
-  "name": "Universal Bug Triage AI Agent",
-  "description": "Multi-tracker AI triage agent: Jira, GitHub, Azure DevOps, GitLab, Linear, YouTrack. Normalizes \u2192 Risk Scores \u2192 Deduplicates \u2192 LLM Analyzes \u2192 Routes to auto-action or human review.",
+  "name": "Bug Triage AI Agent",
+  "description": "Universal bug triage \u2014 paste raw JSON from Jira, GitHub, Azure DevOps, GitLab, Linear or YouTrack",
   "data": {
     "nodes": [
       {
-        "id": "node-input-bug",
-        "type": "CustomComponent",
+        "id": "ChatInput-68077",
+        "type": "genericNode",
         "position": {
-          "x": 80,
+          "x": 100,
           "y": 300
         },
         "data": {
-          "type": "CustomComponent",
+          "type": "ChatInput",
           "node": {
-            "template": {
-              "code": {
-                "type": "code",
-                "value": "# Paste BugConnectorNormalizer.py content here or load via components-path"
-              },
-              "raw_input": {
-                "display_name": "Raw Bug Input",
-                "type": "str",
-                "value": "",
-                "info": "Paste raw bug JSON from any tracker"
-              }
-            },
-            "display_name": "Bug Connector & Normalizer",
-            "description": "Detects tracker and normalizes to canonical schema",
             "base_classes": [
               "Message"
-            ]
-          }
-        }
-      },
-      {
-        "id": "node-knowledge-base",
-        "type": "TextInput",
-        "position": {
-          "x": 80,
-          "y": 600
-        },
-        "data": {
-          "type": "TextInput",
-          "node": {
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Get chat inputs from the Playground.",
+            "display_name": "Chat Input",
+            "documentation": "https://docs.langflow.org/chat-input-and-output",
+            "edited": false,
+            "field_order": [
+              "input_value",
+              "should_store_message",
+              "sender",
+              "sender_name",
+              "session_id",
+              "context_id",
+              "files"
+            ],
+            "frozen": false,
+            "icon": "MessagesSquare",
+            "legacy": false,
+            "metadata": {
+              "code_hash": "7a26c54d89ed",
+              "dependencies": {
+                "dependencies": [
+                  {
+                    "name": "lfx",
+                    "version": null
+                  }
+                ],
+                "total_dependencies": 1
+              },
+              "module": "lfx.components.input_output.chat.ChatInput"
+            },
+            "minimized": true,
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "Chat Message",
+                "group_outputs": false,
+                "method": "message_response",
+                "name": "message",
+                "selected": "Message",
+                "tool_mode": true,
+                "types": [
+                  "Message"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
             "template": {
+              "_type": "Component",
+              "code": {
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "type": "code",
+                "value": "from lfx.base.data.utils import IMG_FILE_TYPES, TEXT_FILE_TYPES\nfrom lfx.base.io.chat import ChatComponent\nfrom lfx.inputs.inputs import BoolInput\nfrom lfx.io import (\n    DropdownInput,\n    FileInput,\n    MessageTextInput,\n    MultilineInput,\n    Output,\n)\nfrom lfx.schema.message import Message\nfrom lfx.utils.constants import (\n    MESSAGE_SENDER_AI,\n    MESSAGE_SENDER_NAME_USER,\n    MESSAGE_SENDER_USER,\n)\n\n\nclass ChatInput(ChatComponent):\n    display_name = \"Chat Input\"\n    description = \"Get chat inputs from the Playground.\"\n    documentation: str = \"https://docs.langflow.org/chat-input-and-output\"\n    icon = \"MessagesSquare\"\n    name = \"ChatInput\"\n    minimized = True\n\n    inputs = [\n        MultilineInput(\n            name=\"input_value\",\n            display_name=\"Input Text\",\n            value=\"\",\n            info=\"Message to be passed as input.\",\n            input_types=[],\n        ),\n        BoolInput(\n            name=\"should_store_message\",\n            display_name=\"Store Messages\",\n            info=\"Store the message in the history.\",\n            value=True,\n            advanced=True,\n        ),\n        DropdownInput(\n            name=\"sender\",\n            display_name=\"Sender Type\",\n            options=[MESSAGE_SENDER_AI, MESSAGE_SENDER_USER],\n            value=MESSAGE_SENDER_USER,\n            info=\"Type of sender.\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"sender_name\",\n            display_name=\"Sender Name\",\n            info=\"Name of the sender.\",\n            value=MESSAGE_SENDER_NAME_USER,\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"session_id\",\n            display_name=\"Session ID\",\n            info=\"The session ID of the chat. If empty, the current session ID parameter will be used.\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"context_id\",\n            display_name=\"Context ID\",\n            info=\"The context ID of the chat. Adds an extra layer to the local memory.\",\n            value=\"\",\n            advanced=True,\n        ),\n        FileInput(\n            name=\"files\",\n            display_name=\"Files\",\n            file_types=TEXT_FILE_TYPES + IMG_FILE_TYPES,\n            info=\"Files to be sent with the message.\",\n            advanced=True,\n            is_list=True,\n            temp_file=True,\n        ),\n    ]\n    outputs = [\n        Output(display_name=\"Chat Message\", name=\"message\", method=\"message_response\"),\n    ]\n\n    async def message_response(self) -> Message:\n        # Ensure files is a list and filter out empty/None values\n        files = self.files if self.files else []\n        if files and not isinstance(files, list):\n            files = [files]\n        # Filter out None/empty values\n        files = [f for f in files if f is not None and f != \"\"]\n\n        session_id = self.session_id or self.graph.session_id or \"\"\n        message = await Message.create(\n            text=self.input_value,\n            sender=self.sender,\n            sender_name=self.sender_name,\n            session_id=session_id,\n            context_id=self.context_id,\n            files=files,\n        )\n        if session_id and isinstance(message, Message) and self.should_store_message:\n            stored_message = await self.send_message(\n                message,\n            )\n            self.message.value = stored_message\n            message = stored_message\n\n        self.status = message\n        return message\n"
+              },
+              "context_id": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Context ID",
+                "dynamic": false,
+                "info": "The context ID of the chat. Adds an extra layer to the local memory.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "context_id",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": ""
+              },
+              "files": {
+                "_input_type": "FileInput",
+                "advanced": true,
+                "display_name": "Files",
+                "dynamic": false,
+                "fileTypes": [
+                  "csv",
+                  "json",
+                  "pdf",
+                  "txt",
+                  "md",
+                  "mdx",
+                  "yaml",
+                  "yml",
+                  "xml",
+                  "html",
+                  "htm",
+                  "docx",
+                  "py",
+                  "sh",
+                  "sql",
+                  "js",
+                  "ts",
+                  "tsx",
+                  "jpg",
+                  "jpeg",
+                  "png",
+                  "bmp",
+                  "image"
+                ],
+                "file_path": "",
+                "info": "Files to be sent with the message.",
+                "list": true,
+                "list_add_label": "Add More",
+                "name": "files",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "temp_file": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "file",
+                "value": ""
+              },
               "input_value": {
-                "display_name": "Historical Bugs Knowledge Base",
+                "_input_type": "MultilineInput",
+                "advanced": false,
+                "ai_enabled": false,
+                "copy_field": false,
+                "display_name": "Input Text",
+                "dynamic": false,
+                "info": "Message to be passed as input.",
+                "input_types": [],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "multiline": true,
+                "name": "input_value",
+                "override_skip": false,
+                "password": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
                 "type": "str",
-                "value": "",
-                "info": "Paste contents of knowledge_base/historical_bugs.json here"
+                "value": ""
+              },
+              "sender": {
+                "_input_type": "DropdownInput",
+                "advanced": true,
+                "combobox": false,
+                "dialog_inputs": {},
+                "display_name": "Sender Type",
+                "dynamic": false,
+                "external_options": {},
+                "info": "Type of sender.",
+                "name": "sender",
+                "options": [
+                  "Machine",
+                  "User"
+                ],
+                "options_metadata": [],
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "toggle": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": true,
+                "type": "str",
+                "value": "User"
+              },
+              "sender_name": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Sender Name",
+                "dynamic": false,
+                "info": "Name of the sender.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "sender_name",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": "User"
+              },
+              "session_id": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Session ID",
+                "dynamic": false,
+                "info": "The session ID of the chat. If empty, the current session ID parameter will be used.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "session_id",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": ""
+              },
+              "should_store_message": {
+                "_input_type": "BoolInput",
+                "advanced": true,
+                "display_name": "Store Messages",
+                "dynamic": false,
+                "info": "Store the message in the history.",
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "should_store_message",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": true,
+                "type": "bool",
+                "value": true
               }
             },
-            "display_name": "Knowledge Base Input",
-            "base_classes": [
-              "Message"
-            ]
-          }
-        }
-      },
-      {
-        "id": "node-risk-scorer",
-        "type": "CustomComponent",
-        "position": {
-          "x": 500,
-          "y": 180
+            "tool_mode": false
+          },
+          "id": "ChatInput-68077"
         },
-        "data": {
-          "type": "CustomComponent",
-          "node": {
-            "template": {
-              "code": {
-                "type": "code",
-                "value": "# RiskScoringEngine.py"
-              },
-              "canonical_bug": {
-                "display_name": "Canonical Bug JSON",
-                "type": "str",
-                "value": ""
-              }
-            },
-            "display_name": "Risk Scoring Engine",
-            "description": "Deterministic rule-based risk scoring",
-            "base_classes": [
-              "Message"
-            ]
-          }
-        }
-      },
-      {
-        "id": "node-duplicate-detector",
-        "type": "CustomComponent",
-        "position": {
-          "x": 500,
-          "y": 480
+        "dragging": false,
+        "selected": false,
+        "positionAbsolute": {
+          "x": 100,
+          "y": 300
         },
-        "data": {
-          "type": "CustomComponent",
-          "node": {
-            "template": {
-              "code": {
-                "type": "code",
-                "value": "# DuplicateDetector.py"
-              },
-              "canonical_bug": {
-                "display_name": "Canonical Bug JSON",
-                "type": "str",
-                "value": ""
-              },
-              "knowledge_base": {
-                "display_name": "Historical Bugs Knowledge Base (JSON)",
-                "type": "str",
-                "value": ""
-              }
-            },
-            "display_name": "Duplicate Detector",
-            "description": "TF-IDF RAG-lite duplicate detection",
-            "base_classes": [
-              "Message"
-            ]
-          }
+        "measured": {
+          "height": 354,
+          "width": 320
         }
       },
       {
-        "id": "node-prompt-builder",
-        "type": "PromptComponent",
+        "id": "BugTriagePipeline-4ace2",
+        "type": "genericNode",
         "position": {
-          "x": 920,
+          "x": 600,
           "y": 300
         },
         "data": {
-          "type": "PromptComponent",
+          "type": "BugTriagePipeline",
           "node": {
             "template": {
-              "template": {
-                "display_name": "Prompt Template",
-                "type": "prompt",
-                "value": "You are an expert Bug Triage AI Agent.\n\nAnalyze the following structured data and return a single JSON triage decision.\n\n## CANONICAL BUG\n{canonical_bug}\n\n## RISK REPORT (deterministic rule-based)\n{risk_report}\n\n## DUPLICATE DETECTION REPORT\n{duplicate_report}\n\n## INSTRUCTIONS\nReturn ONLY a valid JSON object with these exact keys:\n- severity: CRITICAL|HIGH|MEDIUM|LOW\n- priority: P1|P2|P3|P4\n- risk_level: CRITICAL|HIGH|MEDIUM|LOW\n- confidence: 0.0 to 1.0\n- regression: true|false\n- regression_introduced_by: string or null\n- root_cause_category: code_defect|configuration_error|infrastructure_failure|data_corruption|dependency_issue|race_condition|memory_leak|security_flaw|regression|ui_ux_issue|integration_failure|unknown\n- root_cause_hypothesis: 1-2 sentence hypothesis\n- customer_impact: High|Medium|Low\n- customer_impact_description: concise user impact\n- business_impact: array of Revenue|Security|Availability|Data Integrity|Compliance|Operational\n- duplicate_probability: 0.0 to 1.0\n- is_likely_duplicate: true|false\n- related_issue_ids: array of strings\n- recommended_owner: team or role with reasoning\n- suggested_labels: array of 3-6 labels\n- recommended_action: AUTO_CLOSE_DUPLICATE|ASSIGN_AND_ESCALATE|ASSIGN_TO_TEAM|NEEDS_MORE_INFO|SECURITY_INCIDENT_RESPONSE|MARK_DUPLICATE\n- action_rationale: 1-2 sentences\n- estimated_fix_priority: Immediate (<4h)|This Sprint (<24h)|Next Sprint (<72h)|Backlog\n- sla_breach_risk: true|false\n- ai_notes: additional observations\n\nNo markdown. No explanation. JSON only."
+              "_type": "Component",
+              "code": {
+                "type": "code",
+                "required": true,
+                "placeholder": "",
+                "list": false,
+                "show": true,
+                "multiline": true,
+                "value": "from lfx.custom import Component\nfrom lfx.inputs import MessageTextInput\nfrom lfx.template import Output\nfrom lfx.schema.message import Message\nimport json, math, re, urllib.request, urllib.error, os\nfrom collections import Counter\n\n\nclass BugTriagePipeline(Component):\n    display_name = \"Bug Triage Pipeline\"\n    description = (\n        \"All-in-one universal bug triage: paste raw JSON from any tracker \"\n        \"(Jira, GitHub, Azure DevOps, GitLab, Linear, YouTrack) and get a full \"\n        \"AI triage decision \u2014 severity, priority, RCA, duplicate detection, owner, actions.\"\n    )\n    icon = \"bug\"\n    name = \"BugTriagePipeline\"\n\n    inputs = [\n        MessageTextInput(\n            name=\"raw_bug_input\",\n            display_name=\"Raw Bug JSON\",\n            info=\"Paste raw bug JSON from any tracker: Jira, GitHub Issues, Azure DevOps, GitLab, Linear, YouTrack.\",\n        ),\n        MessageTextInput(\n            name=\"knowledge_base_json\",\n            display_name=\"Historical Bugs (JSON)\",\n            info='Paste contents of knowledge_base/historical_bugs.json here, or leave empty to skip duplicate detection.',\n            value=\"\",\n        ),\n        MessageTextInput(\n            name=\"groq_api_key\",\n            display_name=\"Groq API Key\",\n            info=\"Your Groq API key from console.groq.com (gsk_...)\",\n            value=\"\",\n        ),\n        MessageTextInput(\n            name=\"groq_model\",\n            display_name=\"Groq Model\",\n            info=\"Groq model to use\",\n            value=\"llama-3.3-70b-versatile\",\n        ),\n    ]\n\n    outputs = [\n        Output(display_name=\"Triage Decision\", name=\"decision\", method=\"run_pipeline\")\n    ]\n\n    # \u2500\u2500 Keyword tables (Risk Scorer) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    SECURITY_KW   = {\"security\",\"vulnerability\",\"cve\",\"injection\",\"xss\",\"csrf\",\"sql injection\",\"rce\",\"auth bypass\",\"unauthorized\",\"breach\",\"exploit\",\"privilege escalation\"}\n    REVENUE_KW    = {\"payment\",\"checkout\",\"purchase\",\"order\",\"transaction\",\"billing\",\"subscription\",\"invoice\",\"refund\",\"stripe\",\"paypal\",\"cart\"}\n    INFRA_KW      = {\"outage\",\"down\",\"unavailable\",\"service failure\",\"500\",\"crash\",\"database\",\"redis\",\"kafka\",\"queue\",\"timeout\",\"memory leak\",\"oom\"}\n    DATA_KW       = {\"data loss\",\"corrupt\",\"missing data\",\"deleted\",\"wrong data\",\"incorrect\",\"stale\",\"inconsistent\",\"null pointer\"}\n    REGRESSION_KW = {\"regression\",\"was working\",\"used to work\",\"broke in\",\"broke after\",\"stopped working\",\"previously\",\"worked before\",\"last release\",\"after deploy\",\"after update\"}\n    AUTH_KW       = {\"login\",\"logout\",\"auth\",\"authentication\",\"authorization\",\"sso\",\"oauth\",\"saml\",\"session\",\"jwt\",\"token\",\"2fa\",\"mfa\",\"password\"}\n    PROD_ENV      = {\"production\",\"prod\",\"live\",\"prd\"}\n    HIGH_COMP     = {\"payment\",\"checkout\",\"auth\",\"authentication\",\"login\",\"database\",\"api\",\"gateway\",\"core\"}\n    STOP_WORDS    = {\"the\",\"a\",\"an\",\"is\",\"it\",\"in\",\"on\",\"at\",\"to\",\"of\",\"and\",\"or\",\"for\",\"with\",\"this\",\"that\",\"was\",\"are\",\"be\",\"been\",\"by\",\"from\",\"as\",\"not\",\"but\",\"have\",\"has\",\"had\",\"we\",\"i\",\"you\",\"he\",\"she\",\"they\",\"do\",\"does\",\"did\",\"can\",\"will\",\"should\",\"would\",\"could\",\"may\",\"might\",\"shall\",\"also\",\"very\",\"more\",\"some\",\"when\",\"where\",\"how\",\"what\",\"which\",\"who\",\"then\",\"than\",\"if\",\"so\",\"no\",\"yes\"}\n\n    # \u2500\u2500 Step 1: Detect & Normalize \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n    def _detect_tracker(self, d, raw):\n        r = raw.lower()\n        if \"github.com\" in r or (\"number\" in d and \"node_id\" in d): return \"github\"\n        if \"dev.azure.com\" in r or \"System.WorkItemType\" in str(d): return \"azure_devops\"\n        if \"gitlab.com\" in r or (\"iid\" in d and \"project_id\" in d): return \"gitlab\"\n        if \"linear.app\" in r or (\"identifier\" in d and \"team\" in d): return \"linear\"\n        if \"youtrack\" in r or (\"idReadable\" in d and \"summary\" in d): return \"youtrack\"\n        if \"atlassian.net\" in r or \"jira\" in r or \"fields\" in d: return \"jira\"\n        return \"unknown\"\n\n    def _normalize(self, d, raw):\n        tracker = self._detect_tracker(d, raw)\n        if tracker == \"github\":\n            labels = [l.get(\"name\",\"\") for l in d.get(\"labels\",[])]\n            prio = next((l for l in labels if l.lower() in [\"critical\",\"high\",\"medium\",\"low\"]), \"Unknown\")\n            env  = next((l for l in labels if any(k in l.lower() for k in [\"prod\",\"staging\",\"dev\"])), \"Unknown\")\n            comp = next((l.split(\":\")[-1].strip() for l in labels if \"area:\" in l.lower() or \"component:\" in l.lower()), \"Unknown\")\n            return {\"bug_id\": f\"GH-{d.get('number','?')}\", \"tracker\": \"GitHub Issues\",\n                    \"title\": d.get(\"title\",\"\"), \"description\": d.get(\"body\",\"\"),\n                    \"comments\": [c.get(\"body\",\"\") for c in d.get(\"comments_data\",[])],\n                    \"labels\": labels, \"priority\": prio, \"severity\": \"Unknown\",\n                    \"status\": \"Open\" if d.get(\"state\")==\"open\" else \"Closed\",\n                    \"assignee\": (d.get(\"assignee\") or {}).get(\"login\",\"Unassigned\"),\n                    \"reporter\": (d.get(\"user\") or {}).get(\"login\",\"Unknown\"),\n                    \"environment\": env, \"component\": comp,\n                    \"created_at\": d.get(\"created_at\",\"\"), \"url\": d.get(\"html_url\",\"\"), \"custom_fields\": {}}\n        elif tracker == \"jira\":\n            f = d.get(\"fields\",{})\n            sv = f.get(\"customfield_10300\"); sv = sv.get(\"value\") if isinstance(sv,dict) else \"Unknown\"\n            return {\"bug_id\": d.get(\"key\",\"?\"), \"tracker\": \"Jira\",\n                    \"title\": f.get(\"summary\",\"\"), \"description\": str(f.get(\"description\") or \"\"),\n                    \"comments\": [c.get(\"body\",\"\") for c in f.get(\"comment\",{}).get(\"comments\",[])],\n                    \"labels\": f.get(\"labels\",[]), \"priority\": (f.get(\"priority\") or {}).get(\"name\",\"Unknown\"),\n                    \"severity\": sv or \"Unknown\", \"status\": (f.get(\"status\") or {}).get(\"name\",\"Unknown\"),\n                    \"assignee\": (f.get(\"assignee\") or {}).get(\"displayName\",\"Unassigned\"),\n                    \"reporter\": (f.get(\"reporter\") or {}).get(\"displayName\",\"Unknown\"),\n                    \"environment\": f.get(\"environment\") or \"Unknown\",\n                    \"component\": \", \".join(c.get(\"name\",\"\") for c in f.get(\"components\",[])),\n                    \"created_at\": f.get(\"created\",\"\"), \"url\": d.get(\"self\",\"\").split(\"/rest/\")[0]+\"/browse/\"+d.get(\"key\",\"\"),\n                    \"custom_fields\": {}}\n        elif tracker == \"azure_devops\":\n            f = d.get(\"fields\",{})\n            asgn = f.get(\"System.AssignedTo\"); rptr = f.get(\"System.CreatedBy\")\n            return {\"bug_id\": f\"ADO-{d.get('id','?')}\", \"tracker\": \"Azure DevOps\",\n                    \"title\": f.get(\"System.Title\",\"\"),\n                    \"description\": f.get(\"System.Description\") or f.get(\"Microsoft.VSTS.TCM.ReproSteps\") or \"\",\n                    \"comments\": [], \"labels\": [t.strip() for t in (f.get(\"System.Tags\") or \"\").split(\";\") if t.strip()],\n                    \"priority\": str(f.get(\"Microsoft.VSTS.Common.Priority\",\"Unknown\")),\n                    \"severity\": f.get(\"Microsoft.VSTS.Common.Severity\") or \"Unknown\",\n                    \"status\": f.get(\"System.State\",\"Unknown\"),\n                    \"assignee\": asgn.get(\"displayName\",\"Unassigned\") if isinstance(asgn,dict) else str(asgn or \"Unassigned\"),\n                    \"reporter\": rptr.get(\"displayName\",\"Unknown\") if isinstance(rptr,dict) else str(rptr or \"Unknown\"),\n                    \"environment\": f.get(\"System.IterationPath\") or \"Unknown\",\n                    \"component\": f.get(\"System.AreaPath\") or \"Unknown\",\n                    \"created_at\": f.get(\"System.CreatedDate\",\"\"), \"url\": d.get(\"url\",\"\"), \"custom_fields\": {}}\n        elif tracker == \"gitlab\":\n            labels = d.get(\"labels\",[])\n            prio = next((l for l in labels if l.lower() in [\"critical\",\"high\",\"medium\",\"low\"]), \"Unknown\")\n            sv   = next((l.split(\"::\")[-1].strip() for l in labels if \"severity::\" in l.lower()), \"Unknown\")\n            env  = next((l.split(\"::\")[-1].strip() for l in labels if \"environment::\" in l.lower()), \"Unknown\")\n            comp = next((l.split(\"::\")[-1].strip() for l in labels if \"component::\" in l.lower()), \"Unknown\")\n            asgs = d.get(\"assignees\",[])\n            return {\"bug_id\": f\"GL-{d.get('iid',d.get('id','?'))}\", \"tracker\": \"GitLab Issues\",\n                    \"title\": d.get(\"title\",\"\"), \"description\": d.get(\"description\",\"\"),\n                    \"comments\": [], \"labels\": labels, \"priority\": prio, \"severity\": sv,\n                    \"status\": d.get(\"state\",\"Unknown\"),\n                    \"assignee\": asgs[0].get(\"name\",\"Unassigned\") if asgs else \"Unassigned\",\n                    \"reporter\": (d.get(\"author\") or {}).get(\"name\",\"Unknown\"),\n                    \"environment\": env, \"component\": comp,\n                    \"created_at\": d.get(\"created_at\",\"\"), \"url\": d.get(\"web_url\",\"\"), \"custom_fields\": {}}\n        elif tracker == \"linear\":\n            pm = {0:\"No Priority\",1:\"Urgent\",2:\"High\",3:\"Medium\",4:\"Low\"}\n            labels = [l.get(\"name\",\"\") for l in d.get(\"labels\",{}).get(\"nodes\",[])]\n            return {\"bug_id\": d.get(\"identifier\",\"LIN-?\"), \"tracker\": \"Linear\",\n                    \"title\": d.get(\"title\",\"\"), \"description\": d.get(\"description\",\"\"),\n                    \"comments\": [], \"labels\": labels,\n                    \"priority\": pm.get(d.get(\"priority\",0),\"Unknown\"), \"severity\": \"Unknown\",\n                    \"status\": (d.get(\"state\") or {}).get(\"name\",\"Unknown\"),\n                    \"assignee\": (d.get(\"assignee\") or {}).get(\"name\",\"Unassigned\"),\n                    \"reporter\": (d.get(\"creator\") or {}).get(\"name\",\"Unknown\"),\n                    \"environment\": next((l for l in labels if \"prod\" in l.lower()), \"Unknown\"),\n                    \"component\": (d.get(\"team\") or {}).get(\"name\",\"Unknown\"),\n                    \"created_at\": d.get(\"createdAt\",\"\"), \"url\": d.get(\"url\",\"\"), \"custom_fields\": {}}\n        else:\n            return {\"bug_id\": d.get(\"id\",d.get(\"key\",\"?\")), \"tracker\": tracker.title(),\n                    \"title\": d.get(\"title\",d.get(\"summary\",raw[:80])),\n                    \"description\": d.get(\"description\",d.get(\"body\",\"\")),\n                    \"comments\": [], \"labels\": d.get(\"labels\",[]),\n                    \"priority\": d.get(\"priority\",\"Unknown\"), \"severity\": d.get(\"severity\",\"Unknown\"),\n                    \"status\": d.get(\"status\",\"Unknown\"), \"assignee\": d.get(\"assignee\",\"Unassigned\"),\n                    \"reporter\": d.get(\"reporter\",\"Unknown\"), \"environment\": d.get(\"environment\",\"Unknown\"),\n                    \"component\": d.get(\"component\",\"Unknown\"), \"created_at\": d.get(\"created_at\",\"\"),\n                    \"url\": d.get(\"url\",\"\"), \"custom_fields\": {}}\n\n    # \u2500\u2500 Step 2: Risk Scoring \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n    def _risk_score(self, bug):\n        blob = \" \".join([bug.get(\"title\",\"\"), bug.get(\"description\",\"\"),\n                         \" \".join(bug.get(\"labels\",[])), bug.get(\"component\",\"\")]).lower()\n        score = 0; evidence = []\n        env = bug.get(\"environment\",\"\").lower()\n        if any(e in env for e in self.PROD_ENV): score+=25; evidence.append(\"PROD env (+25)\")\n        elif \"staging\" in env: score+=10; evidence.append(\"Staging env (+10)\")\n        prio = bug.get(\"priority\",\"\").lower(); sev = bug.get(\"severity\",\"\").lower()\n        if any(k in prio for k in [\"critical\",\"blocker\",\"urgent\",\"p0\",\"p1\",\"1\"]): score+=20; evidence.append(f\"Priority={bug['priority']} (+20)\")\n        elif any(k in prio for k in [\"high\",\"major\",\"p2\",\"2\"]): score+=12; evidence.append(f\"Priority={bug['priority']} (+12)\")\n        if any(k in sev for k in [\"critical\",\"blocker\"]): score+=10; evidence.append(f\"Severity={bug['severity']} (+10)\")\n        def hits(kw): return [k for k in kw if k in blob]\n        sh=hits(self.SECURITY_KW); rh=hits(self.REVENUE_KW); ih=hits(self.INFRA_KW)\n        dh=hits(self.DATA_KW);     rgh=hits(self.REGRESSION_KW); ah=hits(self.AUTH_KW)\n        if sh:  score+=20; evidence.append(f\"Security: {sh[:3]} (+20)\")\n        if rh:  score+=15; evidence.append(f\"Revenue: {rh[:3]} (+15)\")\n        if ih:  score+=12; evidence.append(f\"Infra: {ih[:3]} (+12)\")\n        if dh:  score+=10; evidence.append(f\"Data: {dh[:3]} (+10)\")\n        if rgh: score+=8;  evidence.append(f\"Regression: {rgh[:2]} (+8)\")\n        if ah:  score+=8;  evidence.append(f\"Auth: {ah[:2]} (+8)\")\n        if any(h in bug.get(\"component\",\"\").lower() for h in self.HIGH_COMP): score+=7; evidence.append(\"High-risk component (+7)\")\n        score = min(score, 100)\n        p = \"P1\" if score>=75 else (\"P2\" if score>=55 else (\"P3\" if score>=35 else \"P4\"))\n        biz = [x for x in [\n            \"Revenue Loss\" if rh else None,\n            \"Security Risk\" if sh else None,\n            \"Service Availability\" if ih else None,\n            \"Data Integrity\" if dh else None,\n        ] if x] or [\"Operational\"]\n        return {\n            \"rule_based_priority\": p,\n            \"risk_score\": score,\n            \"is_regression\": bool(rgh),\n            \"business_impact\": biz,\n            \"triggered_rules\": evidence,\n            \"sla_hours\": {\"P1\":4,\"P2\":24,\"P3\":72,\"P4\":168}[p],\n        }\n\n    # \u2500\u2500 Step 3: Duplicate Detection \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n    def _tokenize(self, text):\n        toks = re.findall(r\"[a-z0-9]+\", text.lower())\n        return [t for t in toks if t not in self.STOP_WORDS and len(t)>2]\n\n    def _cosine(self, a, b):\n        keys = set(a)&set(b)\n        if not keys: return 0.0\n        dot = sum(a[k]*b[k] for k in keys)\n        return dot/(math.sqrt(sum(v**2 for v in a.values()))*math.sqrt(sum(v**2 for v in b.values()))+1e-9)\n\n    def _tf(self, tokens):\n        c=Counter(tokens); n=len(tokens) or 1\n        return {k:v/n for k,v in c.items()}\n\n    def _detect_duplicates(self, bug, kb_json):\n        try:\n            history = json.loads(kb_json) if kb_json.strip() else {}\n            if isinstance(history, dict): history = history.get(\"bugs\",[])\n        except Exception: history=[]\n        if not history: return {\"duplicate_probability\":0.0,\"is_likely_duplicate\":False,\"similar_incidents\":[],\"recommended_action\":\"No knowledge base provided.\"}\n        q = f\"{bug.get('title','')} {bug.get('description','')} {' '.join(bug.get('labels',[]))}\"\n        qv = self._tf(self._tokenize(q)); matches=[]\n        for p in history:\n            pt = f\"{p.get('title','')} {p.get('description','')} {p.get('root_cause','')} {p.get('component','')}\"\n            sim = self._cosine(qv, self._tf(self._tokenize(pt)))\n            if sim>=0.15: matches.append({\"bug_id\":p.get(\"id\",\"?\"),\"title\":p.get(\"title\",\"\"),\"similarity\":round(sim,3),\"status\":p.get(\"status\",\"?\"),\"root_cause\":p.get(\"root_cause\",\"\"),\"resolution\":p.get(\"resolution\",\"\")})\n        matches.sort(key=lambda x:x[\"similarity\"],reverse=True); top=matches[:5]\n        dp=min(round((top[0][\"similarity\"]*1.1),2) if top else 0.0,0.99)\n        return {\"duplicate_probability\":dp,\"is_likely_duplicate\":dp>=0.75,\"similar_incidents\":top,\n                \"recommended_action\":\"Mark as duplicate.\" if dp>=0.75 else (\"Review similar incidents.\" if top else \"New issue.\")}\n\n    # \u2500\u2500 Step 4: Groq LLM \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n    def _call_groq(self, prompt_text, api_key, model):\n        body = json.dumps({\n            \"model\": model,\n            \"messages\": [{\"role\":\"user\",\"content\": prompt_text}],\n            \"temperature\": 0.1,\n            \"max_tokens\": 2048\n        }).encode()\n        req = urllib.request.Request(\n            \"https://api.groq.com/openai/v1/chat/completions\",\n            data=body,\n            headers={\"Authorization\":f\"Bearer {api_key}\",\"Content-Type\":\"application/json\"}\n        )\n        try:\n            with urllib.request.urlopen(req, timeout=60) as resp:\n                data = json.loads(resp.read())\n                return data[\"choices\"][0][\"message\"][\"content\"]\n        except urllib.error.HTTPError as e:\n            return json.dumps({\"error\": f\"Groq API error {e.code}: {e.read().decode()[:200]}\"})\n        except Exception as e:\n            return json.dumps({\"error\": str(e)})\n\n    # \u2500\u2500 Step 5: Confidence Routing \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n    def _route(self, triage, bug):\n        conf = float(triage.get(\"confidence\",0.0))\n        sev  = triage.get(\"severity\",\"Unknown\")\n        force_review = triage.get(\"regression\",False) and sev.upper() in {\"CRITICAL\",\"HIGH\"}\n        if conf>=0.80 and not force_review:\n            routing=\"AUTO_ACTION\"\n            actions=[\n                {\"action\":\"UPDATE_PRIORITY\",\"value\":triage.get(\"priority\")},\n                {\"action\":\"UPDATE_SEVERITY\",\"value\":triage.get(\"severity\")},\n                {\"action\":\"ASSIGN\",\"value\":triage.get(\"recommended_owner\")},\n                *[{\"action\":\"ADD_LABEL\",\"value\":l} for l in triage.get(\"suggested_labels\",[])],\n                {\"action\":\"NOTIFY_SLACK\",\"channel\":\"#bug-triage\",\"message\":f\"Auto-triaged {bug.get('bug_id')}: {sev}/{triage.get('priority')}\"}\n            ]\n            review_reason=None\n        else:\n            routing=\"HUMAN_REVIEW\"; actions=[]\n            review_reason=(f\"Confidence {conf:.0%} below 80% threshold.\" if conf<0.80\n                          else \"Critical regression \u2014 mandatory human review.\")\n        return {\"routing\":routing,\"confidence\":conf,\"review_reason\":review_reason,\"auto_actions\":actions,\n                \"final_severity\":sev,\"final_priority\":triage.get(\"priority\"),\"regression_flag\":triage.get(\"regression\",False)}\n\n    # \u2500\u2500 Main pipeline \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n    def run_pipeline(self) -> Message:\n        raw = self.raw_bug_input or \"\"\n        # Input field takes priority; fall back to GROQ_API_KEY env var (set in HF Space secrets)\n        api_key = self.groq_api_key or os.environ.get(\"GROQ_API_KEY\", \"\")\n\n        # Parse input\n        try:\n            data = json.loads(raw)\n        except json.JSONDecodeError as e:\n            return Message(text=json.dumps({\"error\":f\"Invalid JSON: {e}\",\"tip\":\"Paste a valid bug JSON from any tracker.\"},indent=2))\n\n        if not api_key:\n            return Message(text=json.dumps({\"error\":\"Groq API key not found. Add GROQ_API_KEY to HF Space secrets (Settings \u2192 Repository secrets) or paste it in the Groq API Key field.\"},indent=2))\n\n        # Step 1 \u2014 Normalize\n        canonical = self._normalize(data, raw)\n\n        # Step 2 \u2014 Risk score\n        risk = self._risk_score(canonical)\n\n        # Step 3 \u2014 Duplicate detection\n        dup = self._detect_duplicates(canonical, self.knowledge_base_json or \"\")\n\n        # Step 4 \u2014 LLM triage\n        prompt = f\"\"\"You are an expert Bug Triage AI Agent. Analyze this bug and return ONLY a valid JSON object.\n\n## CANONICAL BUG\n{json.dumps(canonical, indent=2)}\n\n## RISK REPORT (rule-based)\n{json.dumps(risk, indent=2)}\n\n## DUPLICATE DETECTION\n{json.dumps(dup, indent=2)}\n\nReturn ONLY this JSON (no markdown, no explanation):\n{{\n  \"severity\": \"CRITICAL|HIGH|MEDIUM|LOW\",\n  \"priority\": \"P1|P2|P3|P4\",\n  \"confidence\": 0.0-1.0,\n  \"regression\": true|false,\n  \"regression_introduced_by\": \"version or null\",\n  \"root_cause_category\": \"code_defect|configuration_error|infrastructure_failure|data_corruption|dependency_issue|race_condition|memory_leak|security_flaw|regression|ui_ux_issue|integration_failure|unknown\",\n  \"root_cause_hypothesis\": \"1-2 sentence hypothesis\",\n  \"customer_impact\": \"High|Medium|Low\",\n  \"customer_impact_description\": \"concise user-facing impact\",\n  \"business_impact\": [\"Revenue\",\"Security\",\"Availability\",\"Data Integrity\",\"Compliance\",\"Operational\"],\n  \"duplicate_probability\": 0.0-1.0,\n  \"is_likely_duplicate\": true|false,\n  \"related_issue_ids\": [\"list of similar bug IDs\"],\n  \"recommended_owner\": \"team or role (reasoning)\",\n  \"suggested_labels\": [\"label1\",\"label2\",\"label3\"],\n  \"recommended_action\": \"AUTO_CLOSE_DUPLICATE|ASSIGN_AND_ESCALATE|ASSIGN_TO_TEAM|NEEDS_MORE_INFO|SECURITY_INCIDENT_RESPONSE|MARK_DUPLICATE\",\n  \"action_rationale\": \"1-2 sentence rationale\",\n  \"estimated_fix_priority\": \"Immediate (<4h)|This Sprint (<24h)|Next Sprint (<72h)|Backlog\",\n  \"sla_breach_risk\": true|false,\n  \"ai_notes\": \"any additional observations\"\n}}\"\"\"\n\n        llm_raw = self._call_groq(prompt, api_key, self.groq_model or \"llama-3.3-70b-versatile\")\n\n        # Parse LLM output \u2014 strip markdown if present\n        llm_text = llm_raw.strip()\n        if llm_text.startswith(\"```\"):\n            llm_text = re.sub(r\"```[a-z]*\\n?\",\"\",llm_text).strip().rstrip(\"```\").strip()\n        try:\n            triage = json.loads(llm_text)\n        except json.JSONDecodeError:\n            triage = {\"error\":\"LLM returned invalid JSON\",\"raw\":llm_text[:500],\"confidence\":0.0}\n\n        # Step 5 \u2014 Route\n        routing = self._route(triage, canonical)\n\n        # Final output \u2014 compact view to avoid Langflow UI overflow\n        conf = triage.get(\"confidence\", 0.0)\n        result = {\n            \"\u2550\u2550\u2550 BUG TRIAGE DECISION \u2550\u2550\u2550\": None,\n            \"bug_id\":              canonical.get(\"bug_id\"),\n            \"tracker\":             canonical.get(\"tracker\"),\n            \"title\":               canonical.get(\"title\",\"\")[:120],\n            \"\u2550\u2550\u2550 AI TRIAGE \u2550\u2550\u2550\": None,\n            \"severity\":            triage.get(\"severity\", \"?\"),\n            \"priority\":            triage.get(\"priority\", \"?\"),\n            \"confidence\":          f\"{conf:.0%}\",\n            \"regression\":          triage.get(\"regression\", False),\n            \"regression_by\":       triage.get(\"regression_introduced_by\"),\n            \"root_cause_category\": triage.get(\"root_cause_category\"),\n            \"root_cause\":          triage.get(\"root_cause_hypothesis\"),\n            \"customer_impact\":     triage.get(\"customer_impact\"),\n            \"business_impact\":     triage.get(\"business_impact\", []),\n            \"recommended_owner\":   triage.get(\"recommended_owner\"),\n            \"suggested_labels\":    triage.get(\"suggested_labels\", []),\n            \"recommended_action\":  triage.get(\"recommended_action\"),\n            \"action_rationale\":    triage.get(\"action_rationale\"),\n            \"fix_priority\":        triage.get(\"estimated_fix_priority\"),\n            \"sla_breach_risk\":     triage.get(\"sla_breach_risk\"),\n            \"ai_notes\":            triage.get(\"ai_notes\"),\n            \"\u2550\u2550\u2550 ROUTING \u2550\u2550\u2550\": None,\n            \"routing\":             routing.get(\"routing\"),\n            \"review_reason\":       routing.get(\"review_reason\"),\n            \"auto_actions\":        routing.get(\"auto_actions\", []),\n            \"\u2550\u2550\u2550 RISK SCORE \u2550\u2550\u2550\": None,\n            \"risk_score\":          risk.get(\"risk_score\"),\n            \"rule_based_priority\": risk.get(\"rule_based_priority\"),\n            \"is_regression\":       risk.get(\"is_regression\"),\n            \"sla_hours\":           risk.get(\"sla_hours\"),\n            \"triggered_rules\":     risk.get(\"triggered_rules\", []),\n            \"\u2550\u2550\u2550 DUPLICATES \u2550\u2550\u2550\": None,\n            \"duplicate_probability\": dup.get(\"duplicate_probability\"),\n            \"is_likely_duplicate\": dup.get(\"is_likely_duplicate\"),\n            \"similar_incidents\":   [\n                {\"id\": s[\"bug_id\"], \"sim\": s[\"similarity\"], \"title\": s[\"title\"][:60]}\n                for s in dup.get(\"similar_incidents\", [])[:3]\n            ],\n        }\n        # Remove section headers (None values) for clean JSON\n        result = {k: v for k, v in result.items() if v is not None or k.startswith(\"\u2550\")}\n\n        self.status = f\"{routing.get('routing')} | {triage.get('severity','?')}/{triage.get('priority','?')} | conf={conf:.0%}\"\n        try:\n            return Message(text=json.dumps(result, indent=2, default=str))\n        except Exception as e:\n            return Message(text=json.dumps({\"error\": str(e), \"severity\": triage.get(\"severity\"), \"priority\": triage.get(\"priority\")}, indent=2))\n",
+                "fileTypes": [],
+                "file_path": "",
+                "password": false,
+                "name": "code",
+                "advanced": true,
+                "dynamic": true,
+                "info": "",
+                "load_from_db": false,
+                "title_case": false
               },
-              "canonical_bug": {
-                "display_name": "Canonical Bug",
-                "type": "str",
+              "groq_api_key": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "list_add_label": "Add More",
+                "override_skip": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "groq_api_key",
                 "value": "",
-                "field_type": "Message"
-              },
-              "risk_report": {
-                "display_name": "Risk Report",
-                "type": "str",
-                "value": "",
-                "field_type": "Message"
-              },
-              "duplicate_report": {
-                "display_name": "Duplicate Report",
-                "type": "str",
-                "value": "",
-                "field_type": "Message"
-              }
-            },
-            "display_name": "Bug Intelligence Prompt",
-            "base_classes": [
-              "Message"
-            ]
-          }
-        }
-      },
-      {
-        "id": "node-groq-llm",
-        "type": "ChatOpenAI",
-        "position": {
-          "x": 1340,
-          "y": 300
-        },
-        "data": {
-          "type": "ChatOpenAI",
-          "node": {
-            "template": {
-              "openai_api_base": {
-                "display_name": "Base URL",
-                "type": "str",
-                "value": "https://api.groq.com/openai/v1"
-              },
-              "openai_api_key": {
                 "display_name": "Groq API Key",
+                "advanced": false,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "Your Groq API key from console.groq.com (gsk_...)",
+                "title_case": false,
+                "track_in_telemetry": false,
                 "type": "str",
+                "_input_type": "MessageTextInput"
+              },
+              "groq_model": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "list_add_label": "Add More",
+                "override_skip": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "groq_model",
+                "value": "llama-3.3-70b-versatile",
+                "display_name": "Groq Model",
+                "advanced": false,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "Groq model to use",
+                "title_case": false,
+                "track_in_telemetry": false,
+                "type": "str",
+                "_input_type": "MessageTextInput"
+              },
+              "knowledge_base_json": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "list_add_label": "Add More",
+                "override_skip": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "knowledge_base_json",
                 "value": "",
-                "password": true
-              },
-              "model_name": {
-                "display_name": "Model",
+                "display_name": "Historical Bugs (JSON)",
+                "advanced": false,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "Paste contents of knowledge_base/historical_bugs.json here, or leave empty to skip duplicate detection.",
+                "title_case": false,
+                "track_in_telemetry": false,
                 "type": "str",
-                "value": "llama-3.3-70b-versatile"
+                "_input_type": "MessageTextInput"
               },
-              "temperature": {
-                "display_name": "Temperature",
-                "type": "float",
-                "value": 0.1
-              },
-              "max_tokens": {
-                "display_name": "Max Tokens",
-                "type": "int",
-                "value": 2048
+              "raw_bug_input": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "list_add_label": "Add More",
+                "override_skip": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "raw_bug_input",
+                "value": "",
+                "display_name": "Raw Bug JSON",
+                "advanced": false,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "Paste raw bug JSON from any tracker: Jira, GitHub Issues, Azure DevOps, GitLab, Linear, YouTrack.",
+                "title_case": false,
+                "track_in_telemetry": false,
+                "type": "str",
+                "_input_type": "MessageTextInput"
               }
             },
-            "display_name": "Groq LLM (llama-3.3-70b)",
-            "description": "Fast LLM inference via Groq",
-            "base_classes": [
-              "LanguageModel"
-            ]
-          }
-        }
-      },
-      {
-        "id": "node-llm-chain",
-        "type": "LLMChain",
-        "position": {
-          "x": 1340,
-          "y": 480
-        },
-        "data": {
-          "type": "LLMChain",
-          "node": {
-            "template": {
-              "llm": {
-                "display_name": "LLM",
-                "type": "BaseLanguageModel",
-                "value": ""
-              },
-              "prompt": {
-                "display_name": "Prompt",
-                "type": "BasePromptTemplate",
-                "value": ""
-              }
-            },
-            "display_name": "LLM Intelligence Chain",
-            "base_classes": [
-              "Chain",
-              "BaseCustomChain",
-              "LLMChain"
-            ]
-          }
-        }
-      },
-      {
-        "id": "node-confidence-router",
-        "type": "CustomComponent",
-        "position": {
-          "x": 1760,
-          "y": 300
-        },
-        "data": {
-          "type": "CustomComponent",
-          "node": {
-            "template": {
-              "code": {
-                "type": "code",
-                "value": "# ConfidenceRouter.py"
-              },
-              "triage_result": {
-                "display_name": "LLM Triage JSON",
-                "type": "str",
-                "value": ""
-              },
-              "canonical_bug": {
-                "display_name": "Canonical Bug JSON",
-                "type": "str",
-                "value": ""
-              }
-            },
-            "display_name": "Confidence Router",
-            "description": "Routes to AUTO_ACTION or HUMAN_REVIEW based on confidence score",
+            "description": "All-in-one universal bug triage: paste raw JSON from any tracker (Jira, GitHub, Azure DevOps, GitLab, Linear, YouTrack) and get a full AI triage decision \u2014 severity, priority, RCA, duplicate detection, owner, actions.",
+            "icon": "bug",
             "base_classes": [
               "Message"
-            ]
-          }
+            ],
+            "display_name": "Bug Triage Pipeline",
+            "documentation": "",
+            "minimized": false,
+            "custom_fields": {},
+            "output_types": [],
+            "pinned": false,
+            "conditional_paths": [],
+            "frozen": false,
+            "outputs": [
+              {
+                "types": [
+                  "Message"
+                ],
+                "selected": "Message",
+                "name": "decision",
+                "display_name": "Triage Decision",
+                "method": "run_pipeline",
+                "value": "__UNDEFINED__",
+                "cache": true,
+                "allows_loop": false,
+                "group_outputs": false,
+                "tool_mode": true
+              }
+            ],
+            "field_order": [
+              "raw_bug_input",
+              "knowledge_base_json",
+              "groq_api_key",
+              "groq_model"
+            ],
+            "beta": false,
+            "legacy": false,
+            "edited": false,
+            "metadata": {
+              "module": "custom_components.bug_triage_pipeline",
+              "code_hash": "2e2b7ee7d42d",
+              "dependencies": {
+                "total_dependencies": 1,
+                "dependencies": [
+                  {
+                    "name": "lfx",
+                    "version": "1.10.1"
+                  }
+                ]
+              }
+            },
+            "tool_mode": false
+          },
+          "id": "BugTriagePipeline-4ace2"
+        },
+        "dragging": false,
+        "selected": false,
+        "positionAbsolute": {
+          "x": 600,
+          "y": 300
+        },
+        "measured": {
+          "height": 354,
+          "width": 320
         }
       },
       {
-        "id": "node-output",
-        "type": "ChatOutput",
+        "id": "ChatOutput-9240c",
+        "type": "genericNode",
         "position": {
-          "x": 2180,
+          "x": 1200,
           "y": 300
         },
         "data": {
           "type": "ChatOutput",
           "node": {
+            "base_classes": [
+              "Message"
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Display a chat message in the Playground.",
+            "display_name": "Chat Output",
+            "documentation": "https://docs.langflow.org/chat-input-and-output",
+            "edited": false,
+            "field_order": [
+              "input_value",
+              "should_store_message",
+              "sender",
+              "sender_name",
+              "session_id",
+              "context_id",
+              "data_template",
+              "clean_data"
+            ],
+            "frozen": false,
+            "icon": "MessagesSquare",
+            "legacy": false,
+            "metadata": {
+              "code_hash": "84009527d08c",
+              "dependencies": {
+                "dependencies": [
+                  {
+                    "name": "orjson",
+                    "version": "3.11.9"
+                  },
+                  {
+                    "name": "fastapi",
+                    "version": "0.137.2"
+                  },
+                  {
+                    "name": "lfx",
+                    "version": null
+                  }
+                ],
+                "total_dependencies": 3
+              },
+              "module": "lfx.components.input_output.chat_output.ChatOutput"
+            },
+            "minimized": true,
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "Output Message",
+                "group_outputs": false,
+                "method": "message_response",
+                "name": "message",
+                "selected": "Message",
+                "tool_mode": true,
+                "types": [
+                  "Message"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
             "template": {
-              "input_value": {
-                "display_name": "Routing Decision",
+              "_type": "Component",
+              "clean_data": {
+                "_input_type": "BoolInput",
+                "advanced": true,
+                "display_name": "Basic Clean Data",
+                "dynamic": false,
+                "info": "Whether to clean data before converting to string.",
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "clean_data",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": true,
+                "type": "bool",
+                "value": true
+              },
+              "code": {
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "type": "code",
+                "value": "from collections.abc import Generator\nfrom typing import Any\n\nimport orjson\nfrom fastapi.encoders import jsonable_encoder\n\nfrom lfx.base.io.chat import ChatComponent\nfrom lfx.helpers.data import safe_convert\nfrom lfx.inputs.inputs import BoolInput, DropdownInput, HandleInput, MessageTextInput\nfrom lfx.schema.data import Data\nfrom lfx.schema.dataframe import DataFrame\nfrom lfx.schema.message import Message\nfrom lfx.schema.properties import Source\nfrom lfx.template.field.base import Output\nfrom lfx.utils.constants import (\n    MESSAGE_SENDER_AI,\n    MESSAGE_SENDER_NAME_AI,\n    MESSAGE_SENDER_USER,\n)\n\n\nclass ChatOutput(ChatComponent):\n    display_name = \"Chat Output\"\n    description = \"Display a chat message in the Playground.\"\n    documentation: str = \"https://docs.langflow.org/chat-input-and-output\"\n    icon = \"MessagesSquare\"\n    name = \"ChatOutput\"\n    minimized = True\n\n    inputs = [\n        HandleInput(\n            name=\"input_value\",\n            display_name=\"Inputs\",\n            info=\"Message to be passed as output.\",\n            input_types=[\"Data\", \"JSON\", \"DataFrame\", \"Table\", \"Message\"],\n            required=True,\n        ),\n        BoolInput(\n            name=\"should_store_message\",\n            display_name=\"Store Messages\",\n            info=\"Store the message in the history.\",\n            value=True,\n            advanced=True,\n        ),\n        DropdownInput(\n            name=\"sender\",\n            display_name=\"Sender Type\",\n            options=[MESSAGE_SENDER_AI, MESSAGE_SENDER_USER],\n            value=MESSAGE_SENDER_AI,\n            advanced=True,\n            info=\"Type of sender.\",\n        ),\n        MessageTextInput(\n            name=\"sender_name\",\n            display_name=\"Sender Name\",\n            info=\"Name of the sender.\",\n            value=MESSAGE_SENDER_NAME_AI,\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"session_id\",\n            display_name=\"Session ID\",\n            info=\"The session ID of the chat. If empty, the current session ID parameter will be used.\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"context_id\",\n            display_name=\"Context ID\",\n            info=\"The context ID of the chat. Adds an extra layer to the local memory.\",\n            value=\"\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"data_template\",\n            display_name=\"Data Template\",\n            value=\"{text}\",\n            advanced=True,\n            info=\"Template to convert Data to Text. If left empty, it will be dynamically set to the Data's text key.\",\n        ),\n        BoolInput(\n            name=\"clean_data\",\n            display_name=\"Basic Clean Data\",\n            value=True,\n            advanced=True,\n            info=\"Whether to clean data before converting to string.\",\n        ),\n    ]\n    outputs = [\n        Output(\n            display_name=\"Output Message\",\n            name=\"message\",\n            method=\"message_response\",\n        ),\n    ]\n\n    def _build_source(self, id_: str | None, display_name: str | None, source: str | None) -> Source:\n        source_dict = {}\n        if id_:\n            source_dict[\"id\"] = id_\n        if display_name:\n            source_dict[\"display_name\"] = display_name\n        if source:\n            # Handle case where source is a ChatOpenAI object\n            if hasattr(source, \"model_name\"):\n                source_dict[\"source\"] = source.model_name\n            elif hasattr(source, \"model\"):\n                source_dict[\"source\"] = str(source.model)\n            else:\n                source_dict[\"source\"] = str(source)\n        return Source(**source_dict)\n\n    async def message_response(self) -> Message:\n        # First convert the input to string if needed\n        text = self.convert_to_string()\n\n        # Get source properties\n        source, _, display_name, source_id = self.get_properties_from_source_component()\n\n        # Create or use existing Message object\n        if isinstance(self.input_value, Message) and not self.is_connected_to_chat_input():\n            message = self.input_value\n            # Update message properties\n            message.text = text\n            # Preserve existing session_id from the incoming message if it exists\n            existing_session_id = message.session_id\n        else:\n            message = Message(text=text)\n            existing_session_id = None\n\n        # Set message properties\n        message.sender = self.sender\n        message.sender_name = self.sender_name\n        # Preserve session_id from incoming message, or use component/graph session_id\n        message.session_id = (\n            self.session_id or existing_session_id or (self.graph.session_id if hasattr(self, \"graph\") else None) or \"\"\n        )\n        message.context_id = self.context_id\n        message.flow_id = self.graph.flow_id if hasattr(self, \"graph\") else None\n        message.properties.source = self._build_source(source_id, display_name, source)\n\n        # Store message if needed\n        if message.session_id and self.should_store_message:\n            stored_message = await self.send_message(message)\n            self.message.value = stored_message\n            message = stored_message\n\n        # Set accumulated token usage from all upstream LLM vertices.\n        # This must happen AFTER send_message() because streaming captures\n        # usage from chunks and would overwrite accumulated totals.\n        if hasattr(self, \"_vertex\") and self._vertex is not None:\n            accumulated_usage = self._vertex._accumulate_upstream_token_usage()  # noqa: SLF001\n            if accumulated_usage:\n                message.properties.usage = accumulated_usage\n                if self.should_store_message and message.get_id():\n                    message = await self._update_stored_message(message)\n                    await self._send_message_event(message, id_=message.get_id())\n\n        self.status = message\n        return message\n\n    def _serialize_data(self, data: Data) -> str:\n        \"\"\"Serialize Data object to JSON string.\"\"\"\n        # Convert data.data to JSON-serializable format\n        serializable_data = jsonable_encoder(data.data)\n        # Serialize with orjson, enabling pretty printing with indentation\n        json_bytes = orjson.dumps(serializable_data, option=orjson.OPT_INDENT_2)\n        # Convert bytes to string and wrap in Markdown code blocks\n        return \"```json\\n\" + json_bytes.decode(\"utf-8\") + \"\\n```\"\n\n    def _validate_input(self) -> None:\n        \"\"\"Validate the input data and raise ValueError if invalid.\"\"\"\n        if self.input_value is None:\n            msg = \"Input data cannot be None\"\n            raise ValueError(msg)\n        if isinstance(self.input_value, list) and not all(\n            isinstance(item, Message | Data | DataFrame | str) for item in self.input_value\n        ):\n            invalid_types = [\n                type(item).__name__\n                for item in self.input_value\n                if not isinstance(item, Message | Data | DataFrame | str)\n            ]\n            msg = f\"Expected Data or DataFrame or Message or str, got {invalid_types}\"\n            raise TypeError(msg)\n        if not isinstance(\n            self.input_value,\n            Message | Data | DataFrame | str | list | Generator | type(None),\n        ):\n            type_name = type(self.input_value).__name__\n            msg = f\"Expected Data or DataFrame or Message or str, Generator or None, got {type_name}\"\n            raise TypeError(msg)\n\n    def convert_to_string(self) -> str | Generator[Any, None, None]:\n        \"\"\"Convert input data to string with proper error handling.\"\"\"\n        self._validate_input()\n        if isinstance(self.input_value, list):\n            clean_data: bool = getattr(self, \"clean_data\", False)\n            return \"\\n\".join([safe_convert(item, clean_data=clean_data) for item in self.input_value])\n        if isinstance(self.input_value, Generator):\n            return self.input_value\n        return safe_convert(self.input_value)\n"
+              },
+              "context_id": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Context ID",
+                "dynamic": false,
+                "info": "The context ID of the chat. Adds an extra layer to the local memory.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "context_id",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
                 "type": "str",
                 "value": ""
               },
-              "sender_name": {
-                "display_name": "Sender",
+              "data_template": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Data Template",
+                "dynamic": false,
+                "info": "Template to convert Data to Text. If left empty, it will be dynamically set to the Data's text key.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "data_template",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
                 "type": "str",
-                "value": "Bug Triage AI"
+                "value": "{text}"
+              },
+              "input_value": {
+                "_input_type": "HandleInput",
+                "advanced": false,
+                "display_name": "Inputs",
+                "dynamic": false,
+                "info": "Message to be passed as output.",
+                "input_types": [
+                  "Data",
+                  "JSON",
+                  "DataFrame",
+                  "Table",
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "input_value",
+                "override_skip": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "other",
+                "value": ""
+              },
+              "sender": {
+                "_input_type": "DropdownInput",
+                "advanced": true,
+                "combobox": false,
+                "dialog_inputs": {},
+                "display_name": "Sender Type",
+                "dynamic": false,
+                "external_options": {},
+                "info": "Type of sender.",
+                "name": "sender",
+                "options": [
+                  "Machine",
+                  "User"
+                ],
+                "options_metadata": [],
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "toggle": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": true,
+                "type": "str",
+                "value": "Machine"
+              },
+              "sender_name": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Sender Name",
+                "dynamic": false,
+                "info": "Name of the sender.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "sender_name",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": "AI"
+              },
+              "session_id": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Session ID",
+                "dynamic": false,
+                "info": "The session ID of the chat. If empty, the current session ID parameter will be used.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "session_id",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": ""
+              },
+              "should_store_message": {
+                "_input_type": "BoolInput",
+                "advanced": true,
+                "display_name": "Store Messages",
+                "dynamic": false,
+                "info": "Store the message in the history.",
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "should_store_message",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": true,
+                "type": "bool",
+                "value": true
               }
             },
-            "display_name": "Final Triage Decision",
-            "base_classes": [
-              "Message"
-            ]
-          }
+            "tool_mode": false
+          },
+          "id": "ChatOutput-9240c"
+        },
+        "dragging": false,
+        "selected": false,
+        "positionAbsolute": {
+          "x": 1200,
+          "y": 300
+        },
+        "measured": {
+          "height": 354,
+          "width": 320
         }
       }
     ],
     "edges": [
       {
-        "id": "edge-normalizer-to-risk",
-        "source": "node-input-bug",
-        "target": "node-risk-scorer",
-        "data": {
-          "sourceHandle": {
-            "dataType": "CustomComponent",
-            "id": "node-input-bug",
-            "name": "normalized_bug",
-            "output_types": [
-              "Message"
-            ]
-          },
-          "targetHandle": {
-            "fieldName": "canonical_bug",
-            "id": "node-risk-scorer",
-            "inputTypes": [
-              "Message"
-            ],
-            "type": "str"
-          }
-        }
+        "id": "edge-ChatInput-68077-BugTriagePipeline-4ace2",
+        "source": "ChatInput-68077",
+        "target": "BugTriagePipeline-4ace2",
+        "sourceHandle": "{\u0153dataType\u0153: \u0153ChatInput\u0153, \u0153id\u0153: \u0153ChatInput-68077\u0153, \u0153name\u0153: \u0153message\u0153, \u0153output_types\u0153: [\u0153Message\u0153]}",
+        "targetHandle": "{\u0153fieldName\u0153: \u0153raw_bug_input\u0153, \u0153id\u0153: \u0153BugTriagePipeline-4ace2\u0153, \u0153inputTypes\u0153: [\u0153Message\u0153], \u0153type\u0153: \u0153str\u0153}",
+        "animated": false,
+        "className": "",
+        "selected": false,
+        "data": {}
       },
       {
-        "id": "edge-normalizer-to-dedup",
-        "source": "node-input-bug",
-        "target": "node-duplicate-detector",
-        "data": {
-          "sourceHandle": {
-            "dataType": "CustomComponent",
-            "id": "node-input-bug",
-            "name": "normalized_bug",
-            "output_types": [
-              "Message"
-            ]
-          },
-          "targetHandle": {
-            "fieldName": "canonical_bug",
-            "id": "node-duplicate-detector",
-            "inputTypes": [
-              "Message"
-            ],
-            "type": "str"
-          }
-        }
-      },
-      {
-        "id": "edge-kb-to-dedup",
-        "source": "node-knowledge-base",
-        "target": "node-duplicate-detector",
-        "data": {
-          "sourceHandle": {
-            "dataType": "TextInput",
-            "id": "node-knowledge-base",
-            "name": "text",
-            "output_types": [
-              "Message"
-            ]
-          },
-          "targetHandle": {
-            "fieldName": "knowledge_base",
-            "id": "node-duplicate-detector",
-            "inputTypes": [
-              "Message"
-            ],
-            "type": "str"
-          }
-        }
-      },
-      {
-        "id": "edge-normalizer-to-prompt",
-        "source": "node-input-bug",
-        "target": "node-prompt-builder",
-        "data": {
-          "sourceHandle": {
-            "dataType": "CustomComponent",
-            "id": "node-input-bug",
-            "name": "normalized_bug",
-            "output_types": [
-              "Message"
-            ]
-          },
-          "targetHandle": {
-            "fieldName": "canonical_bug",
-            "id": "node-prompt-builder",
-            "inputTypes": [
-              "Message"
-            ],
-            "type": "str"
-          }
-        }
-      },
-      {
-        "id": "edge-risk-to-prompt",
-        "source": "node-risk-scorer",
-        "target": "node-prompt-builder",
-        "data": {
-          "sourceHandle": {
-            "dataType": "CustomComponent",
-            "id": "node-risk-scorer",
-            "name": "risk_report",
-            "output_types": [
-              "Message"
-            ]
-          },
-          "targetHandle": {
-            "fieldName": "risk_report",
-            "id": "node-prompt-builder",
-            "inputTypes": [
-              "Message"
-            ],
-            "type": "str"
-          }
-        }
-      },
-      {
-        "id": "edge-dedup-to-prompt",
-        "source": "node-duplicate-detector",
-        "target": "node-prompt-builder",
-        "data": {
-          "sourceHandle": {
-            "dataType": "CustomComponent",
-            "id": "node-duplicate-detector",
-            "name": "similar_bugs",
-            "output_types": [
-              "Message"
-            ]
-          },
-          "targetHandle": {
-            "fieldName": "duplicate_report",
-            "id": "node-prompt-builder",
-            "inputTypes": [
-              "Message"
-            ],
-            "type": "str"
-          }
-        }
-      },
-      {
-        "id": "edge-prompt-to-chain",
-        "source": "node-prompt-builder",
-        "target": "node-llm-chain",
-        "data": {
-          "sourceHandle": {
-            "dataType": "PromptComponent",
-            "id": "node-prompt-builder",
-            "name": "prompt",
-            "output_types": [
-              "Message"
-            ]
-          },
-          "targetHandle": {
-            "fieldName": "prompt",
-            "id": "node-llm-chain",
-            "inputTypes": [
-              "BasePromptTemplate"
-            ],
-            "type": "BasePromptTemplate"
-          }
-        }
-      },
-      {
-        "id": "edge-llm-to-chain",
-        "source": "node-groq-llm",
-        "target": "node-llm-chain",
-        "data": {
-          "sourceHandle": {
-            "dataType": "ChatOpenAI",
-            "id": "node-groq-llm",
-            "name": "model",
-            "output_types": [
-              "BaseLanguageModel"
-            ]
-          },
-          "targetHandle": {
-            "fieldName": "llm",
-            "id": "node-llm-chain",
-            "inputTypes": [
-              "BaseLanguageModel"
-            ],
-            "type": "BaseLanguageModel"
-          }
-        }
-      },
-      {
-        "id": "edge-chain-to-router",
-        "source": "node-llm-chain",
-        "target": "node-confidence-router",
-        "data": {
-          "sourceHandle": {
-            "dataType": "LLMChain",
-            "id": "node-llm-chain",
-            "name": "text",
-            "output_types": [
-              "Message"
-            ]
-          },
-          "targetHandle": {
-            "fieldName": "triage_result",
-            "id": "node-confidence-router",
-            "inputTypes": [
-              "Message"
-            ],
-            "type": "str"
-          }
-        }
-      },
-      {
-        "id": "edge-normalizer-to-router",
-        "source": "node-input-bug",
-        "target": "node-confidence-router",
-        "data": {
-          "sourceHandle": {
-            "dataType": "CustomComponent",
-            "id": "node-input-bug",
-            "name": "normalized_bug",
-            "output_types": [
-              "Message"
-            ]
-          },
-          "targetHandle": {
-            "fieldName": "canonical_bug",
-            "id": "node-confidence-router",
-            "inputTypes": [
-              "Message"
-            ],
-            "type": "str"
-          }
-        }
-      },
-      {
-        "id": "edge-router-to-output",
-        "source": "node-confidence-router",
-        "target": "node-output",
-        "data": {
-          "sourceHandle": {
-            "dataType": "CustomComponent",
-            "id": "node-confidence-router",
-            "name": "decision",
-            "output_types": [
-              "Message"
-            ]
-          },
-          "targetHandle": {
-            "fieldName": "input_value",
-            "id": "node-output",
-            "inputTypes": [
-              "Message"
-            ],
-            "type": "str"
-          }
-        }
+        "id": "edge-BugTriagePipeline-4ace2-ChatOutput-9240c",
+        "source": "BugTriagePipeline-4ace2",
+        "target": "ChatOutput-9240c",
+        "sourceHandle": "{\u0153dataType\u0153: \u0153BugTriagePipeline\u0153, \u0153id\u0153: \u0153BugTriagePipeline-4ace2\u0153, \u0153name\u0153: \u0153decision\u0153, \u0153output_types\u0153: [\u0153Message\u0153]}",
+        "targetHandle": "{\u0153fieldName\u0153: \u0153input_value\u0153, \u0153id\u0153: \u0153ChatOutput-9240c\u0153, \u0153inputTypes\u0153: [\u0153Data\u0153, \u0153JSON\u0153, \u0153DataFrame\u0153, \u0153Table\u0153, \u0153Message\u0153], \u0153type\u0153: \u0153str\u0153}",
+        "animated": false,
+        "className": "",
+        "selected": false,
+        "data": {}
       }
-    ]
+    ],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 0.75
+    }
   }
 }

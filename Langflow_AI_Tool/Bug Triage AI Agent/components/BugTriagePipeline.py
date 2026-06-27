@@ -1,5 +1,5 @@
 from langflow.custom import Component
-from langflow.inputs import MessageTextInput
+from langflow.inputs import MessageTextInput, StrInput
 from langflow.template import Output
 from langflow.schema.message import Message
 import json, math, re, urllib.request, urllib.error, os
@@ -28,17 +28,20 @@ class BugTriagePipeline(Component):
             info='Paste contents of knowledge_base/historical_bugs.json here, or leave empty to skip duplicate detection.',
             value="",
         ),
-        MessageTextInput(
+        StrInput(
             name="groq_api_key",
             display_name="Groq API Key",
-            info="Your Groq API key from console.groq.com (gsk_...)",
+            info="Optional — leave blank to use the GROQ_API_KEY environment variable (recommended for HuggingFace Spaces).",
             value="",
+            password=True,
+            advanced=True,
         ),
-        MessageTextInput(
+        StrInput(
             name="groq_model",
             display_name="Groq Model",
             info="Groq model to use",
             value="llama-3.3-70b-versatile",
+            advanced=True,
         ),
     ]
 
@@ -277,7 +280,7 @@ class BugTriagePipeline(Component):
     def run_pipeline(self) -> Message:
         raw = self.raw_bug_input or ""
         # Input field takes priority; fall back to GROQ_API_KEY env var (set in HF Space secrets)
-        api_key = self.groq_api_key or os.environ.get("GROQ_API_KEY", "")
+        api_key = str(self.groq_api_key or "").strip() or os.environ.get("GROQ_API_KEY", "")
 
         # Parse input
         try:
