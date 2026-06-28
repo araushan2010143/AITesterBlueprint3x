@@ -19,16 +19,26 @@ class APITestSuite(Component):
         "<":  operator.lt, "<=": operator.le,
     }
 
+    # Built-in default spec (Restful Booker OpenAPI 3.0) — used when spec_input field is empty
+    # or when Chat Input sends a plain-text trigger like "run" instead of JSON.
+    _DEFAULT_SPEC = '{"openapi":"3.0.0","info":{"title":"Restful Booker","version":"1.0"},"servers":[{"url":"https://restful-booker.herokuapp.com"}],"paths":{"/auth":{"post":{"summary":"Create token","requestBody":{"content":{"application/json":{"example":{"username":"admin","password":"password123"}}}},"responses":{"200":{"description":"OK"}}}},"/booking":{"post":{"summary":"Create booking","requestBody":{"content":{"application/json":{"example":{"firstname":"Jim","lastname":"Brown","totalprice":111,"depositpaid":true,"bookingdates":{"checkin":"2018-01-01","checkout":"2019-01-01"},"additionalneeds":"Breakfast"}}}},"responses":{"200":{"description":"OK"}}}},"/booking/{bookingid}":{"get":{"summary":"Get booking","parameters":[{"name":"bookingid","in":"path","required":true,"schema":{"type":"integer"}}],"responses":{"200":{"description":"OK"}}}}}}'
+
     inputs = [
-        MessageTextInput(name="spec_input",      display_name="OpenAPI / Postman JSON"),
+        MessageTextInput(name="spec_input",      display_name="OpenAPI / Postman JSON",
+                         value="",
+                         info="Paste OpenAPI 3.x / Swagger 2.0 / Postman v2.1 JSON. Leave empty to use the built-in Restful Booker default spec."),
         MessageTextInput(name="active_env",       display_name="Active Environment",           value="QA"),
         MessageTextInput(name="dev_url",          display_name="DEV Base URL",                 value=""),
-        MessageTextInput(name="qa_url",           display_name="QA Base URL",                  value=""),
+        MessageTextInput(name="qa_url",           display_name="QA Base URL",                  value="https://restful-booker.herokuapp.com"),
         MessageTextInput(name="prod_url",         display_name="PROD Base URL",                value=""),
-        MessageTextInput(name="schemas_json",     display_name="Field Schemas (JSON)",         value="{}"),
-        MessageTextInput(name="assertions_json",  display_name="Assertions (JSON)",            value="[]"),
-        MessageTextInput(name="expected_status",  display_name="Expected Status Codes (JSON)", value="{}"),
-        MessageTextInput(name="sla_thresholds",   display_name="SLA Thresholds ms (JSON)",     value="{}"),
+        MessageTextInput(name="schemas_json",     display_name="Field Schemas (JSON)",
+                         value='{"POST.*auth$":{"required":["token"],"types":{"token":"str"}},"POST.*booking$":{"required":["bookingid","booking"],"types":{"bookingid":"int"}},"GET.*booking/\\d+":{"required":["firstname","lastname","totalprice","depositpaid","bookingdates"],"types":{"totalprice":"int","depositpaid":"bool"}}}'),
+        MessageTextInput(name="assertions_json",  display_name="Assertions (JSON)",
+                         value='[{"url":"POST.*auth$","field":"token","operator":"!=","value":null,"label":"token not null"},{"url":"POST.*booking$","field":"bookingid","operator":">","value":0,"label":"bookingid > 0"},{"url":"GET.*booking/\\d+","field":"totalprice","operator":">","value":0,"label":"totalprice > 0"}]'),
+        MessageTextInput(name="expected_status",  display_name="Expected Status Codes (JSON)",
+                         value='{"POST.*auth$":200,"POST.*booking$":200,"GET.*booking/\\d+":200}'),
+        MessageTextInput(name="sla_thresholds",   display_name="SLA Thresholds ms (JSON)",
+                         value='{"POST.*auth$":5000,"POST.*booking$":3000,"GET.*booking/\\d+":3000}'),
         MessageTextInput(name="max_retries",      display_name="Max Retries",                  value="2"),
         MessageTextInput(name="parallel_workers", display_name="Parallel Workers",             value="1"),
         MessageTextInput(name="output_dir",       display_name="Output Directory",             value="reports"),
@@ -38,7 +48,8 @@ class APITestSuite(Component):
 
     # ── MAIN ──────────────────────────────────────────────────────────
     def run(self) -> Message:
-        # 1. parse spec input
+        # 1. parse spec input — fall back to built-in default when field is empty
+        #    or when Chat Input sends a plain trigger like "run" instead of JSON
         raw = self.spec_input
         if hasattr(raw, "text"): raw = raw.text
         raw = str(raw).strip()
@@ -47,8 +58,8 @@ class APITestSuite(Component):
             raw = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
         try:
             spec = json.loads(raw)
-        except Exception as e:
-            return Message(text=f"Invalid JSON input: {e}")
+        except Exception:
+            spec = json.loads(self._DEFAULT_SPEC)
 
         # 2. resolve base url from active environment
         env     = (self.active_env or "QA").strip().upper()
