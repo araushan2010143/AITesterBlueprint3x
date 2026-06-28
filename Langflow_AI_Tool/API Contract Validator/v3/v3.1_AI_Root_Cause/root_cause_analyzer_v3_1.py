@@ -198,32 +198,34 @@ class RootCauseAnalyzer(Component):
         return failures
 
     # ── sqlite historical failure query ───────────────────────────────────────
-    def _query_historical_failures(self) -> list:
+    def _query_historical_failures(self) -> dict:
         try:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
 
-            # get recent failed endpoints across last 20 runs
+            # endpoints that have failed at least once — uses 'overall' TEXT column
             cur.execute("""
-                SELECT er.method, er.url, er.status_code, er.duration_ms,
-                       tr.run_at, tr.environment,
-                       COUNT(*) as fail_count,
-                       SUM(CASE WHEN er.passed THEN 1 ELSE 0 END) as pass_count
+                SELECT er.method, er.url, er.status_code,
+                       COUNT(*) as total_runs,
+                       SUM(CASE WHEN er.overall = 'FAIL' THEN 1 ELSE 0 END) as fail_count,
+                       SUM(CASE WHEN er.overall = 'PASS' THEN 1 ELSE 0 END) as pass_count,
+                       MAX(tr.timestamp) as last_seen
                 FROM endpoint_results er
                 JOIN test_runs tr ON er.run_id = tr.id
-                WHERE er.passed = 0
                 GROUP BY er.method, er.url
+                HAVING fail_count > 0
                 ORDER BY fail_count DESC
                 LIMIT 10
             """)
             rows = cur.fetchall()
 
-            # also get the last failed run summary
+            # recent runs that had at least one failure — uses 'timestamp' column
             cur.execute("""
-                SELECT * FROM test_runs
+                SELECT id, timestamp, environment, total, passed, failed, pass_rate
+                FROM test_runs
                 WHERE failed > 0
-                ORDER BY run_at DESC
+                ORDER BY timestamp DESC
                 LIMIT 3
             """)
             failed_runs = cur.fetchall()
@@ -242,11 +244,11 @@ class RootCauseAnalyzer(Component):
             conn = sqlite3.connect(self.db_path)
             cur = conn.cursor()
             cur.execute("""
-                SELECT er.passed, tr.run_at, tr.environment
+                SELECT er.overall, tr.timestamp, tr.environment
                 FROM endpoint_results er
                 JOIN test_runs tr ON er.run_id = tr.id
                 WHERE er.method = ?
-                ORDER BY tr.run_at DESC
+                ORDER BY tr.timestamp DESC
                 LIMIT 10
             """, (method,))
             rows = cur.fetchall()
@@ -255,11 +257,11 @@ class RootCauseAnalyzer(Component):
             if not rows:
                 return {"type": "NO_HISTORY", "detail": "No historical data for this method."}
 
-            results = [bool(r[0]) for r in rows]
-            if len(results) >= 2 and results[1]:
+            results = [r[0] == "PASS" for r in rows]
+            if len(results) >= 2 and results[1]:  # was passing last run, now failing
                 return {"type": "REGRESSION", "detail": f"Was PASSING in previous run ({rows[1][1]} [{rows[1][2]}])."}
             if all(not r for r in results):
-                return {"type": "PERSISTENT", "detail": f"Failing for {len(results)} consecutive runs — likely config/env issue."}
+                return {"type": "PERSISTENT", "detail": f"Failing for all {len(results)} recent runs — likely config/env issue."}
             passing = sum(1 for r in results if r)
             return {"type": "FLAKY", "detail": f"Passed {passing}/{len(results)} recent runs — intermittent issue."}
         except Exception as exc:
@@ -447,7 +449,7 @@ class RootCauseAnalyzer(Component):
             if failed_runs:
                 lines.append("  Recent failed runs:")
                 for r in failed_runs:
-                    lines.append(f"    ❌ {r.get('run_at','?')} [{r.get('environment','?')}] — {r.get('failed','?')}/{r.get('total','?')} FAILED ({r.get('pass_rate','?')})")
+                    lines.append(f"    ❌ {r.get('timestamp','?')} [{r.get('environment','?')}] — {r.get('failed','?')}/{r.get('total','?')} FAILED ({r.get('pass_rate','?')})")
                 lines.append("")
 
             if failed_eps:
@@ -459,7 +461,7 @@ class RootCauseAnalyzer(Component):
                     pct = round((pass_count / total * 100) if total else 0)
                     stability = "FLAKY" if 0 < pct < 100 else ("ALWAYS FAILING" if pct == 0 else "STABLE")
                     lines.append(f"    [{stability}] {ep.get('method','?')} {ep.get('url','?')}")
-                    lines.append(f"       Failed {fail_count}x | Pass rate {pct}% | Last seen: {ep.get('run_at','?')}")
+                    lines.append(f"       Failed {fail_count}x | Pass rate {pct}% | Last seen: {ep.get('last_seen','?')}")
 
                     # suggest fix based on last known status code
                     sc = ep.get("status_code")
