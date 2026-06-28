@@ -13,7 +13,8 @@ class RootCauseAnalyzer(Component):
     display_name = "Root Cause Analyzer v3.1"
     description = (
         "Parses failed endpoints from the enriched summary, classifies root causes, "
-        "detects regressions via SQLite history, and outputs a structured analysis for the LLM."
+        "detects regressions via SQLite history, and outputs a structured analysis for the LLM. "
+        "Also surfaces historical failures even when the current run is green."
     )
     icon = "AlertTriangle"
 
@@ -39,10 +40,10 @@ class RootCauseAnalyzer(Component):
 
     outputs = [Output(display_name="RCA Report", name="rca_report", method="analyze")]
 
-    # ── severity by category ───────────────────────────────────────────────────
     _SEVERITY_RANK = {
         "connectivity": 4,
         "status_5xx": 4,
+        "status_mismatch": 3,
         "status_4xx": 3,
         "schema_missing": 3,
         "schema_type": 2,
@@ -52,33 +53,34 @@ class RootCauseAnalyzer(Component):
     }
     _SEVERITY_LABEL = {4: "CRITICAL", 3: "HIGH", 2: "MEDIUM", 1: "LOW"}
 
-    # ── fix suggestions per category ───────────────────────────────────────────
     _FIXES = {
         "connectivity": [
             "Verify the base URL is reachable (ping / curl the host directly).",
             "Check if a VPN or firewall is blocking the connection from the test runner.",
             "Confirm the service is deployed and healthy (check k8s pods / docker status).",
-            "Review network timeout settings — increase if the host is geographically distant.",
+        ],
+        "status_mismatch": [
+            "Expected vs actual status mismatch — verify the correct HTTP status in your test config.",
+            "Check if the API version or endpoint path changed (e.g. 201 Created vs 200 OK).",
+            "Confirm the expected_status JSON matches the current API contract.",
         ],
         "status_401": [
             "Auth token is missing or expired — ensure POST /auth runs BEFORE this endpoint.",
-            "Verify the Authorization header format: Bearer <token>, not Basic or raw token.",
-            "Check token TTL — if it expires in < 30 s, add a refresh step before the chain.",
+            "Verify the Authorization header format: Bearer <token>.",
+            "Check token TTL — add a refresh step before the chain if it expires quickly.",
         ],
         "status_403": [
-            "Token is valid but the user lacks permission for this resource/action.",
+            "Token is valid but the user lacks permission for this resource.",
             "Verify RBAC roles assigned to the test account in the target environment.",
-            "Check if the resource requires an elevated scope (admin vs. read-only).",
         ],
         "status_404": [
             "Path parameter value is wrong — confirm the resource was created in a prior step.",
-            "Verify the API version prefix in the URL (e.g. /v1/ vs /v2/).",
+            "Verify the API version prefix in the URL.",
             "Resource may have been deleted by a previous test run — add idempotent setup.",
         ],
         "status_429": [
-            "Rate limit exceeded — add explicit delays between requests.",
+            "Rate limit exceeded — add delays between requests.",
             "Reduce parallel workers in API Test Suite (set to 1 for sequential execution).",
-            "Implement exponential backoff (already available in APITestSuite v2.1+).",
         ],
         "status_5xx": [
             "Server-side error — pull application logs immediately after the failure.",
@@ -120,80 +122,176 @@ class RootCauseAnalyzer(Component):
         except Exception:
             known_fixes = {}
 
-        failures = self._extract_failures(summary)
+        # 1. Parse current-run failures from the enriched summary text
+        current_failures = self._extract_failures(summary)
 
-        if not failures:
-            clean = (
+        # 2. Always pull historical failures from SQLite for richer analysis
+        historical_failures = self._query_historical_failures()
+
+        if not current_failures and not historical_failures:
+            return Message(text=(
                 f"{summary}\n\n"
                 "=== ROOT CAUSE ANALYSIS ===\n"
-                "No failures detected — all endpoints healthy. No root cause analysis required."
-            )
-            return Message(text=clean)
+                "No failures detected in current run or recent history. System is healthy."
+            ))
 
-        analyses = [self._analyze_failure(f, known_fixes) for f in failures]
-        report = self._build_report(analyses, summary)
+        current_analyses = [self._analyze_failure(f, known_fixes) for f in current_failures]
+        report = self._build_report(current_analyses, historical_failures, summary)
         return Message(text=report)
 
-    # ── parsing ────────────────────────────────────────────────────────────────
+    # ── current-run failure parsing ────────────────────────────────────────────
     def _extract_failures(self, summary: str) -> list:
         failures = []
         lines = summary.split("\n")
 
         for i, line in enumerate(lines):
-            if "❌" not in line:
+            stripped = line.strip()
+
+            # endpoint-level failure: line has ❌ AND contains a HTTP method AND "FAIL" keyword
+            # also catches "— FAIL" without ❌ in case emoji is stripped
+            is_endpoint_fail = (
+                ("❌" in stripped or "— FAIL" in stripped or "| FAIL" in stripped)
+                and any(f" {m} " in f" {stripped} " or stripped.startswith(m + " ") or stripped.startswith("❌ " + m + " ")
+                        for m in ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"])
+            )
+            if not is_endpoint_fail:
                 continue
 
-            failure: dict = {"raw": line.strip(), "checks": []}
+            failure: dict = {"raw": stripped, "checks": []}
 
-            m = re.search(r"\b(GET|POST|PUT|PATCH|DELETE|HEAD)\b\s+(/[^\s\-—|]*)", line)
+            # extract method — works for both "❌ POST https://..." and "POST /path..."
+            m = re.search(r"\b(GET|POST|PUT|PATCH|DELETE|HEAD)\b", stripped)
             if m:
                 failure["method"] = m.group(1)
-                failure["path"] = m.group(2).rstrip(" —|")
+                # extract path — try short path first (/path), then full URL
+                path_m = re.search(r"\b(GET|POST|PUT|PATCH|DELETE|HEAD)\b\s+(https?://[^\s]+|/[^\s—|]*)", stripped)
+                failure["path"] = path_m.group(2).rstrip(" —|") if path_m else stripped
             else:
                 failure["method"] = "UNKNOWN"
-                failure["path"] = line.strip()
+                failure["path"] = stripped
 
-            s = re.search(r"\b([1-5]\d{2})\b", line)
+            # extract HTTP status code (e.g. "— 200 (")
+            s = re.search(r"—\s*([1-5]\d{2})\s*\(", stripped)
+            if not s:
+                s = re.search(r"\b([1-5]\d{2})\b", stripped)
             failure["status_code"] = int(s.group(1)) if s else None
 
-            t = re.search(r"(\d+(?:\.\d+)?)\s*ms", line)
-            failure["response_ms"] = float(t.group(1)) if t else None
+            # extract expected status from check lines if present
+            failure["expected_status"] = None
+            exp_m = re.search(r"expected\s+(\d{3}),?\s*got\s+(\d{3})", stripped, re.IGNORECASE)
+            if exp_m:
+                failure["expected_status"] = int(exp_m.group(1))
+                failure["status_code"] = int(exp_m.group(2))
 
             # collect indented check lines that follow
-            for j in range(i + 1, min(i + 8, len(lines))):
+            for j in range(i + 1, min(i + 10, len(lines))):
                 nl = lines[j].strip()
                 if not nl:
                     break
-                if nl.startswith(("✅", "❌", "PERF", "HIST", "OVER", "FLAW", "---")):
+                if any(nl.startswith(k) for k in ("✅", "❌", "PERF", "HIST", "OVER", "FLAW", "---", "===", "timestamp:", "environment:", "total:")):
                     break
-                if any(k in nl.lower() for k in ("check", "fail", "missing", "expected", "assert", "sla", "type", "required")):
+                if any(k in nl.lower() for k in ("check", "fail", "missing", "expected", "assert", "sla", "type", "required", "connectivity", "status_code")):
                     failure["checks"].append(nl)
 
             failures.append(failure)
 
         return failures
 
-    # ── analysis ───────────────────────────────────────────────────────────────
+    # ── sqlite historical failure query ───────────────────────────────────────
+    def _query_historical_failures(self) -> list:
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+
+            # get recent failed endpoints across last 20 runs
+            cur.execute("""
+                SELECT er.method, er.url, er.status_code, er.duration_ms,
+                       tr.run_at, tr.environment,
+                       COUNT(*) as fail_count,
+                       SUM(CASE WHEN er.passed THEN 1 ELSE 0 END) as pass_count
+                FROM endpoint_results er
+                JOIN test_runs tr ON er.run_id = tr.id
+                WHERE er.passed = 0
+                GROUP BY er.method, er.url
+                ORDER BY fail_count DESC
+                LIMIT 10
+            """)
+            rows = cur.fetchall()
+
+            # also get the last failed run summary
+            cur.execute("""
+                SELECT * FROM test_runs
+                WHERE failed > 0
+                ORDER BY run_at DESC
+                LIMIT 3
+            """)
+            failed_runs = cur.fetchall()
+            conn.close()
+
+            return {
+                "failed_endpoints": [dict(r) for r in rows],
+                "failed_runs": [dict(r) for r in failed_runs],
+            }
+        except Exception as exc:
+            return {"failed_endpoints": [], "failed_runs": [], "error": str(exc)}
+
+    # ── regression check ──────────────────────────────────────────────────────
+    def _check_regression(self, method: str) -> dict:
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT er.passed, tr.run_at, tr.environment
+                FROM endpoint_results er
+                JOIN test_runs tr ON er.run_id = tr.id
+                WHERE er.method = ?
+                ORDER BY tr.run_at DESC
+                LIMIT 10
+            """, (method,))
+            rows = cur.fetchall()
+            conn.close()
+
+            if not rows:
+                return {"type": "NO_HISTORY", "detail": "No historical data for this method."}
+
+            results = [bool(r[0]) for r in rows]
+            if len(results) >= 2 and results[1]:
+                return {"type": "REGRESSION", "detail": f"Was PASSING in previous run ({rows[1][1]} [{rows[1][2]}])."}
+            if all(not r for r in results):
+                return {"type": "PERSISTENT", "detail": f"Failing for {len(results)} consecutive runs — likely config/env issue."}
+            passing = sum(1 for r in results if r)
+            return {"type": "FLAKY", "detail": f"Passed {passing}/{len(results)} recent runs — intermittent issue."}
+        except Exception as exc:
+            return {"type": "UNKNOWN", "detail": f"Could not query history: {exc}"}
+
+    # ── single failure analysis ───────────────────────────────────────────────
     def _analyze_failure(self, failure: dict, known_fixes: dict) -> dict:
         method = failure["method"]
         path = failure["path"]
         status = failure["status_code"]
+        expected_status = failure.get("expected_status")
         checks = failure["checks"]
         raw = failure["raw"].lower()
 
-        categories: list[str] = []
-        fixes: list[str] = []
+        categories: list = []
+        fixes: list = []
 
         # connectivity
         if any(k in raw for k in ("connection", "timeout", "refused", "unreachable", "network error")):
             categories.append("connectivity")
             fixes += self._FIXES["connectivity"]
 
-        # status code
+        # status code mismatch (expected != actual)
+        if expected_status and status and expected_status != status:
+            categories.append("status_mismatch")
+            fixes += self._FIXES["status_mismatch"]
+
+        # classify by actual status code
         if status:
             if status >= 500:
                 categories.append("status_5xx")
-                fixes += self._FIXES.get(f"status_{status}", self._FIXES["status_5xx"])
+                fixes += self._FIXES["status_5xx"]
             elif status == 401:
                 categories.append("status_4xx")
                 fixes += self._FIXES["status_401"]
@@ -208,20 +306,31 @@ class RootCauseAnalyzer(Component):
                 fixes += self._FIXES["status_429"]
             elif status >= 400:
                 categories.append("status_4xx")
-                fixes += [f"HTTP {status} received — review API documentation for this error code."]
+                fixes += [f"HTTP {status} — review API documentation for this error code."]
 
-        # check details
+        # parse check detail lines for schema/assertion/sla failures
         for c in checks:
             cl = c.lower()
-            if "missing" in cl or "required" in cl:
-                if "schema_missing" not in categories:
-                    categories.append("schema_missing")
-                    fixes += self._FIXES["schema_missing"]
-            if "type" in cl and ("mismatch" in cl or "expected" in cl):
-                if "schema_type" not in categories:
-                    categories.append("schema_type")
-                    fixes += self._FIXES["schema_type"]
-            if ("assertion" in cl or ("failed" in cl and "check" in cl)) and "assertion" not in categories:
+            # skip check lines that are about status codes (already handled)
+            if "status_code" in cl or "status code" in cl:
+                if "expected" in cl and "got" in cl:
+                    # extract expected vs actual from check line if not already set
+                    exp_m = re.search(r"expected\s+(\d{3}),?\s*got\s+(\d{3})", cl)
+                    if exp_m and not expected_status:
+                        exp, got = int(exp_m.group(1)), int(exp_m.group(2))
+                        if exp != got:
+                            if "status_mismatch" not in categories:
+                                categories.append("status_mismatch")
+                                fixes += self._FIXES["status_mismatch"]
+                continue
+
+            if ("missing" in cl or ("required" in cl and "fail" in cl)) and "schema_missing" not in categories:
+                categories.append("schema_missing")
+                fixes += self._FIXES["schema_missing"]
+            if "type" in cl and ("mismatch" in cl or ("expected" in cl and "got" in cl)) and "schema_type" not in categories:
+                categories.append("schema_type")
+                fixes += self._FIXES["schema_type"]
+            if ("assert" in cl or ("fail" in cl and "assert" in cl)) and "assertion" not in categories:
                 categories.append("assertion")
                 fixes += self._FIXES["assertion"]
             if ("sla" in cl or "threshold" in cl) and "sla" not in categories:
@@ -239,7 +348,7 @@ class RootCauseAnalyzer(Component):
             except re.error:
                 pass
 
-        # deduplicate fixes preserving order
+        # deduplicate
         seen: set = set()
         deduped = []
         for f in fixes:
@@ -247,16 +356,15 @@ class RootCauseAnalyzer(Component):
                 seen.add(f)
                 deduped.append(f)
 
-        # severity = highest ranked category
         rank = max((self._SEVERITY_RANK.get(c, 1) for c in categories), default=1)
         severity = self._SEVERITY_LABEL[rank]
-
-        regression = self._check_regression(method, path)
+        regression = self._check_regression(method)
 
         return {
             "endpoint": f"{method} {path}",
             "status_code": status,
-            "response_ms": failure["response_ms"],
+            "expected_status": expected_status,
+            "response_ms": failure.get("response_ms"),
             "severity": severity,
             "categories": categories,
             "checks": checks,
@@ -264,46 +372,8 @@ class RootCauseAnalyzer(Component):
             "regression": regression,
         }
 
-    # ── sqlite regression check ────────────────────────────────────────────────
-    def _check_regression(self, method: str, path: str) -> dict:
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT er.passed, tr.run_at, tr.environment
-                FROM endpoint_results er
-                JOIN test_runs tr ON er.run_id = tr.id
-                WHERE er.method = ?
-                ORDER BY tr.run_at DESC
-                LIMIT 10
-            """, (method,))
-            rows = cur.fetchall()
-            conn.close()
-
-            if not rows:
-                return {"type": "NO_HISTORY", "detail": "No historical data found for this method — first run or new endpoint."}
-
-            results = [bool(r[0]) for r in rows]
-            if len(results) >= 2 and results[1]:
-                return {
-                    "type": "REGRESSION",
-                    "detail": f"Was PASSING in the previous run ({rows[1][1]} [{rows[1][2]}]). A recent change likely introduced this failure.",
-                }
-            if all(not r for r in results):
-                return {
-                    "type": "PERSISTENT",
-                    "detail": f"Failing across all {len(results)} recent runs. Not a regression — likely a configuration or environment issue.",
-                }
-            passing = sum(1 for r in results if r)
-            return {
-                "type": "FLAKY",
-                "detail": f"Passed {passing}/{len(results)} recent runs. Intermittent issue — possible race condition or external dependency.",
-            }
-        except Exception as exc:
-            return {"type": "UNKNOWN", "detail": f"Could not query history: {exc}"}
-
-    # ── report formatting ──────────────────────────────────────────────────────
-    def _build_report(self, analyses: list, original_summary: str) -> str:
+    # ── report builder ────────────────────────────────────────────────────────
+    def _build_report(self, current_analyses: list, historical: dict, original_summary: str) -> str:
         now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
         sep = "=" * 64
 
@@ -313,51 +383,93 @@ class RootCauseAnalyzer(Component):
             sep,
             f"ROOT CAUSE ANALYSIS — {now}",
             sep,
-            f"Total Failures Analyzed: {len(analyses)}",
-            "",
         ]
 
-        severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
-        sorted_analyses = sorted(analyses, key=lambda a: severity_order.get(a["severity"], 4))
-
-        for i, a in enumerate(sorted_analyses, 1):
-            sev_icon = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🔵"}.get(a["severity"], "⚪")
-            lines.append(f"[FAILURE {i}] {sev_icon} {a['endpoint']}")
-            lines.append(f"  Severity   : {a['severity']}")
-            lines.append(f"  Categories : {', '.join(a['categories'])}")
-            if a["status_code"]:
-                lines.append(f"  HTTP Status: {a['status_code']}")
-            if a["response_ms"] is not None:
-                lines.append(f"  Resp Time  : {a['response_ms']}ms")
-
-            reg = a["regression"]
-            reg_icon = {"REGRESSION": "🔁", "PERSISTENT": "🔂", "FLAKY": "⚡", "NO_HISTORY": "🆕", "UNKNOWN": "❓"}.get(reg["type"], "❓")
-            lines.append(f"  Regression : {reg_icon} [{reg['type']}] {reg['detail']}")
-
-            if a["checks"]:
-                lines.append("  Failed Checks:")
-                for c in a["checks"]:
-                    lines.append(f"    • {c}")
-
-            lines.append("  Fix Suggestions:")
-            for j, fix in enumerate(a["fixes"], 1):
-                lines.append(f"    {j}. {fix}")
-
+        # ── current run failures ───────────────────────────────────────────────
+        if current_analyses:
+            lines.append(f"CURRENT RUN FAILURES: {len(current_analyses)}")
             lines.append("")
 
-        # priority summary block
-        critical = [a for a in sorted_analyses if a["severity"] == "CRITICAL"]
-        high = [a for a in sorted_analyses if a["severity"] == "HIGH"]
-        regressions = [a for a in sorted_analyses if a["regression"]["type"] == "REGRESSION"]
+            sev_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+            sorted_a = sorted(current_analyses, key=lambda a: sev_order.get(a["severity"], 4))
 
-        lines.append("PRIORITY SUMMARY:")
-        if critical:
-            lines.append(f"  🔴 CRITICAL ({len(critical)}): " + ", ".join(a["endpoint"] for a in critical))
-        if high:
-            lines.append(f"  🟠 HIGH ({len(high)}): " + ", ".join(a["endpoint"] for a in high))
-        if regressions:
-            lines.append(f"  🔁 REGRESSIONS ({len(regressions)}): " + ", ".join(a["endpoint"] for a in regressions))
-        if not critical and not high and not regressions:
-            lines.append("  All failures are MEDIUM/LOW severity and non-regressive.")
+            for i, a in enumerate(sorted_a, 1):
+                sev_icon = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🔵"}.get(a["severity"], "⚪")
+                lines.append(f"[FAILURE {i}] {sev_icon} {a['endpoint']}")
+                lines.append(f"  Severity   : {a['severity']}")
+                lines.append(f"  Categories : {', '.join(a['categories'])}")
+                if a["expected_status"] and a["status_code"]:
+                    lines.append(f"  HTTP Status: got {a['status_code']}, expected {a['expected_status']}")
+                elif a["status_code"]:
+                    lines.append(f"  HTTP Status: {a['status_code']}")
+
+                reg = a["regression"]
+                reg_icon = {"REGRESSION": "🔁", "PERSISTENT": "🔂", "FLAKY": "⚡", "NO_HISTORY": "🆕", "UNKNOWN": "❓"}.get(reg["type"], "❓")
+                lines.append(f"  Regression : {reg_icon} [{reg['type']}] {reg['detail']}")
+
+                if a["checks"]:
+                    lines.append("  Failed Checks:")
+                    for c in a["checks"]:
+                        lines.append(f"    • {c}")
+
+                lines.append("  Fix Suggestions:")
+                for j, fix in enumerate(a["fixes"], 1):
+                    lines.append(f"    {j}. {fix}")
+                lines.append("")
+
+            # priority summary
+            critical = [a for a in sorted_a if a["severity"] == "CRITICAL"]
+            high = [a for a in sorted_a if a["severity"] == "HIGH"]
+            regressions = [a for a in sorted_a if a["regression"]["type"] == "REGRESSION"]
+
+            lines.append("CURRENT RUN PRIORITY:")
+            if critical:
+                lines.append(f"  🔴 CRITICAL ({len(critical)}): " + ", ".join(a["endpoint"] for a in critical))
+            if high:
+                lines.append(f"  🟠 HIGH ({len(high)}): " + ", ".join(a["endpoint"] for a in high))
+            if regressions:
+                lines.append(f"  🔁 REGRESSIONS ({len(regressions)}): " + ", ".join(a["endpoint"] for a in regressions))
+            if not critical and not high and not regressions:
+                lines.append("  All current failures are MEDIUM/LOW severity.")
+            lines.append("")
+        else:
+            lines.append("CURRENT RUN: ✅ All endpoints PASSED")
+            lines.append("")
+
+        # ── historical failures from SQLite ────────────────────────────────────
+        failed_eps = historical.get("failed_endpoints", [])
+        failed_runs = historical.get("failed_runs", [])
+
+        if failed_eps or failed_runs:
+            lines.append("HISTORICAL FAILURE INTELLIGENCE (from SQLite):")
+            lines.append("")
+
+            if failed_runs:
+                lines.append("  Recent failed runs:")
+                for r in failed_runs:
+                    lines.append(f"    ❌ {r.get('run_at','?')} [{r.get('environment','?')}] — {r.get('failed','?')}/{r.get('total','?')} FAILED ({r.get('pass_rate','?')})")
+                lines.append("")
+
+            if failed_eps:
+                lines.append("  Most frequently failing endpoints (last 20 runs):")
+                for ep in failed_eps[:5]:
+                    fail_count = ep.get("fail_count", 0)
+                    pass_count = ep.get("pass_count", 0)
+                    total = fail_count + pass_count
+                    pct = round((pass_count / total * 100) if total else 0)
+                    stability = "FLAKY" if 0 < pct < 100 else ("ALWAYS FAILING" if pct == 0 else "STABLE")
+                    lines.append(f"    [{stability}] {ep.get('method','?')} {ep.get('url','?')}")
+                    lines.append(f"       Failed {fail_count}x | Pass rate {pct}% | Last seen: {ep.get('run_at','?')}")
+
+                    # suggest fix based on last known status code
+                    sc = ep.get("status_code")
+                    if sc:
+                        fix_key = f"status_{sc}" if sc in (401, 403, 404, 429) else ("status_5xx" if sc >= 500 else None)
+                        if fix_key and fix_key in self._FIXES:
+                            lines.append(f"       Likely fix: {self._FIXES[fix_key][0]}")
+                lines.append("")
+
+        if "error" in historical:
+            lines.append(f"  (Could not query SQLite history: {historical['error']})")
 
         return "\n".join(lines)
