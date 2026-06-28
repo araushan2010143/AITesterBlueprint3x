@@ -1,0 +1,81 @@
+{
+  "_comment": "Paste each section into the corresponding field in API Test Suite v2.2 to trigger specific failure types for v3.1 demo.",
+
+  "scenario_1_schema_failure": {
+    "_description": "Forces a SCHEMA failure — expects a field 'price_string' as int (wrong type) and 'nonexistent_field' (missing). Good for demoing schema RCA.",
+    "Schemas (JSON)": {
+      "POST.*auth$":        { "required": ["token"],             "types": { "token": "str" } },
+      "POST.*booking$":     { "required": ["bookingid", "booking"], "types": { "bookingid": "int" } },
+      "GET.*booking/\\d+":  {
+        "required": ["firstname", "lastname", "totalprice", "depositpaid", "bookingdates", "nonexistent_field"],
+        "types":    { "totalprice": "str", "depositpaid": "bool" }
+      }
+    },
+    "_expects": "GET /booking/{id} will fail: MISSING nonexistent_field + TYPE MISMATCH totalprice (int vs expected str)"
+  },
+
+  "scenario_2_assertion_failure": {
+    "_description": "Forces an ASSERTION failure — asserts totalprice > 99999 (impossibly high). Good for demoing assertion RCA.",
+    "Assertions (JSON)": [
+      { "url": "POST.*auth$",       "field": "token",      "operator": "!=", "value": null,  "label": "token not null" },
+      { "url": "POST.*booking$",    "field": "bookingid",  "operator": ">",  "value": 0,     "label": "bookingid > 0" },
+      { "url": "GET.*booking/\\d+", "field": "totalprice", "operator": ">",  "value": 99999, "label": "totalprice > 99999 (demo fail)" }
+    ],
+    "_expects": "GET /booking/{id} assertion 'totalprice > 99999' will FAIL"
+  },
+
+  "scenario_3_sla_failure": {
+    "_description": "Forces an SLA failure — sets 100ms threshold for auth (always slow). Good for demoing SLA/performance RCA.",
+    "SLA Thresholds (JSON)": {
+      "POST.*auth$":       100,
+      "POST.*booking$":    2000,
+      "GET.*booking/\\d+": 2000
+    },
+    "_expects": "POST /auth will FAIL SLA (it typically takes 800-1500ms)"
+  },
+
+  "scenario_4_combined_failures": {
+    "_description": "Combines schema + assertion + SLA failures for a full multi-failure RCA demo.",
+    "Schemas (JSON)": {
+      "POST.*auth$":       { "required": ["token"],              "types": { "token": "str" } },
+      "POST.*booking$":    { "required": ["bookingid", "booking"], "types": { "bookingid": "int" } },
+      "GET.*booking/\\d+": {
+        "required": ["firstname", "lastname", "totalprice", "depositpaid", "bookingdates", "ghost_field"],
+        "types":    { "totalprice": "str" }
+      }
+    },
+    "Assertions (JSON)": [
+      { "url": "POST.*auth$",       "field": "token",      "operator": "!=", "value": null,  "label": "token not null" },
+      { "url": "POST.*booking$",    "field": "bookingid",  "operator": ">",  "value": 0,     "label": "bookingid > 0" },
+      { "url": "GET.*booking/\\d+", "field": "totalprice", "operator": ">",  "value": 99999, "label": "totalprice > 99999" }
+    ],
+    "SLA Thresholds (JSON)": {
+      "POST.*auth$":       100,
+      "POST.*booking$":    2000,
+      "GET.*booking/\\d+": 2000
+    },
+    "_expects": "Multiple failures: SLA on POST /auth, SCHEMA + ASSERTION on GET /booking/{id}"
+  },
+
+  "working_config_restore": {
+    "_comment": "Paste these back to restore 100% pass after demo.",
+    "Schemas (JSON)": {
+      "POST.*auth$":       { "required": ["token"],              "types": { "token": "str" } },
+      "POST.*booking$":    { "required": ["bookingid", "booking"], "types": { "bookingid": "int" } },
+      "GET.*booking/\\d+": {
+        "required": ["firstname", "lastname", "totalprice", "depositpaid", "bookingdates"],
+        "types":    { "totalprice": "int", "depositpaid": "bool" }
+      }
+    },
+    "Assertions (JSON)": [
+      { "url": "POST.*auth$",       "field": "token",      "operator": "!=", "value": null, "label": "token not null" },
+      { "url": "POST.*booking$",    "field": "bookingid",  "operator": ">",  "value": 0,    "label": "bookingid > 0" },
+      { "url": "GET.*booking/\\d+", "field": "totalprice", "operator": ">",  "value": 0,    "label": "totalprice > 0" }
+    ],
+    "SLA Thresholds (JSON)": {
+      "POST.*auth$":       3000,
+      "POST.*booking$":    2000,
+      "GET.*booking/\\d+": 2000
+    }
+  }
+}
