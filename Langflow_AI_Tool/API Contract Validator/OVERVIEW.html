@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>API Contract Validator - Version Overview</title>
+<style>
+body{font-family:Arial,sans-serif;background:#0f172a;color:#e5e7eb;margin:0;padding:30px}
+h1,h2{color:#60a5fa}
+.card{background:#111827;border:1px solid #334155;border-radius:10px;padding:18px;margin:16px 0}
+table{width:100%;border-collapse:collapse}
+th,td{border:1px solid #334155;padding:10px}
+th{background:#1e293b}
+code{color:#93c5fd}
+</style>
+</head>
+<body>
+<h1>API Contract Validator — Complete Implementation Overview</h1>
+<p>This guide explains every version, its implementation, benefits, workflow, and expected output.</p>
+<table>
+<tr><th>Version</th><th>Implementation</th><th>Benefits</th><th>Output</th></tr>
+<tr><td>v1.0</td><td>AI cURL Parser + HTTP Executor</td><td>Converts cURL into executable API requests.</td><td>Real request/response execution.</td></tr>
+<tr><td>v1.1</td><td>Authentication + Variable Resolution</td><td>Automatically propagates tokens, cookies and IDs.</td><td>Authenticated API chaining.</td></tr>
+<tr><td>v1.2</td><td>JSON Schema + Assertions</td><td>Validates API contracts and business rules.</td><td>Pass/Fail validation report.</td></tr>
+<tr><td>v1.3</td><td>Reports + AI Explainer</td><td>Human-readable failure analysis.</td><td>HTML/JSON/Markdown reports.</td></tr>
+<tr><td>v2.0</td><td>OpenAPI &amp; Postman Import</td><td>Automatic API onboarding.</td><td>Imported collections/specifications.</td></tr>
+<tr><td>v2.1</td><td>Performance + Retry</td><td>Measures latency and retries transient failures.</td><td>Metrics dashboard.</td></tr>
+<tr><td>v2.2</td><td>Environment Profiles + Parallel Execution</td><td>Supports Dev/QA/Prod and faster execution.</td><td>Parallel API execution.</td></tr>
+<tr><td>v3.0</td><td>CI/CD + Historical Dashboard</td><td>Pipeline integration and trend analysis.</td><td>Build status and history.</td></tr>
+<tr><td>v3.1</td><td>AI Root Cause Analysis</td><td>Explains failures, impact and recommended fixes.</td><td>AI-generated RCA.</td></tr>
+</table>
+
+<div class="card">
+<h2>Enterprise Workflow</h2>
+<pre>
+Paste cURLs/OpenAPI
+        ↓
+AI Parser
+        ↓
+Variable Resolver
+        ↓
+Authentication Manager
+        ↓
+HTTP Executor
+        ↓
+Schema Validator
+        ↓
+Assertion Engine
+        ↓
+Performance Collector
+        ↓
+Report Generator
+        ↓
+AI Root Cause Analysis
+</pre>
+</div>
+
+<div class="card">
+<h2>Technology Stack</h2>
+<ul>
+<li>Langflow</li>
+<li>Python</li>
+<li>requests</li>
+<li>jsonschema</li>
+<li>Groq LLM (llama-3.3-70b-versatile)</li>
+<li>Jinja2 Reports</li>
+<li>SQLite</li>
+<li>GitHub Actions</li>
+</ul>
+</div>
+
+<div class="card">
+<h2>Benefits</h2>
+<ul>
+<li>Real API execution (no mocked responses)</li>
+<li>Deterministic contract validation</li>
+<li>AI-powered explanations</li>
+<li>CI/CD ready</li>
+<li>Enterprise scalable architecture</li>
+</ul>
+</div>
+</body>
+</html>
