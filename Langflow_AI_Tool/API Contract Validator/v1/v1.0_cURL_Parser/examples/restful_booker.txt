@@ -1,0 +1,21 @@
+# Restful Booker — Test cURLs for v1.0
+# Paste ALL of these into the Langflow Chat Input at once.
+
+curl -X POST https://restful-booker.herokuapp.com/auth \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "password123"}'
+
+curl -X GET https://restful-booker.herokuapp.com/booking \
+  -H "Accept: application/json"
+
+curl -X POST https://restful-booker.herokuapp.com/booking \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "firstname": "John",
+    "lastname": "Doe",
+    "totalprice": 150,
+    "depositpaid": true,
+    "bookingdates": {"checkin": "2025-01-01", "checkout": "2025-01-07"},
+    "additionalneeds": "Breakfast"
+  }'

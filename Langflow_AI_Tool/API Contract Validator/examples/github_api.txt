@@ -1,0 +1,14 @@
+# GitHub REST API — Example cURL Chain
+# Replace {{GITHUB_TOKEN}} and {{username}} with real values or seed via Variable Resolver.
+
+curl -X GET https://api.github.com/users/{{username}} \
+  -H "Authorization: Bearer {{GITHUB_TOKEN}}" \
+  -H "Accept: application/vnd.github+json"
+
+curl -X GET https://api.github.com/users/{{username}}/repos \
+  -H "Authorization: Bearer {{GITHUB_TOKEN}}" \
+  -H "Accept: application/vnd.github+json"
+
+curl -X GET https://api.github.com/repos/{{username}}/{{repo}}/issues \
+  -H "Authorization: Bearer {{GITHUB_TOKEN}}" \
+  -H "Accept: application/vnd.github+json"

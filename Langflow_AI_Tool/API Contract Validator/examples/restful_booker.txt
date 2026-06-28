@@ -1,0 +1,43 @@
+# Restful Booker API — Example cURL Chain
+# Paste all of these into Langflow Chat Input to run the full flow.
+
+curl -X POST https://restful-booker.herokuapp.com/auth \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "password123"}'
+
+curl -X POST https://restful-booker.herokuapp.com/booking \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "firstname": "John",
+    "lastname": "Doe",
+    "totalprice": 150,
+    "depositpaid": true,
+    "bookingdates": {
+      "checkin": "2025-01-01",
+      "checkout": "2025-01-07"
+    },
+    "additionalneeds": "Breakfast"
+  }'
+
+curl -X GET https://restful-booker.herokuapp.com/booking/{{bookingid}} \
+  -H "Accept: application/json"
+
+curl -X PUT https://restful-booker.herokuapp.com/booking/{{bookingid}} \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "Cookie: token={{token}}" \
+  -d '{
+    "firstname": "Jane",
+    "lastname": "Doe",
+    "totalprice": 200,
+    "depositpaid": true,
+    "bookingdates": {
+      "checkin": "2025-02-01",
+      "checkout": "2025-02-10"
+    },
+    "additionalneeds": "Lunch"
+  }'
+
+curl -X DELETE https://restful-booker.herokuapp.com/booking/{{bookingid}} \
+  -H "Cookie: token={{token}}"

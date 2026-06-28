@@ -1,0 +1,52 @@
+environments:
+  dev:
+    base_url: "https://dev.api.example.com"
+    timeout: 30
+    retry_count: 3
+
+  qa:
+    base_url: "https://qa.api.example.com"
+    timeout: 30
+    retry_count: 3
+
+  staging:
+    base_url: "https://staging.api.example.com"
+    timeout: 45
+    retry_count: 2
+
+  prod:
+    base_url: "https://api.example.com"
+    timeout: 60
+    retry_count: 1
+
+  restful_booker:
+    base_url: "https://restful-booker.herokuapp.com"
+    timeout: 30
+    retry_count: 3
+
+active_environment: restful_booker
+
+logging:
+  level: INFO
+  request_log: "logs/requests.log"
+  response_log: "logs/responses.log"
+  execution_log: "logs/execution.log"
+
+reporting:
+  output_dir: "reports"
+  formats:
+    - html
+    - json
+    - markdown
+
+performance:
+  warn_above_ms: 1000
+  fail_above_ms: 5000
+
+secrets:
+  mask_fields:
+    - password
+    - token
+    - apiKey
+    - authorization
+    - secret

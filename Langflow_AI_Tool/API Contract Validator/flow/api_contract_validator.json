@@ -1,0 +1,128 @@
+{
+  "id": "api-contract-validator-v1",
+  "name": "API Contract Validator",
+  "description": "Enterprise-grade AI-powered API contract validation flow. Paste cURLs → Parse → Execute → Validate → Report.",
+  "version": "1.0.0",
+  "nodes": [
+    {
+      "id": "node-1-chat-input",
+      "type": "ChatInput",
+      "display_name": "Chat Input",
+      "description": "Paste one or more cURL commands here. Separate each with a newline.",
+      "position": { "x": 100, "y": 300 }
+    },
+    {
+      "id": "node-2-prompt",
+      "type": "Prompt",
+      "display_name": "cURL Parser Prompt",
+      "description": "Instructs the LLM to extract structured API request objects from raw cURL input.",
+      "template": "You are an API request parser. Extract each cURL command from the input below and return a valid JSON array where each element has the fields: method, url, headers (object), body (object or null), cookies (object), auth (object or null).\n\nRespond ONLY with the JSON array. No explanation.\n\nInput:\n{curl_input}",
+      "position": { "x": 350, "y": 300 },
+      "inputs": { "curl_input": "node-1-chat-input.message" }
+    },
+    {
+      "id": "node-3-llm",
+      "type": "OpenAIModel",
+      "display_name": "LLM Parser",
+      "description": "Claude / GPT model that converts raw cURLs into structured JSON.",
+      "model": "claude-sonnet-4-6",
+      "temperature": 0,
+      "position": { "x": 600, "y": 300 },
+      "inputs": { "prompt": "node-2-prompt.output" }
+    },
+    {
+      "id": "node-4-curl-parser",
+      "type": "CurlParser",
+      "display_name": "cURL Parser (Python)",
+      "description": "Deterministic fallback parser — handles cURLs that LLM may misformat.",
+      "position": { "x": 600, "y": 500 },
+      "inputs": { "curl_input": "node-1-chat-input.message" }
+    },
+    {
+      "id": "node-5-variable-resolver",
+      "type": "VariableResolver",
+      "display_name": "Variable Resolver",
+      "description": "Replaces {{token}}, {{bookingid}}, etc. with values from the context store.",
+      "position": { "x": 900, "y": 300 },
+      "inputs": {
+        "requests": "node-3-llm.output",
+        "initial_variables": "{}"
+      }
+    },
+    {
+      "id": "node-6-api-executor",
+      "type": "APIExecutor",
+      "display_name": "API Executor",
+      "description": "Executes the resolved API chain using requests.Session with retry and cookie support.",
+      "position": { "x": 1150, "y": 300 },
+      "inputs": {
+        "requests": "node-5-variable-resolver.resolved_requests",
+        "base_url": "",
+        "timeout": "30",
+        "retry_count": "3"
+      }
+    },
+    {
+      "id": "node-7-contract-validator",
+      "type": "ContractValidator",
+      "display_name": "Contract Validator",
+      "description": "Validates each response against JSON Schema contracts and assertion rules.",
+      "position": { "x": 1400, "y": 300 },
+      "inputs": {
+        "results": "node-6-api-executor.results",
+        "schemas_json": "{}",
+        "assertions_json": "[]"
+      }
+    },
+    {
+      "id": "node-8-report-generator",
+      "type": "ReportGenerator",
+      "display_name": "Report Generator",
+      "description": "Produces HTML, JSON, and Markdown reports from the validation results.",
+      "position": { "x": 1650, "y": 300 },
+      "inputs": {
+        "validation_report": "node-7-contract-validator.report",
+        "output_dir": "reports"
+      }
+    },
+    {
+      "id": "node-9-prompt-explain",
+      "type": "Prompt",
+      "display_name": "AI Explainer Prompt",
+      "description": "Asks the LLM to explain failures in plain English with root cause and fix suggestions.",
+      "template": "You are an expert API testing engineer. Below is an API contract validation report in JSON.\n\nFor each FAILED endpoint, explain:\n1. What failed and why\n2. The likely root cause\n3. The downstream impact\n4. A concrete fix suggestion\n\nBe concise, specific, and actionable. Use bullet points.\n\nReport:\n{report_json}",
+      "position": { "x": 1900, "y": 300 },
+      "inputs": { "report_json": "node-8-report-generator.report_paths" }
+    },
+    {
+      "id": "node-10-llm-explain",
+      "type": "OpenAIModel",
+      "display_name": "LLM Root Cause Analyzer",
+      "description": "Generates human-friendly failure explanations and fix suggestions.",
+      "model": "claude-sonnet-4-6",
+      "temperature": 0.2,
+      "position": { "x": 2150, "y": 300 },
+      "inputs": { "prompt": "node-9-prompt-explain.output" }
+    },
+    {
+      "id": "node-11-chat-output",
+      "type": "ChatOutput",
+      "display_name": "Final Report Output",
+      "description": "Displays the AI-generated human-friendly validation summary.",
+      "position": { "x": 2400, "y": 300 },
+      "inputs": { "message": "node-10-llm-explain.output" }
+    }
+  ],
+  "edges": [
+    { "source": "node-1-chat-input", "target": "node-2-prompt" },
+    { "source": "node-1-chat-input", "target": "node-4-curl-parser" },
+    { "source": "node-2-prompt",     "target": "node-3-llm" },
+    { "source": "node-3-llm",        "target": "node-5-variable-resolver" },
+    { "source": "node-5-variable-resolver", "target": "node-6-api-executor" },
+    { "source": "node-6-api-executor",      "target": "node-7-contract-validator" },
+    { "source": "node-7-contract-validator","target": "node-8-report-generator" },
+    { "source": "node-8-report-generator",  "target": "node-9-prompt-explain" },
+    { "source": "node-9-prompt-explain",    "target": "node-10-llm-explain" },
+    { "source": "node-10-llm-explain",      "target": "node-11-chat-output" }
+  ]
+}
