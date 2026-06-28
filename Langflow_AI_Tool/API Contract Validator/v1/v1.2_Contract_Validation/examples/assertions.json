@@ -1,0 +1,31 @@
+[
+  {
+    "_comment": "Paste this array into 'Assertions (JSON)' input of ContractValidator node.",
+    "url": "POST.*auth$",
+    "field": "token",
+    "operator": "!=",
+    "value": null,
+    "label": "token not null"
+  },
+  {
+    "url": "POST.*booking$",
+    "field": "bookingid",
+    "operator": ">",
+    "value": 0,
+    "label": "bookingid > 0"
+  },
+  {
+    "url": "GET.*booking/\\d+",
+    "field": "totalprice",
+    "operator": ">",
+    "value": 0,
+    "label": "totalprice > 0"
+  },
+  {
+    "url": "GET.*booking/\\d+",
+    "field": "depositpaid",
+    "operator": "==",
+    "value": true,
+    "label": "deposit is paid"
+  }
+]

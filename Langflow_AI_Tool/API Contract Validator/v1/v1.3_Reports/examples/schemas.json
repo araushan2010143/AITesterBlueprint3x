@@ -1,0 +1,22 @@
+{
+  "_comment": "Paste into 'Field Schemas (JSON)' input of ContractValidator node.",
+  "_syntax": "{ \"URL_REGEX\": { \"required\": [\"field\"], \"types\": { \"field\": \"str|int|bool|float\" } } }",
+
+  "POST.*auth$": {
+    "required": ["token"],
+    "types": { "token": "str" }
+  },
+
+  "POST.*booking$": {
+    "required": ["bookingid", "booking"],
+    "types": { "bookingid": "int" }
+  },
+
+  "GET.*booking/\\d+": {
+    "required": ["firstname", "lastname", "totalprice", "depositpaid", "bookingdates"],
+    "types": {
+      "totalprice": "int",
+      "depositpaid": "bool"
+    }
+  }
+}

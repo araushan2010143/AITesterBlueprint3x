@@ -1,0 +1,25 @@
+# Restful Booker — Auth + Variable Resolution (v1.1)
+# Paste ALL three cURLs into Langflow Chat Input at once.
+# The executor runs them in order: auth → create booking → get booking.
+# Token and bookingid are auto-extracted and injected via {{placeholder}}.
+
+curl -X POST https://restful-booker.herokuapp.com/auth \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "password123"}'
+
+curl -X POST https://restful-booker.herokuapp.com/booking \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer {{token}}" \
+  -d '{
+    "firstname": "Jane",
+    "lastname": "Smith",
+    "totalprice": 200,
+    "depositpaid": true,
+    "bookingdates": {"checkin": "2025-03-01", "checkout": "2025-03-07"},
+    "additionalneeds": "Lunch"
+  }'
+
+curl -X GET https://restful-booker.herokuapp.com/booking/{{bookingid}} \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer {{token}}"

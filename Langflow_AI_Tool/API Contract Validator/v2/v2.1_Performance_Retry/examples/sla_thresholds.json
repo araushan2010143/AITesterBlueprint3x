@@ -1,0 +1,19 @@
+{
+  "_comment": "Paste into 'SLA Thresholds ms (JSON)' field. Keys are URL regex patterns, values are max allowed ms.",
+
+  "POST.*auth$":       5000,
+  "POST.*booking$":    3000,
+  "GET.*booking/\\d+": 3000,
+
+  "_tuning_guide": {
+    "DEV":  "Relax SLAs — infra is shared and slow. Use 2x PROD values.",
+    "QA":   "Moderate. Match PROD SLAs or add 20% buffer.",
+    "PROD": "Strict. Use actual SLA from your API contract / SLO doc."
+  },
+
+  "_example_strict": {
+    "POST.*auth$":       1000,
+    "POST.*booking$":    800,
+    "GET.*booking/\\d+": 500
+  }
+}

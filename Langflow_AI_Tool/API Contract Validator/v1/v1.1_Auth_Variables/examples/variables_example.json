@@ -1,0 +1,35 @@
+{
+  "_comment": "Variables auto-extracted from responses and injected into subsequent requests.",
+  "auto_extracted_keys": [
+    "token",
+    "bookingid",
+    "id",
+    "access_token",
+    "userId",
+    "sessionId"
+  ],
+  "how_it_works": {
+    "step_1": "POST /auth returns { token: 'abc123' } → token='abc123' stored in variable store",
+    "step_2": "POST /booking returns { bookingid: 42 } → bookingid=42 stored",
+    "step_3": "GET /booking/{{bookingid}} → resolved to GET /booking/42 at runtime",
+    "step_4": "Authorization: Bearer {{token}} → resolved to Bearer abc123"
+  },
+  "placeholder_syntax": "{{variable_name}} — double curly braces in URL or headers or body",
+  "example_chain": [
+    {
+      "order": 1,
+      "request": "POST /auth",
+      "extracts": "token"
+    },
+    {
+      "order": 2,
+      "request": "POST /booking with Authorization: Bearer {{token}}",
+      "extracts": "bookingid"
+    },
+    {
+      "order": 3,
+      "request": "GET /booking/{{bookingid}} with Authorization: Bearer {{token}}",
+      "extracts": null
+    }
+  ]
+}

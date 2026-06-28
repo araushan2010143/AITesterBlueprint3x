@@ -1,0 +1,7 @@
+{
+  "_comment": "Paste into 'Expected Status Codes (JSON)' input. Keys are URL regex patterns.",
+
+  "POST.*auth$":       200,
+  "POST.*booking$":    200,
+  "GET.*booking/\\d+": 200
+}

@@ -1,0 +1,29 @@
+{
+  "_comment": "Reference for setting DEV / QA / PROD base URLs in API Test Suite v2.2 node fields.",
+
+  "environments": {
+    "DEV": {
+      "base_url": "http://localhost:3000",
+      "note": "Local dev server — replace with your actual dev URL"
+    },
+    "QA": {
+      "base_url": "https://restful-booker.herokuapp.com",
+      "note": "Public test server used in this demo"
+    },
+    "PROD": {
+      "base_url": "https://restful-booker.herokuapp.com",
+      "note": "Replace with your real production base URL"
+    }
+  },
+
+  "how_to_switch": {
+    "step_1": "Set 'Active Environment' field in API Test Suite v2.2 to DEV, QA, or PROD",
+    "step_2": "Set the matching Base URL field (DEV Base URL / QA Base URL / PROD Base URL)",
+    "step_3": "Run — the base URL is automatically substituted across all request URLs"
+  },
+
+  "parallel_vs_sequential": {
+    "sequential_workers_1": "Preserves variable chaining — token flows into downstream requests",
+    "parallel_workers_3+": "All requests fire simultaneously — no variable chaining, good for smoke tests"
+  }
+}
