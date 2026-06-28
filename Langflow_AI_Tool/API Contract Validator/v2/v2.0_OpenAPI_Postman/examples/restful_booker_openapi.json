@@ -1,0 +1,127 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Restful Booker API",
+    "version": "1.0.0",
+    "description": "Hotel booking API used for API testing practice"
+  },
+  "servers": [
+    { "url": "https://restful-booker.herokuapp.com" }
+  ],
+  "paths": {
+    "/auth": {
+      "post": {
+        "summary": "Create auth token",
+        "operationId": "createToken",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password"],
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              },
+              "example": {
+                "username": "admin",
+                "password": "password123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/booking": {
+      "post": {
+        "summary": "Create a booking",
+        "operationId": "createBooking",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "firstname": "Jim",
+                "lastname": "Brown",
+                "totalprice": 111,
+                "depositpaid": true,
+                "bookingdates": {
+                  "checkin": "2024-01-01",
+                  "checkout": "2024-01-10"
+                },
+                "additionalneeds": "Breakfast"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Booking created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bookingid": { "type": "integer" },
+                    "booking":   { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/booking/{bookingid}": {
+      "get": {
+        "summary": "Get booking by ID",
+        "operationId": "getBooking",
+        "parameters": [
+          {
+            "name": "bookingid",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Booking details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["firstname", "lastname", "totalprice", "depositpaid", "bookingdates"],
+                  "properties": {
+                    "firstname":    { "type": "string" },
+                    "lastname":     { "type": "string" },
+                    "totalprice":   { "type": "integer" },
+                    "depositpaid":  { "type": "boolean" },
+                    "bookingdates": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
