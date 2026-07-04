@@ -1,0 +1,15 @@
+# Vercel Python serverless — root-level requirements.txt
+# Pinecone replaces ChromaDB; Mangum adapts FastAPI for serverless
+
+fastapi==0.115.5
+mangum==0.19.0
+python-multipart==0.0.12
+python-dotenv==1.0.1
+pydantic==2.10.3
+pinecone==5.0.1
+requests==2.32.3
+pymupdf==1.24.14
+groq==0.13.0
+numpy==1.26.4
+langchain==0.3.9
+langchain-community==0.3.9

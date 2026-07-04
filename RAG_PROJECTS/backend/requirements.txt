@@ -1,0 +1,24 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.12
+python-dotenv==1.0.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# Core LangChain (text splitter only — no chroma/nomic wrappers)
+langchain==0.3.9
+langchain-community==0.3.9
+
+# ChromaDB 0.4.x — last version fully compatible with Python 3.9
+chromadb==0.4.24
+
+# Direct HTTP to Nomic API — no LangChain wrapper needed
+requests==2.32.3
+
+# PDF parsing
+pymupdf==1.24.14
+
+# Groq LLM
+groq==0.13.0
+
+numpy==1.26.4

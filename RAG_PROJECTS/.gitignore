@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+*.so
+
+# Env
+.env
+backend/.env
+
+# ChromaDB (auto-generated, don't commit)
+chroma/
+
+# Reports / runtime output
+reports/
+logs/
+*.db
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.vercel
