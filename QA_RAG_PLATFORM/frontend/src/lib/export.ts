@@ -31,14 +31,28 @@ function cellStr(val: unknown): string {
 function extractRows(actionId: string, result: any): { headers: string[]; rows: string[][] } {
   let arr: any[] | null = null;
 
+  // test_data: flatten all categories into Category | Value rows
+  if (actionId === "test_data") {
+    const td = result.test_data;
+    if (!td || typeof td !== "object") return { headers: ["Category", "Value"], rows: [] };
+    const rows: string[][] = [];
+    for (const [category, items] of Object.entries(td)) {
+      if (!Array.isArray(items)) continue;
+      for (const item of items as any[]) {
+        rows.push([
+          category.replace(/_/g, " "),
+          typeof item === "object" && item !== null ? JSON.stringify(item) : String(item),
+        ]);
+      }
+    }
+    return { headers: ["Category", "Value"], rows };
+  }
+
   if (actionId === "generate_test_cases") arr = result.test_cases;
   else if (actionId === "find_duplicates")  arr = result.duplicate_groups ?? result.duplicates ?? result.groups;
   else if (actionId === "coverage_analysis") arr = result.coverage ?? result.requirements ?? result.gaps;
   else if (actionId === "rca")              arr = result.root_causes;
   else if (actionId === "automate")         arr = result.recommendations;
-  else if (actionId === "test_data") {
-    return { headers: [], rows: [] };
-  }
 
   // Array found and non-empty — use it as the main table
   if (Array.isArray(arr) && arr.length > 0) {
@@ -53,7 +67,7 @@ function extractRows(actionId: string, result: any): { headers: string[]; rows: 
       k.replace(/_/g, " "),
       cellStr(v),
     ]);
-    const noDataRow = arr !== null && arr.length === 0
+    const noDataRow = arr !== null && arr?.length === 0
       ? [["— No items found —", ""]]
       : [];
     return {
@@ -86,12 +100,19 @@ export function downloadXLSX(actionId: string, result: any, filename?: string) {
   const wb = XLSX.utils.book_new();
 
   if (actionId === "test_data" && result.test_data) {
-    // Multiple sheets
-    const td = result.test_data;
+    const td = result.test_data as Record<string, any[]>;
     for (const [sheetName, data] of Object.entries(td)) {
       if (!Array.isArray(data) || data.length === 0) continue;
-      const ws = XLSX.utils.json_to_sheet(data as any[]);
-      _styleHeaderRow(ws, Object.keys((data as any[])[0]).length);
+      let ws: XLSX.WorkSheet;
+      if (typeof data[0] === "object" && data[0] !== null) {
+        // Array of objects → json_to_sheet
+        ws = XLSX.utils.json_to_sheet(data);
+        _styleHeaderRow(ws, Object.keys(data[0]).length);
+      } else {
+        // Array of strings (sql_injection, xss_payloads)
+        ws = XLSX.utils.aoa_to_sheet([["Value"], ...data.map(v => [v])]);
+        _styleHeaderRow(ws, 1);
+      }
       XLSX.utils.book_append_sheet(wb, ws, sheetName.replace(/_/g, " ").slice(0, 31));
     }
   } else {
