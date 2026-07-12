@@ -37,11 +37,23 @@ def get_document(doc_id: str, session: Session = Depends(get_session)):
 def get_filter_values(session: Session = Depends(get_session)):
     """Return unique filter values for the search UI."""
     docs = session.exec(select(Document).where(Document.status == "ready")).all()
+
+    def split_all(field_getter):
+        vals = set()
+        for d in docs:
+            raw = field_getter(d)
+            if raw:
+                for v in raw.split(","):
+                    v = v.strip()
+                    if v:
+                        vals.add(v)
+        return sorted(vals)
+
     return {
-        "modules": sorted({d.module for d in docs if d.module}),
-        "document_types": sorted({d.document_type for d in docs if d.document_type}),
-        "releases": sorted({d.release for d in docs if d.release}),
-        "authors": sorted({d.author for d in docs if d.author}),
-        "priorities": ["High", "Medium", "Low"],
-        "automation_statuses": ["Automated", "Manual", "Partial"],
+        "modules":            split_all(lambda d: d.module),
+        "document_types":     split_all(lambda d: d.document_type),
+        "releases":           split_all(lambda d: d.release),
+        "authors":            split_all(lambda d: d.author),
+        "priorities":         ["High", "Medium", "Low", "Critical"],
+        "automation_statuses": split_all(lambda d: d.automation_status) or ["Automated", "Manual", "Partial"],
     }

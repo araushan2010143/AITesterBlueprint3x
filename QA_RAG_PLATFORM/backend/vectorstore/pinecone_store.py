@@ -1,11 +1,17 @@
 """Pinecone serverless — 1024-dim, cosine, index: qa-rag-platform."""
 import time
 from typing import List, Dict, Any, Optional
-from pinecone import Pinecone, ServerlessSpec
+from pinecone import Pinecone
 from backend.config import get_settings
 
 settings = get_settings()
 _index = None
+
+
+def _is_ready(status) -> bool:
+    if isinstance(status, dict):
+        return status.get("ready", False)
+    return getattr(status, "ready", False)
 
 
 def get_index():
@@ -17,17 +23,21 @@ def get_index():
     existing = [i.name for i in pc.list_indexes()]
 
     if settings.pinecone_index_name not in existing:
-        pc.create_index(
-            name=settings.pinecone_index_name,
-            dimension=settings.embedding_dim,
-            metric="cosine",
-            spec=ServerlessSpec(cloud="aws", region=settings.pinecone_region),
-        )
-        for _ in range(30):
-            status = pc.describe_index(settings.pinecone_index_name).status
-            if status.get("ready", False):
-                break
-            time.sleep(2)
+        try:
+            pc.create_index(
+                name=settings.pinecone_index_name,
+                dimension=settings.embedding_dim,
+                metric="cosine",
+                spec={"serverless": {"cloud": "aws", "region": settings.pinecone_region}},
+            )
+            for _ in range(30):
+                status = pc.describe_index(settings.pinecone_index_name).status
+                if _is_ready(status):
+                    break
+                time.sleep(2)
+        except Exception as e:
+            if "already exists" not in str(e).lower():
+                raise
 
     _index = pc.Index(settings.pinecone_index_name)
     return _index
@@ -69,9 +79,9 @@ def query(
     ]
 
 
-def delete_namespace(namespace: str) -> None:
+def delete_by_doc_id(doc_id: str, namespace: str = "") -> None:
     try:
-        get_index().delete(delete_all=True, namespace=namespace)
+        get_index().delete(filter={"doc_id": {"$eq": doc_id}}, namespace=namespace)
     except Exception:
         pass
 

@@ -76,10 +76,27 @@ Return ONLY a JSON object:
   }
 }"""
 
-SCRIPT_PROMPT = """You are a senior automation engineer. Generate a {framework} test script.
+SCRIPT_PROMPT = """You are a senior automation engineer. Generate a complete, runnable {framework} test script.
 
-Return ONLY a JSON object:
-{{"script": "// full working test script here", "filename": "test_name.spec.ts", "framework": "{framework}"}}"""
+Rules:
+- Write the FULL script — no placeholders, no "..." truncations
+- Use realistic selectors and assertions
+- Include imports, setup, teardown
+- The "script" field must be a plain string (escape any quotes inside it)
+
+Return ONLY this JSON object (no markdown, no explanation):
+{{"script": "FULL_SCRIPT_AS_STRING_HERE", "filename": "test_login.{ext}", "framework": "{framework}"}}"""
+
+POSTMAN_PROMPT = """You are a senior QA engineer. Generate a Postman Collection v2.1 JSON for the given test case.
+
+Return ONLY this JSON object (no markdown, no explanation):
+{{
+  "script": "POSTMAN_COLLECTION_AS_ESCAPED_JSON_STRING",
+  "filename": "test_login.postman_collection.json",
+  "framework": "Postman Collection"
+}}
+
+The "script" value must be the entire Postman collection JSON serialized as a single escaped string."""
 
 TEST_DATA_PROMPT = """You are a QA data engineer. Generate comprehensive test data.
 
@@ -148,18 +165,42 @@ def run_automate(content: str, options: Dict[str, Any] = {}) -> Dict[str, Any]:
     return {**data, "tokens_used": result["tokens_used"], "latency_ms": result["latency_ms"]}
 
 
+_FW_EXT = {
+    "Playwright TypeScript":  "spec.ts",
+    "Playwright JavaScript":  "spec.js",
+    "Cypress JavaScript":     "cy.js",
+    "WebdriverIO TypeScript": "test.ts",
+    "Selenium Java":          "Test.java",
+    "Selenium Python":        "test.py",
+    "REST Assured Java":      "ApiTest.java",
+    "Axios Jest TypeScript":  "api.test.ts",
+    "Supertest JavaScript":   "api.test.js",
+    "Postman Collection":     "postman_collection.json",
+}
+
+
 def run_generate_script(content: str, options: Dict[str, Any] = {}) -> Dict[str, Any]:
     framework = options.get("framework", "Playwright TypeScript")
-    prompt = SCRIPT_PROMPT.format(framework=framework)
+    ext = _FW_EXT.get(framework, "txt")
+
+    if framework == "Postman Collection":
+        sys_prompt = POSTMAN_PROMPT
+    else:
+        sys_prompt = SCRIPT_PROMPT.format(framework=framework, ext=ext)
+
     result = chat(
-        [{"role": "system", "content": prompt},
+        [{"role": "system", "content": sys_prompt},
          {"role": "user", "content": f"Test case to automate:\n{content[:3000]}"}],
-        temperature=0.2, max_tokens=2000, json_mode=True
+        temperature=0.2, max_tokens=2500, json_mode=True,
     )
     try:
         data = json.loads(result["answer"])
+        # Ensure required fields are always present
+        data.setdefault("framework", framework)
+        data.setdefault("filename", f"test_login.{ext}")
     except Exception:
-        data = {"script": result["answer"], "framework": framework}
+        data = {"script": result["answer"], "framework": framework, "filename": f"test_login.{ext}"}
+
     return {**data, "tokens_used": result["tokens_used"], "latency_ms": result["latency_ms"]}
 
 

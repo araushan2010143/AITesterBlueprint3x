@@ -37,7 +37,7 @@ def recursive_chunk(text: str, chunk_size: int, chunk_overlap: int) -> List[str]
         if current:
             merged.append(current)
 
-        if all(len(c) <= chunk_size for c in merged):
+        if merged and all(len(c) <= chunk_size for c in merged):
             # Add overlap
             result = []
             for i, chunk in enumerate(merged):

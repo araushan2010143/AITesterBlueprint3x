@@ -87,7 +87,6 @@ def _process_document(
             sample_text = " ".join(p["text"] for p in pages[:3])
             meta = extract_metadata(sample_text)
             doc.document_type = meta.get("document_type")
-            doc.module = meta.get("module")
             doc.feature = meta.get("feature")
             doc.priority = meta.get("priority")
             doc.author = meta.get("author")
@@ -95,6 +94,20 @@ def _process_document(
             doc.tags = ", ".join(meta.get("tags", []) or [])
             doc.automation_status = meta.get("automation_status")
             doc.total_pages = len(pages)
+
+            # For columnar files (CSV/Excel) use the catalog of ALL unique values
+            # so filter dropdowns show every module/author/etc. in the file
+            catalog = pages[0].get("metadata", {}).get("_catalog") if pages else None
+            if catalog and catalog.get("modules"):
+                doc.module = ", ".join(catalog["modules"])
+                if not doc.author and catalog.get("authors"):
+                    doc.author = ", ".join(catalog["authors"])
+                if not doc.release and catalog.get("releases"):
+                    doc.release = ", ".join(catalog["releases"])
+                if not doc.automation_status and catalog.get("automation_statuses"):
+                    doc.automation_status = ", ".join(catalog["automation_statuses"])
+            else:
+                doc.module = meta.get("module")
 
             # 3. Chunk
             chunks = chunk_pages(pages, chunk_size=chunk_size, chunk_overlap=chunk_overlap, strategy=chunk_strategy)
@@ -105,21 +118,24 @@ def _process_document(
             embeddings = embed_texts(texts)
 
             # 5. Enrich chunk metadata with doc-level metadata
+            # For columnar files chunk.metadata may already have page-level values;
+            # only fill doc-level fields if the chunk doesn't have its own value.
             for chunk in chunks:
+                existing = chunk.get("metadata", {})
                 chunk["metadata"].update({
                     "doc_id": doc_id,
                     "filename": filename,
-                    "document_type": doc.document_type or "general",
-                    "module": doc.module or "",
-                    "feature": doc.feature or "",
-                    "priority": doc.priority or "",
-                    "author": doc.author or "",
-                    "release": doc.release or "",
-                    "automation_status": doc.automation_status or "",
+                    "document_type": existing.get("document_type") or doc.document_type or "general",
+                    "module": existing.get("module") or (doc.module or "").split(",")[0].strip(),
+                    "feature": existing.get("feature") or doc.feature or "",
+                    "priority": existing.get("priority") or doc.priority or "",
+                    "author": existing.get("author") or (doc.author or "").split(",")[0].strip(),
+                    "release": existing.get("release") or (doc.release or "").split(",")[0].strip(),
+                    "automation_status": existing.get("automation_status") or (doc.automation_status or "").split(",")[0].strip(),
                 })
 
-            # 6. Upsert to Pinecone
-            n_vectors = pinecone_store.upsert(chunks, embeddings, namespace=doc_id)
+            # 6. Upsert to Pinecone (default namespace so cross-doc search works)
+            n_vectors = pinecone_store.upsert(chunks, embeddings, namespace="")
             doc.total_vectors = n_vectors
 
             # 7. Save chunks to SQLite for BM25
@@ -154,8 +170,8 @@ def delete_document(doc_id: str, session: Session = Depends(get_session)):
     if not doc:
         raise HTTPException(404, "Document not found")
 
-    # Delete from Pinecone
-    pinecone_store.delete_namespace(doc_id)
+    # Delete from Pinecone by doc_id metadata filter
+    pinecone_store.delete_by_doc_id(doc_id)
 
     # Delete chunks from SQLite
     chunks = session.exec(select(Chunk).where(Chunk.doc_id == doc_id)).all()
