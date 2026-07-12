@@ -491,7 +491,43 @@ export default function AIPage() {
 
               {runMut.data && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  <ExportBar actionId={selected.id} result={runMut.data.result} />
+                  {/* Script action: show code viewer + direct download, not generic ExportBar */}
+                  {selected.id === "generate_script" && runMut.data.result?.script ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 0, border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+                      {/* toolbar */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: "rgba(124,58,237,0.1)", borderBottom: "1px solid var(--border)" }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-light)", flex: 1 }}>
+                          {runMut.data.result.filename ?? "test_login.spec.ts"}
+                        </span>
+                        <span style={{ fontSize: 10, color: "var(--text-3)" }}>
+                          {runMut.data.tokens_used}t · {runMut.data.latency_ms?.toFixed(0)}ms
+                        </span>
+                        <button onClick={() => navigator.clipboard.writeText(runMut.data.result.script)} style={{
+                          display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "var(--text-3)",
+                          background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
+                          borderRadius: 5, padding: "3px 8px", cursor: "pointer",
+                        }}>
+                          <Copy size={10} /> Copy
+                        </button>
+                        <DlBtn
+                          label={`.${runMut.data.result.filename?.split(".").slice(1).join(".") ?? "spec.ts"}`}
+                          icon={<Download size={10} />}
+                          onClick={() => downloadScript(runMut.data.result)}
+                          accent
+                        />
+                      </div>
+                      {/* code */}
+                      <pre style={{
+                        margin: 0, padding: "16px 18px", fontSize: 12, lineHeight: 1.65,
+                        color: "#e6edf3", background: "#0d1117", overflowX: "auto",
+                        maxHeight: 500, whiteSpace: "pre",
+                      }}>
+                        {runMut.data.result.script}
+                      </pre>
+                    </div>
+                  ) : (
+                    <ExportBar actionId={selected.id} result={runMut.data.result} />
+                  )}
                   <div className="card" style={{ padding: 14 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

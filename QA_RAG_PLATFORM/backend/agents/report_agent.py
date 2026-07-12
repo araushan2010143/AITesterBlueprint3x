@@ -191,7 +191,7 @@ def run_generate_script(content: str, options: Dict[str, Any] = {}) -> Dict[str,
     result = chat(
         [{"role": "system", "content": sys_prompt},
          {"role": "user", "content": f"Test case to automate:\n{content[:3000]}"}],
-        temperature=0.2, max_tokens=2500, json_mode=True,
+        temperature=0.2, max_tokens=4096, json_mode=True,
     )
     try:
         data = json.loads(result["answer"])

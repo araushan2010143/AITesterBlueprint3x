@@ -14,7 +14,8 @@ function triggerDownload(blob: Blob, filename: string) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Delay revocation so the browser has time to read the blob before the URL is gone
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 function cellStr(val: unknown): string {
