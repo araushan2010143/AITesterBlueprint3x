@@ -32,7 +32,12 @@ def run_action(action: str, req: AIActionRequest):
         raise HTTPException(400, "content is required")
 
     t0 = time.perf_counter()
-    result = dispatch(action=action, content=req.content, options=req.options or {})
+    try:
+        result = dispatch(action=action, content=req.content, options=req.options or {})
+    except RuntimeError as e:
+        msg = str(e)
+        status = 429 if "daily token limit" in msg or "rate limit" in msg.lower() else 503
+        raise HTTPException(status_code=status, detail=msg)
     total_ms = round((time.perf_counter() - t0) * 1000, 1)
 
     return AIActionResponse(
