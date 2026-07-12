@@ -1,0 +1,45 @@
+# Web framework
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.12
+
+# Config
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# Database
+sqlmodel==0.0.21
+aiosqlite==0.20.0
+
+# Parsers
+pymupdf==1.24.14
+pandas==2.2.3
+openpyxl==3.1.5
+xlrd==2.0.1
+python-docx==1.1.2
+beautifulsoup4==4.12.3
+lxml==5.3.0
+markdown==3.7
+pyyaml==6.0.2
+
+# Embeddings
+mistralai==1.2.5
+
+# Vector DB
+pinecone==5.0.1
+
+# Hybrid search
+rank-bm25==0.2.2
+
+# LLM
+groq==0.13.0
+
+# Reranker (optional)
+cohere==5.11.0
+
+# Utils
+aiofiles==24.1.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+httpx==0.28.1
+numpy==1.26.4
