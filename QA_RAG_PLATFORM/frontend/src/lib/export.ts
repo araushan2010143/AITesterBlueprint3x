@@ -11,11 +11,13 @@ function triggerDownload(blob: Blob, filename: string) {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  a.style.display = "none";
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  // Delay revocation so the browser has time to read the blob before the URL is gone
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 5000);
 }
 
 function cellStr(val: unknown): string {
@@ -246,11 +248,21 @@ export function downloadJSON(actionId: string, result: any, filename?: string) {
 // ── Script file export ────────────────────────────────────────────────────────
 
 export function downloadScript(result: any) {
+  const script: string = result.script ?? "";
   const ext = (result.framework ?? "").toLowerCase().includes("java") ? "java"
     : (result.framework ?? "").toLowerCase().includes("cypress") ? "cy.js"
     : "spec.ts";
-  const blob = new Blob([result.script ?? ""], { type: "text/plain" });
-  triggerDownload(blob, result.filename ?? `test.${ext}`);
+  const filename = result.filename ?? `test.${ext}`;
+
+  // Use data: URI — avoids all blob URL timing/revocation issues
+  const dataUri = "data:text/plain;charset=utf-8," + encodeURIComponent(script);
+  const a = document.createElement("a");
+  a.href = dataUri;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => document.body.removeChild(a), 100);
 }
 
 // ── Label helper ──────────────────────────────────────────────────────────────
