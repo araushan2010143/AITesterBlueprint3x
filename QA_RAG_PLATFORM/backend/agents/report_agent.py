@@ -93,14 +93,19 @@ Start your response with the opening {{ character."""
 
 TEST_DATA_PROMPT = """You are a QA data engineer. Generate comprehensive test data.
 
-Return ONLY a JSON object:
+STRICT RULES:
+- Return ONLY a valid JSON object — no markdown, no explanation, no code fences
+- ALL values must be plain JSON strings or numbers — NEVER use JavaScript expressions like .repeat() or string concatenation
+- For boundary values that require long strings, write out the actual repeated characters (e.g. "aaaaaaaaaa..." up to the limit)
+
+Return this exact structure:
 {
   "test_data": {
-    "valid_users": [{"username": "...", "password": "...", "email": "..."}],
-    "invalid_users": [{"username": "...", "reason": "..."}],
-    "boundary_values": [{"field": "...", "value": "...", "type": "min|max|boundary"}],
-    "sql_injection": ["...", "..."],
-    "xss_payloads": ["...", "..."]
+    "valid_users": [{"username": "john_doe", "password": "Pass@123", "email": "john@example.com"}],
+    "invalid_users": [{"username": "x", "reason": "Username too short (min 3 chars)"}],
+    "boundary_values": [{"field": "username", "value": "", "type": "min"}, {"field": "username", "value": "abcdefghij", "type": "max"}],
+    "sql_injection": ["' OR '1'='1", "'; DROP TABLE users; --"],
+    "xss_payloads": ["<script>alert('xss')</script>", "<img src=x onerror=alert(1)>"]
   },
   "download_available": true
 }"""

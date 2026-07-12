@@ -15,7 +15,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# Keywords / status codes that mean "try another provider"
+# Keywords that mean the provider is quota/rate-limited → mute + try next
 _QUOTA_KEYWORDS = (
     "rate limit", "rate_limit", "quota", "tokens per day", "tpd",
     "resource_exhausted", "too many requests", "exceeded",
@@ -23,19 +23,29 @@ _QUOTA_KEYWORDS = (
     "context length exceeded", "model_not_found",
 )
 
+# Keywords that mean this provider failed on THIS request → try next (no mute)
+_TRANSIENT_KEYWORDS = (
+    "json_validate_failed", "failed to generate json",
+    "context_length_exceeded",
+)
+
 
 def _is_quota_or_rate(exc: Exception) -> bool:
-    """Return True when the error means the provider is temporarily unavailable."""
+    """Return True when the provider is quota/rate-limited (mute it, try next)."""
     msg = str(exc).lower()
-    # Direct status code check
     code = getattr(exc, "status_code", None)
     if code in (429, 503):
         return True
-    # Nested response object (e.g. httpx)
     resp = getattr(exc, "response", None)
     if resp is not None and getattr(resp, "status_code", None) in (429, 503):
         return True
     return any(k in msg for k in _QUOTA_KEYWORDS)
+
+
+def _is_transient(exc: Exception) -> bool:
+    """Return True for one-off generation failures — try next provider, don't mute."""
+    msg = str(exc).lower()
+    return any(k in msg for k in _TRANSIENT_KEYWORDS)
 
 
 @dataclass
@@ -109,8 +119,12 @@ class LLMRouter:
                 if _is_quota_or_rate(exc):
                     p.mute()
                     last_exc = exc
-                    continue          # try next provider
-                raise                 # auth/validation errors propagate immediately
+                    continue          # try next provider (provider muted)
+                if _is_transient(exc):
+                    logger.warning("⚠️  Provider '%s' transient error (%s), trying next", p.name, type(exc).__name__)
+                    last_exc = exc
+                    continue          # try next provider (no mute — provider fine for other requests)
+                raise                 # auth / bad-request errors propagate immediately
 
         statuses = {p.name: "available" if p.available() else f"muted {p.resets_in():.0f}s" for p in self._providers}
         raise RuntimeError(
