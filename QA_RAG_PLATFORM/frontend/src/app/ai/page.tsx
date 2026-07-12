@@ -489,6 +489,29 @@ export default function AIPage() {
                 {runMut.isPending ? "Running AI agent…" : `Run — ${selected.label}`}
               </button>
 
+              {runMut.data && selected.id === "test_data" && (() => {
+                const tc: any[] = runMut.data.result?.test_cases ?? [];
+                const summary = runMut.data.result?.summary ?? {};
+                return tc.length > 0 ? (
+                  <div style={{
+                    display: "flex", flexWrap: "wrap", gap: 8,
+                    padding: "10px 14px", background: "rgba(34,197,94,0.07)",
+                    border: "1px solid rgba(34,197,94,0.25)", borderRadius: 10,
+                  }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#22c55e" }}>
+                      {tc.length} test cases generated
+                    </span>
+                    {(summary.categories_covered as string[] | undefined)?.map((cat: string) => (
+                      <span key={cat} style={{
+                        fontSize: 10, padding: "2px 7px", borderRadius: 10, fontWeight: 600,
+                        background: "rgba(124,58,237,0.15)", color: "var(--accent-light)",
+                        border: "1px solid rgba(124,58,237,0.2)",
+                      }}>{cat}</span>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
+
               {runMut.data && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {/* Script action: show code viewer + direct download, not generic ExportBar */}

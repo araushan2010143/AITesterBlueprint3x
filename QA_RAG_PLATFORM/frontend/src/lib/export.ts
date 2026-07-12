@@ -142,9 +142,10 @@ export function downloadXLSX(actionId: string, result: any, filename?: string) {
       _styleHeaderRow(ws2, 2);
       ws2["!cols"] = [{ wch: 28 }, { wch: 10 }];
       XLSX.utils.book_append_sheet(wb, ws2, "By Category");
-    } else if (result.test_data) {
+    } else if (result.test_data && typeof result.test_data === "object") {
       // Legacy format: one sheet per category
       const td = result.test_data as Record<string, any[]>;
+      let legacySheets = 0;
       for (const [sheetName, data] of Object.entries(td)) {
         if (!Array.isArray(data) || data.length === 0) continue;
         let ws: XLSX.WorkSheet;
@@ -156,7 +157,21 @@ export function downloadXLSX(actionId: string, result: any, filename?: string) {
           _styleHeaderRow(ws, 1);
         }
         XLSX.utils.book_append_sheet(wb, ws, sheetName.replace(/_/g, " ").slice(0, 31));
+        legacySheets++;
       }
+      // If all legacy arrays were empty, fall through to the key-value dump below
+      if (legacySheets === 0) {
+        const entries = Object.entries(result).filter(([k]) => !["tokens_used","latency_ms"].includes(k));
+        const ws = XLSX.utils.aoa_to_sheet([["Key", "Value"], ...entries.map(([k,v]) => [k, cellStr(v)])]);
+        _styleHeaderRow(ws, 2);
+        XLSX.utils.book_append_sheet(wb, ws, "Raw Result");
+      }
+    } else {
+      // Neither test_cases nor test_data — dump whatever is in the result
+      const entries = Object.entries(result).filter(([k]) => !["tokens_used","latency_ms"].includes(k));
+      const ws = XLSX.utils.aoa_to_sheet([["Key", "Value"], ...entries.map(([k,v]) => [k, cellStr(v)])]);
+      _styleHeaderRow(ws, 2);
+      XLSX.utils.book_append_sheet(wb, ws, "Raw Result");
     }
   } else {
     const { headers, rows } = extractRows(actionId, result);
