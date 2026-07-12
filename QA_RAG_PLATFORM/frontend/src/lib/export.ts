@@ -31,8 +31,16 @@ function cellStr(val: unknown): string {
 function extractRows(actionId: string, result: any): { headers: string[]; rows: string[][] } {
   let arr: any[] | null = null;
 
-  // test_data: flatten all categories into Category | Value rows
+  // test_data: flat test_cases array (new format) or legacy category map
   if (actionId === "test_data") {
+    // New format: flat test_cases array with full technique metadata
+    const tc = result.test_cases;
+    if (Array.isArray(tc) && tc.length > 0) {
+      const headers = Object.keys(tc[0]);
+      const rows = (tc as any[]).map(item => headers.map(h => cellStr(item[h])));
+      return { headers, rows };
+    }
+    // Legacy format: nested test_data object
     const td = result.test_data;
     if (!td || typeof td !== "object") return { headers: ["Category", "Value"], rows: [] };
     const rows: string[][] = [];
@@ -99,21 +107,56 @@ export function downloadCSV(actionId: string, result: any, filename?: string) {
 export function downloadXLSX(actionId: string, result: any, filename?: string) {
   const wb = XLSX.utils.book_new();
 
-  if (actionId === "test_data" && result.test_data) {
-    const td = result.test_data as Record<string, any[]>;
-    for (const [sheetName, data] of Object.entries(td)) {
-      if (!Array.isArray(data) || data.length === 0) continue;
-      let ws: XLSX.WorkSheet;
-      if (typeof data[0] === "object" && data[0] !== null) {
-        // Array of objects → json_to_sheet
-        ws = XLSX.utils.json_to_sheet(data);
-        _styleHeaderRow(ws, Object.keys(data[0]).length);
-      } else {
-        // Array of strings (sql_injection, xss_payloads)
-        ws = XLSX.utils.aoa_to_sheet([["Value"], ...data.map(v => [v])]);
-        _styleHeaderRow(ws, 1);
+  if (actionId === "test_data") {
+    const tc = result.test_cases as any[] | undefined;
+    if (Array.isArray(tc) && tc.length > 0) {
+      // Sheet 1: All Test Cases (flat)
+      const ws = XLSX.utils.json_to_sheet(tc);
+      _styleHeaderRow(ws, Object.keys(tc[0]).length);
+      const colKeys = Object.keys(tc[0]);
+      ws["!cols"] = colKeys.map((k) => ({
+        wch: Math.max(k.length + 2, ...tc.map(r => cellStr(r[k]).length).slice(0, 100)) + 2,
+      }));
+      XLSX.utils.book_append_sheet(wb, ws, "Test Cases");
+
+      // Sheet 2: By Category pivot
+      const byCategory: Record<string, number> = {};
+      const byTechnique: Record<string, number> = {};
+      const byValidity: Record<string, number> = { valid: 0, invalid: 0 };
+      for (const c of tc) {
+        byCategory[c.category] = (byCategory[c.category] ?? 0) + 1;
+        byTechnique[c.technique] = (byTechnique[c.technique] ?? 0) + 1;
+        if (c.validity === "valid") byValidity.valid++; else byValidity.invalid++;
       }
-      XLSX.utils.book_append_sheet(wb, ws, sheetName.replace(/_/g, " ").slice(0, 31));
+      const pivotRows = [
+        ["Category", "Count"],
+        ...Object.entries(byCategory).map(([k, v]) => [k, v]),
+        ["", ""],
+        ["Technique", "Count"],
+        ...Object.entries(byTechnique).map(([k, v]) => [k, v]),
+        ["", ""],
+        ["Validity", "Count"],
+        ...Object.entries(byValidity).map(([k, v]) => [k, v]),
+      ];
+      const ws2 = XLSX.utils.aoa_to_sheet(pivotRows);
+      _styleHeaderRow(ws2, 2);
+      ws2["!cols"] = [{ wch: 28 }, { wch: 10 }];
+      XLSX.utils.book_append_sheet(wb, ws2, "By Category");
+    } else if (result.test_data) {
+      // Legacy format: one sheet per category
+      const td = result.test_data as Record<string, any[]>;
+      for (const [sheetName, data] of Object.entries(td)) {
+        if (!Array.isArray(data) || data.length === 0) continue;
+        let ws: XLSX.WorkSheet;
+        if (typeof data[0] === "object" && data[0] !== null) {
+          ws = XLSX.utils.json_to_sheet(data);
+          _styleHeaderRow(ws, Object.keys(data[0]).length);
+        } else {
+          ws = XLSX.utils.aoa_to_sheet([["Value"], ...data.map(v => [v])]);
+          _styleHeaderRow(ws, 1);
+        }
+        XLSX.utils.book_append_sheet(wb, ws, sheetName.replace(/_/g, " ").slice(0, 31));
+      }
     }
   } else {
     const { headers, rows } = extractRows(actionId, result);

@@ -91,23 +91,71 @@ POSTMAN_PROMPT = """You are a senior QA engineer. Generate a Postman Collection 
 Output ONLY the raw Postman collection JSON — no markdown fences, no explanation, no wrapper.
 Start your response with the opening {{ character."""
 
-TEST_DATA_PROMPT = """You are a QA data engineer. Generate comprehensive test data.
+TEST_DATA_PROMPT = """You are a senior QA engineer applying production-grade, multi-technique test data generation.
 
-STRICT RULES:
-- Return ONLY a valid JSON object — no markdown, no explanation, no code fences
-- ALL values must be plain JSON strings or numbers — NEVER use JavaScript expressions like .repeat() or string concatenation
-- For boundary values that require long strings, write out the actual repeated characters (e.g. "aaaaaaaaaa..." up to the limit)
+== TECHNIQUES TO APPLY ==
+1. Boundary Value Analysis (BVA): test at exact min, min-1, min+1, max-1, max, max+1 for each length/range constraint
+2. Equivalence Partitioning (EP): 1 representative from each valid partition, 1-2 from each invalid partition
+3. Error Guessing: reserved words (admin, root, null, undefined, true, false), existing/duplicate values, common typos
+4. Security — SQL Injection: ' OR 1=1 --, UNION SELECT, boolean-based, time-based (1 per attack type)
+5. Security — XSS: <script>alert(1)</script>, event handler injection, img onerror (1-2 representatives)
+6. Security — HTML Injection: <h1>test</h1>, <a href=x>click</a>
+7. Unicode/I18n: 1 per script family — Hindi/Devanagari, Chinese/CJK, Arabic (RTL), Cyrillic, Emoji
+8. Whitespace: empty string, single space, leading space, trailing space, multiple internal spaces, tab character
+9. Semantic Validation: syntactically valid but semantically wrong (future DOB, negative price, past expiry date)
+10. Performance: 1 very long string — write exactly 60 letter 'a' characters (NOT .repeat(), NOT + operator)
 
-Return this exact structure:
+== REPRESENTATIVE DATA MATRIX — cover all 17 categories ==
+Empty | Space | Alphabetic | Numeric | AlphaNumeric | Special Chars | Unicode | Emoji |
+SQL Injection | HTML Injection | XSS | Long Text (60 chars) | Max Length | Above Max | Leading Space | Trailing Space | Multiple Spaces
+
+== INTELLIGENT DEDUPLICATION RULES ==
+- Alphabetic "JohnDoe" and "AliceSmith" represent the same equivalence class — keep only ONE
+- SQL injection ' OR 1=1 -- and '; DROP TABLE -- are different attack types — keep BOTH
+- XSS <script>alert(1)</script> and onload=alert(1) are different vectors — keep BOTH
+- For each field, target 25-40 total test cases covering as many categories as possible
+- BVA values are always unique — never merge boundary values with each other
+
+== ABSOLUTE RULES ==
+- Return ONLY valid JSON — no markdown fences (no ```), no explanation text outside the JSON
+- ALL values must be plain JSON strings or numbers — NEVER JavaScript expressions like .repeat(), +, concat()
+- For the "Long Text" category, write 60 actual 'a' characters: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+- For "Max Length", infer a reasonable max (e.g., 50 chars for username) and write exactly that many characters
+- For "Above Max", write max+1 characters
+
+== OUTPUT FORMAT ==
 {
-  "test_data": {
-    "valid_users": [{"username": "john_doe", "password": "Pass@123", "email": "john@example.com"}],
-    "invalid_users": [{"username": "x", "reason": "Username too short (min 3 chars)"}],
-    "boundary_values": [{"field": "username", "value": "", "type": "min"}, {"field": "username", "value": "abcdefghij", "type": "max"}],
-    "sql_injection": ["' OR '1'='1", "'; DROP TABLE users; --"],
-    "xss_payloads": ["<script>alert('xss')</script>", "<img src=x onerror=alert(1)>"]
-  },
-  "download_available": true
+  "test_cases": [
+    {
+      "id": "TC001",
+      "field": "username",
+      "category": "Empty",
+      "value": "",
+      "technique": "EP",
+      "validity": "invalid",
+      "expected_result": "Validation error: field is required",
+      "priority": "Critical",
+      "risk": "User registration blocked"
+    },
+    {
+      "id": "TC002",
+      "field": "username",
+      "category": "Alphabetic",
+      "value": "JohnDoe",
+      "technique": "EP",
+      "validity": "valid",
+      "expected_result": "Accepted",
+      "priority": "High",
+      "risk": "Happy path must work"
+    }
+  ],
+  "summary": {
+    "total_test_cases": 35,
+    "fields_covered": ["username", "email"],
+    "techniques_applied": ["BVA", "EP", "Error Guessing", "Security", "Unicode", "Whitespace", "Semantic"],
+    "categories_covered": ["Empty", "Space", "Alphabetic", "Numeric", "AlphaNumeric", "Special Chars", "Unicode", "Emoji", "SQL Injection", "XSS", "HTML", "Long Text", "Max Length", "Above Max", "Leading Space", "Trailing Space", "Multiple Spaces"],
+    "deduplication_applied": true
+  }
 }"""
 
 
@@ -216,14 +264,50 @@ def run_generate_script(content: str, options: Dict[str, Any] = {}) -> Dict[str,
 
 
 def run_test_data(content: str, options: Dict[str, Any] = {}) -> Dict[str, Any]:
-    count = options.get("count", 10)
     result = chat(
         [{"role": "system", "content": TEST_DATA_PROMPT},
-         {"role": "user", "content": f"Generate {count} records per category for:\n{content[:2000]}"}],
-        temperature=0.4, max_tokens=2000, json_mode=True
+         {"role": "user", "content": (
+             f"Generate production-grade test data applying all 10 techniques for:\n\n{content[:3000]}\n\n"
+             "Cover all 17 representative categories from the matrix. Apply intelligent deduplication."
+         )}],
+        temperature=0.3, max_tokens=4096, json_mode=True
     )
     try:
         data = json.loads(result["answer"])
+        # Auto-fill summary from generated cases when the LLM omits it
+        tc = data.get("test_cases", [])
+        if isinstance(tc, list) and tc and not data.get("summary"):
+            categories = sorted({c.get("category", "") for c in tc if c.get("category")})
+            techniques = sorted({c.get("technique", "") for c in tc if c.get("technique")})
+            fields = sorted({c.get("field", "") for c in tc if c.get("field")})
+            data["summary"] = {
+                "total_test_cases": len(tc),
+                "fields_covered": fields,
+                "techniques_applied": techniques,
+                "categories_covered": categories,
+                "deduplication_applied": True,
+            }
+
+        # Ensure test_cases is always a list even if model returns wrapped structure
+        if "test_data" in data and "test_cases" not in data:
+            # Legacy format fallback — convert to flat list
+            td = data["test_data"]
+            cases = []
+            tc_id = 1
+            for cat, items in td.items():
+                if not isinstance(items, list):
+                    continue
+                for item in items:
+                    val = item if not isinstance(item, dict) else json.dumps(item)
+                    cases.append({
+                        "id": f"TC{tc_id:03d}", "field": "input",
+                        "category": cat.replace("_", " ").title(),
+                        "value": str(val), "technique": "EP",
+                        "validity": "valid" if "valid" in cat else "invalid",
+                        "expected_result": "Refer to test case", "priority": "Medium", "risk": ""
+                    })
+                    tc_id += 1
+            data["test_cases"] = cases
     except Exception:
-        data = {"test_data": {}, "raw": result["answer"]}
+        data = {"test_cases": [], "raw": result["answer"]}
     return {**data, "tokens_used": result["tokens_used"], "latency_ms": result["latency_ms"]}
