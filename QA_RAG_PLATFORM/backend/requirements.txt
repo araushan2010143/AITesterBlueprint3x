@@ -31,8 +31,9 @@ pinecone>=5.0.0
 # Hybrid search
 rank-bm25>=0.2.2
 
-# LLM
+# LLM — primary + router fallbacks
 groq>=0.13.0
+openai>=1.50.0    # used as the OpenAI-compat client for Groq, Mistral, Gemini, OpenAI
 
 # Reranker (optional)
 cohere>=5.0.0

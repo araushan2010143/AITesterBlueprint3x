@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { LayoutDashboard, Upload, Search, Zap, FileText } from "lucide-react";
 
 const nav = [
@@ -10,6 +11,68 @@ const nav = [
   { href: "/ai",        label: "AI Actions", icon: Zap             },
   { href: "/documents", label: "Documents",  icon: FileText        },
 ];
+
+function ProviderDot({ available }: { available: boolean }) {
+  return (
+    <span style={{
+      display: "inline-block", width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+      background: available ? "#22c55e" : "#ef4444",
+      boxShadow: available ? "0 0 4px #22c55e80" : "none",
+    }} />
+  );
+}
+
+function LLMStatusPanel() {
+  const { data } = useQuery({
+    queryKey: ["llm-status"],
+    queryFn: async () => {
+      const res = await fetch("http://localhost:8000/api/llm/status");
+      return res.json();
+    },
+    refetchInterval: 30_000,  // poll every 30s
+    retry: false,
+  });
+
+  if (!data) return null;
+
+  const { providers, available_count, total_count } = data;
+  const allOk = available_count === total_count;
+
+  return (
+    <div style={{ padding: "10px 12px", borderTop: "1px solid var(--border)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          LLM Router
+        </span>
+        <span style={{
+          fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+          background: allOk ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
+          color: allOk ? "#22c55e" : "#ef4444",
+        }}>
+          {available_count}/{total_count} UP
+        </span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {providers.map((p: any) => (
+          <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <ProviderDot available={p.available} />
+            <span style={{
+              fontSize: 9, color: p.available ? "var(--text-2)" : "var(--text-3)",
+              flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
+              {p.name}
+            </span>
+            {!p.available && p.resets_in_s > 0 && (
+              <span style={{ fontSize: 9, color: "var(--text-3)", flexShrink: 0 }}>
+                {p.resets_in_s >= 60 ? `${Math.ceil(p.resets_in_s / 60)}m` : `${p.resets_in_s}s`}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function Sidebar() {
   const path = usePathname();
@@ -59,10 +122,13 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Stack */}
-      <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)" }}>
+      {/* Live LLM Router status */}
+      <LLMStatusPanel />
+
+      {/* Static stack info */}
+      <div style={{ padding: "10px 12px", borderTop: "1px solid var(--border)" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {[["Embeddings", "Mistral 1024-dim"], ["Vector DB", "Pinecone"], ["LLM", "Groq llama-3.3-70b"]].map(([k, v]) => (
+          {[["Embeddings", "Mistral 1024-dim"], ["Vector DB", "Pinecone"]].map(([k, v]) => (
             <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ fontSize: 10, color: "var(--text-3)" }}>{k}</span>
               <span style={{ fontSize: 10, color: "var(--text-2)", fontWeight: 600 }}>{v}</span>

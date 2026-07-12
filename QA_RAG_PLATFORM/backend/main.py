@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.database.db import create_db
 from backend.config import get_settings
-from backend.api.routes import ingest, search, ai_actions, documents, stats
+from backend.api.routes import ingest, search, ai_actions, documents, stats, llm_status
 
 settings = get_settings()
 
@@ -32,6 +32,7 @@ app.include_router(search.router)
 app.include_router(ai_actions.router)
 app.include_router(documents.router)
 app.include_router(stats.router)
+app.include_router(llm_status.router)
 
 
 @app.on_event("startup")

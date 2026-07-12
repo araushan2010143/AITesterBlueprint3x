@@ -299,6 +299,11 @@ function MultiScriptGenerator({ content }: { content: string }) {
                     background: fw.color + "18", borderBottom: `1px solid ${fw.color}30`, flexShrink: 0,
                   }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: fw.color, flex: 1 }}>{fname}</span>
+                    {data.result?.provider && (
+                      <span style={{ fontSize: 9, color: "var(--accent-light)", background: "rgba(124,58,237,0.15)", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>
+                        {data.result.provider}
+                      </span>
+                    )}
                     <span style={{ fontSize: 10, color: "var(--text-3)" }}>{data.tokens_used}t · {data.latency_ms?.toFixed(0)}ms</span>
                     <button onClick={() => navigator.clipboard.writeText(script)} style={{
                       display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "var(--text-3)",
@@ -489,7 +494,18 @@ export default function AIPage() {
                   <ExportBar actionId={selected.id} result={runMut.data.result} />
                   <div className="card" style={{ padding: 14 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "#22c55e" }}>Result</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "#22c55e" }}>Result</span>
+                        {runMut.data.result?.provider && (
+                          <span style={{
+                            fontSize: 9, padding: "2px 6px", borderRadius: 4, fontWeight: 700,
+                            background: "rgba(124,58,237,0.15)", color: "var(--accent-light)",
+                            border: "1px solid rgba(124,58,237,0.25)",
+                          }}>
+                            via {runMut.data.result.provider}
+                          </span>
+                        )}
+                      </div>
                       <span style={{ fontSize: 10, color: "var(--text-3)" }}>
                         {runMut.data.tokens_used} tokens · {runMut.data.latency_ms?.toFixed(0)}ms
                       </span>
