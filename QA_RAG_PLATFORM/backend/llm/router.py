@@ -26,7 +26,9 @@ _QUOTA_KEYWORDS = (
 # Keywords that mean this provider failed on THIS request → try next (no mute)
 _TRANSIENT_KEYWORDS = (
     "json_validate_failed", "failed to generate json",
-    "context_length_exceeded",
+    "context_length_exceeded", "invalid_request_error",
+    "max_tokens", "invalid_parameter", "unprocessable",
+    "bad request", "422", "400",
 )
 
 
@@ -53,6 +55,7 @@ class LLMProvider:
     name: str
     fn: Callable[..., Dict[str, Any]]  # (messages, temp, max_tokens, json_mode) → result
     cooldown: int = 3600               # seconds to mute after quota hit (default 1h)
+    max_output_tokens: int = 32768     # hard cap for this provider's output tokens
     _muted_until: float = field(default=0.0, repr=False)
 
     def available(self) -> bool:
@@ -109,7 +112,8 @@ class LLMRouter:
 
             try:
                 logger.debug("▶  Trying LLM provider '%s'", p.name)
-                result = p.fn(messages, temperature, max_tokens, json_mode)
+                safe_tokens = min(max_tokens, p.max_output_tokens)
+                result = p.fn(messages, temperature, safe_tokens, json_mode)
                 result.setdefault("provider", p.name)
                 if p.name != self._providers[0].name:
                     logger.info("✅ Fallback provider '%s' served the request", p.name)
@@ -174,6 +178,7 @@ def _build_router() -> LLMRouter:
                 base_url="https://api.groq.com/openai/v1",
             ),
             cooldown=3600,
+            max_output_tokens=32768,
         ))
 
     # ── Groq: lighter fallback model (independent TPD quota) ────────────────
@@ -186,6 +191,7 @@ def _build_router() -> LLMRouter:
                 base_url="https://api.groq.com/openai/v1",
             ),
             cooldown=3600,
+            max_output_tokens=8192,
         ))
 
     # ── Mistral: already have key (used for embeddings) ─────────────────────
@@ -198,6 +204,7 @@ def _build_router() -> LLMRouter:
                 base_url="https://api.mistral.ai/v1",
             ),
             cooldown=1800,
+            max_output_tokens=8000,   # mistral-small-latest cap: 8192
         ))
 
     # ── Cohere: already have key ─────────────────────────────────────────────
@@ -209,6 +216,7 @@ def _build_router() -> LLMRouter:
                 model=s.cohere_chat_model,
             ),
             cooldown=1800,
+            max_output_tokens=4000,   # command-r-plus default cap: 4096
         ))
 
     # ── OpenAI (optional) ────────────────────────────────────────────────────
@@ -221,6 +229,7 @@ def _build_router() -> LLMRouter:
                 base_url=None,
             ),
             cooldown=3600,
+            max_output_tokens=16000,  # gpt-4o-mini cap: 16384
         ))
 
     # ── Gemini (optional) ────────────────────────────────────────────────────
@@ -233,6 +242,7 @@ def _build_router() -> LLMRouter:
                 base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             ),
             cooldown=3600,
+            max_output_tokens=8000,   # gemini-1.5-flash cap: 8192
         ))
 
     if not providers:

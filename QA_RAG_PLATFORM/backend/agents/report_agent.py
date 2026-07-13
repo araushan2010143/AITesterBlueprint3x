@@ -113,14 +113,14 @@ Leading Space | Trailing Space | Multiple Spaces | Valid Happy Path
 == ABSOLUTE RULES ==
 - Return ONLY valid JSON — no markdown fences, no explanation outside JSON
 - ALL string values must be plain JSON — NO JavaScript expressions (.repeat(), +, concat())
-- For Long Text: write 60 actual letter 'a' characters
-- For Max Length: write exactly the field's max allowed characters
-- For Above Max: write max+1 characters
-- Keep steps concise: action ≤ 12 words, expected_result ≤ 15 words
-- Exactly 3 steps per test case — no more, no less
-- Generate EXACTLY 10 test cases total covering the 10 most critical categories
-- Preconditions: max 2 items
-- automation_tags: max 3 tags
+- For Long Text: write 30 actual letter 'a' characters
+- Keep steps concise: action ≤ 8 words, expected_result ≤ 10 words
+- Exactly 2 steps per test case — no more, no less
+- Generate EXACTLY 5 test cases total covering the 5 most critical categories
+- Preconditions: exactly 1 item (one short sentence)
+- post_conditions: one short sentence
+- automation_tags: exactly 2 tags
+- summary, expected_db_validation, traceability: keep under 10 words each
 
 == OUTPUT FORMAT ==
 {
@@ -242,17 +242,71 @@ def run_automate(content: str, options: Dict[str, Any] = {}) -> Dict[str, Any]:
 
 
 _FW_EXT = {
-    "Playwright TypeScript":  "spec.ts",
-    "Playwright JavaScript":  "spec.js",
-    "Cypress JavaScript":     "cy.js",
-    "WebdriverIO TypeScript": "test.ts",
-    "Selenium Java":          "Test.java",
-    "Selenium Python":        "test.py",
-    "REST Assured Java":      "ApiTest.java",
-    "Axios Jest TypeScript":  "api.test.ts",
-    "Supertest JavaScript":   "api.test.js",
-    "Postman Collection":     "postman_collection.json",
+    # E2E
+    "Playwright TypeScript":     "spec.ts",
+    "Playwright JavaScript":     "spec.js",
+    "Cypress JavaScript":        "cy.js",
+    "Cypress TypeScript":        "cy.ts",
+    "WebdriverIO TypeScript":    "test.ts",
+    "Selenium Java":             "Test.java",
+    "Selenium Python":           "test.py",
+    "Selenium C#":               "Tests.cs",
+    # BDD
+    "Playwright Python Behave":  "_steps.py",
+    "Playwright TS Cucumber":    "steps.ts",
+    "WebdriverIO Cucumber Java": "Steps.java",
+    "Cypress Cucumber":          ".cy.js",
+    # API
+    "REST Assured Java":         "ApiTest.java",
+    "Axios Jest TypeScript":     "api.test.ts",
+    "Supertest JavaScript":      "api.test.js",
+    "Pytest Requests Python":    "api_test.py",
+    "Postman Collection":        "postman_collection.json",
 }
+
+# Comprehensive Python + Behave bundled script prompt
+_PY_BEHAVE_SCRIPT_PROMPT = """You are a senior Playwright Python + Behave automation engineer.
+Generate a BUNDLED enterprise script — all layers in ONE Python file with clear section comments.
+
+== ENTERPRISE LAYERS TO INCLUDE (in this order) ==
+1. MODULE DOCSTRING — brief description + enterprise folder structure showing where each class belongs
+2. LOCATORS CLASS — LoginLocators(page) with get_by_test_id / get_by_role
+3. BASE PAGE CLASS — BasePage with navigate_to(), wait_for_visible(), take_screenshot()
+4. PAGE OBJECT CLASS — LoginPage(BasePage) using self.loc.xxx, snake_case methods
+5. ASSERTIONS CLASS — LoginAssertions with static methods using playwright expect()
+6. STEP DEFINITIONS — @given/@when/@then calling context.login_page.method() ONLY
+7. ENVIRONMENT HOOKS — commented-out environment.py snippet showing BeforeScenario setup
+
+== RULES ==
+• All Playwright code uses playwright.sync_api (synchronous — required by Behave)
+• Steps NEVER call context.page.fill/click/goto directly — always context.login_page.method()
+• Locators: prefer get_by_test_id() > get_by_role() > get_by_label() > locator(css)
+• Page Object: NO assertions — those live in LoginAssertions
+• Assertions: static methods, use expect() from playwright.sync_api
+• Use @given/@when/@then decorators from behave; function args: (context, param1, param2, ...)
+• Scenario Outline params inject from Examples table automatically in Behave
+• Include a commented-out .feature file snippet at the top showing what Gherkin this drives
+• Write FULL, working code — no placeholders, no "..." truncations
+• Output ONLY the Python code — no JSON, no markdown fences
+• Start with the module docstring on the first line"""
+
+# Prompt for Playwright TS + Cucumber BDD bundled script
+_TS_CUCUMBER_SCRIPT_PROMPT = """You are a senior Playwright TypeScript + Cucumber BDD automation engineer.
+Generate a BUNDLED enterprise script — all layers in ONE TypeScript file with clear section comments.
+
+== LAYERS TO INCLUDE ==
+1. Module JSDoc — enterprise folder structure
+2. Locators interface + object (login.locators.ts equivalent)
+3. Page Object class — LoginPage with POM methods only (no assertions in steps)
+4. Step definitions — Given/When/Then from @cucumber/cucumber, calling loginPage.method() ONLY
+5. BeforeAll/AfterAll hooks inline
+
+== RULES ==
+• Steps NEVER call page.fill/click/goto directly — only loginPage.method()
+• Parameterised steps use {string} Cucumber expressions
+• Include a commented .feature snippet at the top
+• Write FULL, working TypeScript — no placeholders
+• Output ONLY the code — no JSON, no markdown fences"""
 
 
 def _strip_fences(text: str) -> str:
@@ -264,17 +318,39 @@ def _strip_fences(text: str) -> str:
     return stripped.strip()
 
 
+_BDD_FRAMEWORK_NAMES = {
+    "Playwright Python Behave",
+    "Playwright TS Cucumber",
+    "WebdriverIO Cucumber Java",
+    "Cypress Cucumber",
+}
+
 def run_generate_script(content: str, options: Dict[str, Any] = {}) -> Dict[str, Any]:
     framework = options.get("framework", "Playwright TypeScript")
     ext = _FW_EXT.get(framework, "txt")
-    filename = f"test_login.{ext}"
 
+    # Determine filename: BDD frameworks use descriptive names
+    if framework == "Playwright Python Behave":
+        filename = f"login{ext}"           # login_steps.py
+    elif framework == "Playwright TS Cucumber":
+        filename = f"login.{ext}"          # login.steps.ts
+    elif framework in _BDD_FRAMEWORK_NAMES:
+        feature = "login"
+        filename = f"{feature}.{ext}"
+    else:
+        filename = f"test_login.{ext}"
+
+    # Select the right system prompt
     if framework == "Postman Collection":
         sys_prompt = POSTMAN_PROMPT
+    elif framework == "Playwright Python Behave":
+        sys_prompt = _PY_BEHAVE_SCRIPT_PROMPT
+    elif framework == "Playwright TS Cucumber":
+        sys_prompt = _TS_CUCUMBER_SCRIPT_PROMPT
     else:
         sys_prompt = SCRIPT_PROMPT.format(framework=framework, ext=ext)
 
-    # No json_mode — ask for raw code directly so small models don't return null
+    # No json_mode — ask for raw code so small models don't return null
     result = chat(
         [{"role": "system", "content": sys_prompt},
          {"role": "user", "content": f"Test case to automate:\n{content[:3000]}"}],
@@ -302,7 +378,7 @@ def run_test_data(content: str, options: Dict[str, Any] = {}) -> Dict[str, Any]:
              "Cover all 18 categories (Empty through Valid Happy Path). "
              "Write proper multi-step test cases with preconditions, test data, and post conditions."
          )}],
-        temperature=0.2, max_tokens=12000, json_mode=True
+        temperature=0.2, max_tokens=4000, json_mode=True
     )
     try:
         data = json.loads(result["answer"])

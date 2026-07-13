@@ -1,0 +1,202 @@
+{
+  "suites": [
+    {
+      "title": "Auth",
+      "specs": [
+        {
+          "title": "Login with valid credentials",
+          "tests": [
+            {
+              "projectName": "chromium",
+              "results": [
+                {
+                  "status": "passed",
+                  "retry": 0,
+                  "duration": 2341,
+                  "error": {}
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Login with invalid password shows error",
+          "tests": [
+            {
+              "projectName": "chromium",
+              "results": [
+                {
+                  "status": "passed",
+                  "retry": 0,
+                  "duration": 1105,
+                  "error": {}
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Password reset sends email",
+          "tests": [
+            {
+              "projectName": "chromium",
+              "results": [
+                {
+                  "status": "passed",
+                  "retry": 0,
+                  "duration": 3200,
+                  "error": {}
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "suites": []
+    },
+    {
+      "title": "Shopping Cart",
+      "specs": [
+        {
+          "title": "Add item to cart",
+          "tests": [
+            {
+              "projectName": "chromium",
+              "results": [
+                {
+                  "status": "failed",
+                  "retry": 0,
+                  "duration": 5100,
+                  "error": {
+                    "message": "ElementNotFoundError: Unable to find element with selector '.add-to-cart-btn'\n  - Expected: element visible\n  - Received: element not found\n  at CartPage.addItem (cart.page.ts:42)"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Checkout with saved card",
+          "tests": [
+            {
+              "projectName": "chromium",
+              "results": [
+                {
+                  "status": "passed",
+                  "retry": 0,
+                  "duration": 4800,
+                  "error": {}
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Apply discount coupon",
+          "tests": [
+            {
+              "projectName": "chromium",
+              "results": [
+                {
+                  "status": "failed",
+                  "retry": 0,
+                  "duration": 3500,
+                  "error": {
+                    "message": "TimeoutError: Waiting for XPath selector '//div[@class=\"discount-row\"]' to be visible\n  - Timeout: 10000ms exceeded\n  - Hint: element exists in DOM but class name is dynamic (e.g. 'discount-row__aB3k9')"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "suites": []
+    },
+    {
+      "title": "Product",
+      "specs": [
+        {
+          "title": "Search returns relevant products",
+          "tests": [
+            {
+              "projectName": "chromium",
+              "results": [
+                {
+                  "status": "failed",
+                  "retry": 0,
+                  "duration": 7200,
+                  "error": {
+                    "message": "TimeoutError: page.waitForSelector('.search-results-list') exceeded 7000ms\n  - Network response for /api/search took 6800ms (threshold: 5000ms)\n  - Possible slow ElasticSearch index on CI runner"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Product detail page loads images",
+          "tests": [
+            {
+              "projectName": "chromium",
+              "results": [
+                {
+                  "status": "passed",
+                  "retry": 0,
+                  "duration": 1900,
+                  "error": {}
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "suites": []
+    },
+    {
+      "title": "User Profile",
+      "specs": [
+        {
+          "title": "Upload profile photo",
+          "tests": [
+            {
+              "projectName": "chromium",
+              "results": [
+                {
+                  "status": "passed",
+                  "retry": 0,
+                  "duration": 2700,
+                  "error": {}
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Update display name",
+          "tests": [
+            {
+              "projectName": "chromium",
+              "results": [
+                {
+                  "status": "passed",
+                  "retry": 0,
+                  "duration": 1450,
+                  "error": {}
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "suites": []
+    }
+  ],
+  "stats": {
+    "startTime": "2026-07-13T09:00:00.000Z",
+    "duration": 33596,
+    "expected": 7,
+    "unexpected": 3,
+    "skipped": 0,
+    "flaky": 0
+  }
+}

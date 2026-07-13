@@ -1,7 +1,8 @@
 """Master router — dispatches AI actions to specialized agents."""
 from typing import Any, Dict
 from backend.agents import (
-    test_case_agent, duplicate_agent, coverage_agent, report_agent
+    test_case_agent, duplicate_agent, coverage_agent, report_agent,
+    flaky_agent, automation_pipeline_agent,
 )
 
 ACTION_MAP = {
@@ -14,6 +15,8 @@ ACTION_MAP = {
     "automate": report_agent.run_automate,
     "generate_script": report_agent.run_generate_script,
     "test_data": report_agent.run_test_data,
+    "flaky_analyzer": flaky_agent.run,
+    "automation_pipeline": automation_pipeline_agent.run,
 }
 
 SUPPORTED_ACTIONS = list(ACTION_MAP.keys())

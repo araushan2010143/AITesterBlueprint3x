@@ -1,5 +1,5 @@
 import time
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from backend.models.schemas import AIActionRequest, AIActionResponse
 from backend.agents.router import dispatch, SUPPORTED_ACTIONS
 
@@ -19,8 +19,50 @@ def list_actions():
             {"id": "automate", "label": "Automation Recommendations", "description": "Identify which manual test cases should be automated with ROI estimates.", "icon": "Zap"},
             {"id": "generate_script", "label": "Generate Automation Script", "description": "Generate Playwright, Selenium, Cypress, or API test scripts.", "icon": "Code"},
             {"id": "test_data", "label": "Test Data Generator", "description": "Generate valid, invalid, boundary, SQL injection, and XSS test data.", "icon": "Database"},
+            {"id": "flaky_analyzer", "label": "Flaky Test Analyzer", "description": "Detect non-deterministic tests from multi-run results, diagnose root causes, and get code-level fixes to make tests prod-ready.", "icon": "Flame"},
+            {"id": "automation_pipeline", "label": "Automation Pipeline", "description": "Convert manual test cases into production-ready Playwright + Cucumber BDD + TypeScript POM — Feature file, Step Definitions, Page Object, and Locators.", "icon": "GitBranch"},
         ]
     }
+
+
+@router.post("/parse-report")
+async def parse_report(
+    file: UploadFile = File(...),
+    build_label: str = Form("Build-1"),
+):
+    """
+    Accept a test report file (JUnit XML, Playwright JSON, plain text)
+    and return normalised text ready for the Flaky Test Analyzer.
+    """
+    try:
+        raw = await file.read()
+        content = raw.decode("utf-8", errors="replace")
+        from backend.parsers.test_report_normalizer import normalize
+        normalised = normalize(content, filename=file.filename or "", build_label=build_label)
+        return {
+            "filename":   file.filename,
+            "format":     _detect_format(content),
+            "text":       normalised,
+            "char_count": len(normalised),
+        }
+    except Exception as e:
+        import traceback, logging
+        logging.getLogger(__name__).error("parse-report error: %s", traceback.format_exc())
+        raise HTTPException(status_code=400, detail=f"Could not parse report: {e}")
+
+
+def _detect_format(content: str) -> str:
+    stripped = content.lstrip()
+    if stripped.startswith("<"):
+        return "JUnit XML"
+    try:
+        import json
+        data = json.loads(content)
+        if "suites" in data and "stats" in data:
+            return "Playwright JSON"
+        return "JSON"
+    except Exception:
+        return "Plain Text"
 
 
 @router.post("/{action}", response_model=AIActionResponse)
@@ -38,6 +80,11 @@ def run_action(action: str, req: AIActionRequest):
         msg = str(e)
         status = 429 if "daily token limit" in msg or "rate limit" in msg.lower() else 503
         raise HTTPException(status_code=status, detail=msg)
+    except Exception as e:
+        import traceback, logging
+        logging.getLogger(__name__).error("Unhandled pipeline error: %s", traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Pipeline error: {type(e).__name__}: {str(e)[:300]}"
+        )
     total_ms = round((time.perf_counter() - t0) * 1000, 1)
 
     return AIActionResponse(

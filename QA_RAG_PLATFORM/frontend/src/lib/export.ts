@@ -31,8 +31,8 @@ function cellStr(val: unknown): string {
 function extractRows(actionId: string, result: any): { headers: string[]; rows: string[][] } {
   let arr: any[] | null = null;
 
-  // test_data: industry-standard format (with steps) or legacy flat format
-  if (actionId === "test_data") {
+  // test_data / generate_test_cases: enterprise format (with steps) or flat format
+  if (actionId === "test_data" || actionId === "generate_test_cases") {
     const tc: any[] = result.test_cases ?? [];
     if (tc.length > 0) {
       // Check if new enterprise format (has steps array) or old flat format
@@ -95,6 +95,25 @@ function extractRows(actionId: string, result: any): { headers: string[]; rows: 
   else if (actionId === "coverage_analysis") arr = result.coverage ?? result.requirements ?? result.gaps;
   else if (actionId === "rca")              arr = result.root_causes;
   else if (actionId === "automate")         arr = result.recommendations;
+  else if (actionId === "flaky_analyzer") {
+    const ft: any[] = result.flaky_tests ?? [];
+    if (ft.length > 0) {
+      const headers = [
+        "Test ID", "Test Name", "Pass Rate", "Flaky Score", "Run History",
+        "Flakiness Category", "Root Cause", "Fix Recommendation", "Code Fix",
+        "Priority", "Action", "Est. Fix Time",
+      ];
+      const rows = ft.map((t: any) => [
+        cellStr(t.test_id), cellStr(t.test_name), cellStr(t.pass_rate),
+        cellStr(t.flaky_score), cellStr(t.run_history),
+        cellStr(t.flakiness_category), cellStr(t.root_cause),
+        cellStr(t.fix_recommendation), cellStr(t.code_fix),
+        cellStr(t.priority), cellStr(t.action), cellStr(t.estimated_fix_time),
+      ]);
+      return { headers, rows };
+    }
+    return { headers: ["Field", "Value"], rows: [] };
+  }
 
   // Array found and non-empty — use it as the main table
   if (Array.isArray(arr) && arr.length > 0) {
@@ -141,7 +160,7 @@ export function downloadCSV(actionId: string, result: any, filename?: string) {
 export function downloadXLSX(actionId: string, result: any, filename?: string) {
   const wb = XLSX.utils.book_new();
 
-  if (actionId === "test_data") {
+  if (actionId === "test_data" || actionId === "generate_test_cases") {
     const tc = result.test_cases as any[] | undefined;
     if (Array.isArray(tc) && tc.length > 0) {
       const hasSteps = tc.some((t: any) => Array.isArray(t.steps));
@@ -527,16 +546,16 @@ export function downloadADO(result: any, filename?: string) {
       t.validity,
     ].filter(Boolean).join("; ");
     const desc = [
-      `<b>Module:</b> ${t.module ?? ""}`,
-      `<b>Feature:</b> ${t.feature ?? ""}`,
-      `<b>Severity:</b> ${t.severity ?? ""}`,
-      `<b>Type:</b> ${t.type ?? "Functional"}`,
-      `<b>Preconditions:</b><br/>${_precondStr(t.preconditions).replace(/\n/g, "<br/>")}`,
-      t.post_conditions ? `<b>Post Conditions:</b> ${t.post_conditions}` : null,
-      t.expected_api ? `<b>API:</b> ${t.expected_api} | Status: ${t.expected_status_code ?? ""}` : null,
-      t.expected_db_validation ? `<b>DB Validation:</b> ${t.expected_db_validation}` : null,
-      `<b>Owner:</b> ${t.owner ?? "QA Team"}`,
-    ].filter(Boolean).join("<br/>");
+      `Module: ${t.module ?? ""}`,
+      `Feature: ${t.feature ?? ""}`,
+      `Severity: ${t.severity ?? ""}`,
+      `Type: ${t.type ?? "Functional"}`,
+      `Preconditions: ${_precondStr(t.preconditions)}`,
+      t.post_conditions ? `Post Conditions: ${t.post_conditions}` : null,
+      t.expected_api ? `API: ${t.expected_api} | Status: ${t.expected_status_code ?? ""}` : null,
+      t.expected_db_validation ? `DB Validation: ${t.expected_db_validation}` : null,
+      `Owner: ${t.owner ?? "QA Team"}`,
+    ].filter(Boolean).join("\n");
 
     const automationStatus = t.automation === "Yes" ? "Automated" : "Not Automated";
     const steps = _adoStepsXml(t.steps ?? [], t.test_data);
@@ -598,6 +617,7 @@ function actionIdToLabel(id: string): string {
     automate: "Automation Recommendations",
     generate_script: "Automation Script",
     test_data: "Test Data",
+    flaky_analyzer: "Flaky Test Analysis",
   };
   return map[id] ?? id;
 }
