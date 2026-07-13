@@ -35,6 +35,6 @@ def get_stats(session: Session = Depends(get_session)):
     )
 
 
-@router.get("/health")
+@router.api_route("/health", methods=["GET", "HEAD"])
 def health():
     return {"status": "healthy", "version": "1.0.0", "platform": "QA RAG Platform"}
