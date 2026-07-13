@@ -91,70 +91,100 @@ POSTMAN_PROMPT = """You are a senior QA engineer. Generate a Postman Collection 
 Output ONLY the raw Postman collection JSON — no markdown fences, no explanation, no wrapper.
 Start your response with the opening {{ character."""
 
-TEST_DATA_PROMPT = """You are a senior QA engineer applying production-grade, multi-technique test data generation.
+TEST_DATA_PROMPT = """You are a senior QA engineer writing industry-standard test cases compatible with JIRA Zephyr Scale, Azure DevOps Test Plans, TestRail, and enterprise test management tools.
 
-== TECHNIQUES TO APPLY ==
-1. Boundary Value Analysis (BVA): test at exact min, min-1, min+1, max-1, max, max+1 for each length/range constraint
-2. Equivalence Partitioning (EP): 1 representative from each valid partition, 1-2 from each invalid partition
-3. Error Guessing: reserved words (admin, root, null, undefined, true, false), existing/duplicate values, common typos
-4. Security — SQL Injection: ' OR 1=1 --, UNION SELECT, boolean-based, time-based (1 per attack type)
-5. Security — XSS: <script>alert(1)</script>, event handler injection, img onerror (1-2 representatives)
-6. Security — HTML Injection: <h1>test</h1>, <a href=x>click</a>
-7. Unicode/I18n: 1 per script family — Hindi/Devanagari, Chinese/CJK, Arabic (RTL), Cyrillic, Emoji
-8. Whitespace: empty string, single space, leading space, trailing space, multiple internal spaces, tab character
-9. Semantic Validation: syntactically valid but semantically wrong (future DOB, negative price, past expiry date)
-10. Performance: 1 very long string — write exactly 60 letter 'a' characters (NOT .repeat(), NOT + operator)
+== NAMING CONVENTION ==
+TC_<MODULE>_<FEATURE>_<CATEGORY>_<SEQ>
+Examples: TC_AUTH_LOGIN_EMPTY_001, TC_AUTH_LOGIN_SQL_002, TC_REGISTER_EMAIL_XSS_001
 
-== REPRESENTATIVE DATA MATRIX — cover all 17 categories ==
-Empty | Space | Alphabetic | Numeric | AlphaNumeric | Special Chars | Unicode | Emoji |
-SQL Injection | HTML Injection | XSS | Long Text (60 chars) | Max Length | Above Max | Leading Space | Trailing Space | Multiple Spaces
+== STEP WRITING RULES ==
+- Actions in imperative form: "Navigate to...", "Enter...", "Click...", "Verify..."
+- 3-5 steps per test case: (1) Navigate, (2) Set up pre-state, (3) Enter test value, (4) Trigger action, (5) Verify outcome
+- Expected Results must be observable and measurable — never "works correctly"
+- Test Data (values) go in the test_data field, NOT embedded in steps
 
-== INTELLIGENT DEDUPLICATION RULES ==
-- Alphabetic "JohnDoe" and "AliceSmith" represent the same equivalence class — keep only ONE
-- SQL injection ' OR 1=1 -- and '; DROP TABLE -- are different attack types — keep BOTH
-- XSS <script>alert(1)</script> and onload=alert(1) are different vectors — keep BOTH
-- For each field, target 25-40 total test cases covering as many categories as possible
-- BVA values are always unique — never merge boundary values with each other
+== COVERAGE REQUIREMENTS — generate 1 test case per category ==
+Empty | Space | Alphabetic | Numeric | AlphaNumeric | Special Chars | Unicode |
+Emoji | SQL Injection | HTML Injection | XSS | Long Text | Max Length | Above Max |
+Leading Space | Trailing Space | Multiple Spaces | Valid Happy Path
+
+== TECHNIQUES: BVA, EP, Security, Unicode, Whitespace, Error Guessing, Performance ==
 
 == ABSOLUTE RULES ==
-- Return ONLY valid JSON — no markdown fences (no ```), no explanation text outside the JSON
-- ALL values must be plain JSON strings or numbers — NEVER JavaScript expressions like .repeat(), +, concat()
-- For the "Long Text" category, write 60 actual 'a' characters: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-- For "Max Length", infer a reasonable max (e.g., 50 chars for username) and write exactly that many characters
-- For "Above Max", write max+1 characters
+- Return ONLY valid JSON — no markdown fences, no explanation outside JSON
+- ALL string values must be plain JSON — NO JavaScript expressions (.repeat(), +, concat())
+- For Long Text: write 60 actual letter 'a' characters
+- For Max Length: write exactly the field's max allowed characters
+- For Above Max: write max+1 characters
+- Keep steps concise: action ≤ 12 words, expected_result ≤ 15 words
+- Exactly 3 steps per test case — no more, no less
+- Generate EXACTLY 10 test cases total covering the 10 most critical categories
+- Preconditions: max 2 items
+- automation_tags: max 3 tags
 
 == OUTPUT FORMAT ==
 {
   "test_cases": [
     {
-      "id": "TC001",
-      "field": "username",
+      "id": "TC_AUTH_LOGIN_EMPTY_001",
+      "summary": "Verify that login form displays required field error when username is left empty",
+      "requirement_id": "REQ-AUTH-001",
+      "module": "Authentication",
+      "feature": "Login",
+      "priority": "High",
+      "severity": "Critical",
+      "type": "Functional",
+      "automation": "Yes",
       "category": "Empty",
-      "value": "",
       "technique": "EP",
       "validity": "invalid",
-      "expected_result": "Validation error: field is required",
-      "priority": "Critical",
-      "risk": "User registration blocked"
-    },
-    {
-      "id": "TC002",
-      "field": "username",
-      "category": "Alphabetic",
-      "value": "JohnDoe",
-      "technique": "EP",
-      "validity": "valid",
-      "expected_result": "Accepted",
-      "priority": "High",
-      "risk": "Happy path must work"
+      "preconditions": [
+        "Application is accessible at the base URL",
+        "Login page is loaded in browser"
+      ],
+      "test_data": {
+        "Username": "(empty string)",
+        "Password": "Password@123"
+      },
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "Navigate to the Login page.",
+          "expected_result": "Login page is displayed with Username and Password input fields."
+        },
+        {
+          "step_no": 2,
+          "action": "Leave the Username field empty.",
+          "expected_result": "Username field remains empty with no pre-filled value."
+        },
+        {
+          "step_no": 3,
+          "action": "Enter a valid password 'Password@123' in the Password field.",
+          "expected_result": "Password is masked and accepted in the Password field."
+        },
+        {
+          "step_no": 4,
+          "action": "Click the Login button.",
+          "expected_result": "Validation error message 'Username is required' is displayed. User remains on the Login page. No session is created."
+        }
+      ],
+      "post_conditions": "No user session is created. User remains on the Login page.",
+      "automation_tags": ["Regression", "Negative", "Functional"],
+      "expected_api": "POST /api/auth/login",
+      "expected_status_code": "400",
+      "expected_db_validation": "No session record is created in the sessions table.",
+      "traceability": "REQ-AUTH-001",
+      "owner": "QA Team"
     }
   ],
   "summary": {
-    "total_test_cases": 35,
-    "fields_covered": ["username", "email"],
-    "techniques_applied": ["BVA", "EP", "Error Guessing", "Security", "Unicode", "Whitespace", "Semantic"],
-    "categories_covered": ["Empty", "Space", "Alphabetic", "Numeric", "AlphaNumeric", "Special Chars", "Unicode", "Emoji", "SQL Injection", "XSS", "HTML", "Long Text", "Max Length", "Above Max", "Leading Space", "Trailing Space", "Multiple Spaces"],
-    "deduplication_applied": true
+    "total_test_cases": 18,
+    "module": "Authentication",
+    "feature": "Login",
+    "techniques_applied": ["BVA", "EP", "Security", "Unicode", "Whitespace", "Error Guessing"],
+    "categories_covered": ["Empty", "Space", "Alphabetic", "SQL Injection", "XSS"],
+    "automation_count": {"Yes": 15, "No": 3},
+    "compatible_tools": ["JIRA Zephyr Scale", "Azure DevOps", "TestRail"]
   }
 }"""
 
@@ -267,25 +297,30 @@ def run_test_data(content: str, options: Dict[str, Any] = {}) -> Dict[str, Any]:
     result = chat(
         [{"role": "system", "content": TEST_DATA_PROMPT},
          {"role": "user", "content": (
-             f"Generate production-grade test data applying all 10 techniques for:\n\n{content[:3000]}\n\n"
-             "Cover all 17 representative categories from the matrix. Apply intelligent deduplication."
+             f"Generate industry-standard test cases for:\n\n{content[:3000]}\n\n"
+             "Infer the Module, Feature, and Requirement IDs from the description. "
+             "Cover all 18 categories (Empty through Valid Happy Path). "
+             "Write proper multi-step test cases with preconditions, test data, and post conditions."
          )}],
-        temperature=0.3, max_tokens=4096, json_mode=True
+        temperature=0.2, max_tokens=12000, json_mode=True
     )
     try:
         data = json.loads(result["answer"])
-        # Auto-fill summary from generated cases when the LLM omits it
+        # Auto-fill summary when LLM omits it
         tc = data.get("test_cases", [])
         if isinstance(tc, list) and tc and not data.get("summary"):
             categories = sorted({c.get("category", "") for c in tc if c.get("category")})
             techniques = sorted({c.get("technique", "") for c in tc if c.get("technique")})
-            fields = sorted({c.get("field", "") for c in tc if c.get("field")})
+            auto_yes = sum(1 for c in tc if c.get("automation") == "Yes")
+            auto_no = len(tc) - auto_yes
             data["summary"] = {
                 "total_test_cases": len(tc),
-                "fields_covered": fields,
+                "module": tc[0].get("module", ""),
+                "feature": tc[0].get("feature", ""),
                 "techniques_applied": techniques,
                 "categories_covered": categories,
-                "deduplication_applied": True,
+                "automation_count": {"Yes": auto_yes, "No": auto_no},
+                "compatible_tools": ["JIRA Zephyr Scale", "Azure DevOps", "TestRail"],
             }
 
         # Ensure test_cases is always a list even if model returns wrapped structure

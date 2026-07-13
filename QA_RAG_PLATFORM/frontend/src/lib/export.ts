@@ -31,26 +31,60 @@ function cellStr(val: unknown): string {
 function extractRows(actionId: string, result: any): { headers: string[]; rows: string[][] } {
   let arr: any[] | null = null;
 
-  // test_data: flat test_cases array (new format) or legacy category map
+  // test_data: industry-standard format (with steps) or legacy flat format
   if (actionId === "test_data") {
-    // New format: flat test_cases array with full technique metadata
-    const tc = result.test_cases;
-    if (Array.isArray(tc) && tc.length > 0) {
+    const tc: any[] = result.test_cases ?? [];
+    if (tc.length > 0) {
+      // Check if new enterprise format (has steps array) or old flat format
+      const hasSteps = tc.some((t: any) => Array.isArray(t.steps));
+      if (hasSteps) {
+        // Flatten: one row per step, TC metadata repeated
+        const headers = [
+          "TC ID", "Summary", "Module", "Feature", "Priority", "Severity",
+          "Type", "Automation", "Category", "Technique", "Validity",
+          "Preconditions", "Test Data",
+          "Step No", "Action", "Expected Result",
+          "Post Conditions", "Tags", "API", "Status Code", "Traceability",
+        ];
+        const rows: string[][] = [];
+        for (const t of tc) {
+          const pre = _precondStr(t.preconditions);
+          const td = _testDataStr(t.test_data);
+          const tags = (t.automation_tags ?? []).join(", ");
+          const steps: any[] = Array.isArray(t.steps) && t.steps.length > 0
+            ? t.steps
+            : [{ step_no: 1, action: t.summary ?? "", expected_result: t.expected_result ?? "" }];
+          steps.forEach((s: any, i: number) => {
+            rows.push([
+              t.id ?? "", t.summary ?? "", t.module ?? "", t.feature ?? "",
+              t.priority ?? "", t.severity ?? "", t.type ?? "Functional",
+              t.automation ?? "Yes", t.category ?? "", t.technique ?? "", t.validity ?? "",
+              i === 0 ? pre : "",
+              i === 0 ? td : "",
+              String(s.step_no ?? i + 1), s.action ?? "", s.expected_result ?? "",
+              i === 0 ? (t.post_conditions ?? "") : "",
+              i === 0 ? tags : "",
+              i === 0 ? (t.expected_api ?? "") : "",
+              i === 0 ? (t.expected_status_code ?? "") : "",
+              i === 0 ? (t.traceability ?? "") : "",
+            ]);
+          });
+        }
+        return { headers, rows };
+      }
+      // Old flat format
       const headers = Object.keys(tc[0]);
-      const rows = (tc as any[]).map(item => headers.map(h => cellStr(item[h])));
+      const rows = tc.map((item: any) => headers.map(h => cellStr(item[h])));
       return { headers, rows };
     }
-    // Legacy format: nested test_data object
+    // Legacy nested test_data object
     const td = result.test_data;
     if (!td || typeof td !== "object") return { headers: ["Category", "Value"], rows: [] };
     const rows: string[][] = [];
     for (const [category, items] of Object.entries(td)) {
       if (!Array.isArray(items)) continue;
       for (const item of items as any[]) {
-        rows.push([
-          category.replace(/_/g, " "),
-          typeof item === "object" && item !== null ? JSON.stringify(item) : String(item),
-        ]);
+        rows.push([category.replace(/_/g, " "), typeof item === "object" && item !== null ? JSON.stringify(item) : String(item)]);
       }
     }
     return { headers: ["Category", "Value"], rows };
@@ -110,20 +144,45 @@ export function downloadXLSX(actionId: string, result: any, filename?: string) {
   if (actionId === "test_data") {
     const tc = result.test_cases as any[] | undefined;
     if (Array.isArray(tc) && tc.length > 0) {
-      // Sheet 1: All Test Cases (flat)
-      const ws = XLSX.utils.json_to_sheet(tc);
-      _styleHeaderRow(ws, Object.keys(tc[0]).length);
-      const colKeys = Object.keys(tc[0]);
-      ws["!cols"] = colKeys.map((k) => ({
-        wch: Math.max(k.length + 2, ...tc.map(r => cellStr(r[k]).length).slice(0, 100)) + 2,
-      }));
-      XLSX.utils.book_append_sheet(wb, ws, "Test Cases");
+      const hasSteps = tc.some((t: any) => Array.isArray(t.steps));
 
-      // Sheet 2: By Category pivot
+      if (hasSteps) {
+        // ── Enterprise format ──────────────────────────────────────────────────
+
+        // Sheet 1: Test Cases overview (one row per TC)
+        const ovCols = ["id","summary","module","feature","priority","severity","type",
+                        "automation","category","technique","validity","requirement_id","traceability","owner"];
+        const ovHeaders = ["TC ID","Summary","Module","Feature","Priority","Severity","Type",
+                           "Automation","Category","Technique","Validity","Requirement","Traceability","Owner"];
+        const ovData = (tc as any[]).map(t => ovCols.map(k => cellStr(t[k])));
+        const ws1 = XLSX.utils.aoa_to_sheet([ovHeaders, ...ovData]);
+        _styleHeaderRow(ws1, ovHeaders.length);
+        ws1["!cols"] = ovHeaders.map(h => ({ wch: Math.max(h.length + 2, 16) }));
+        XLSX.utils.book_append_sheet(wb, ws1, "Test Cases");
+
+        // Sheet 2: Test Steps (one row per step)
+        const { headers: stH, rows: stR } = extractRows(actionId, result);
+        const ws2 = XLSX.utils.aoa_to_sheet([stH, ...stR]);
+        _styleHeaderRow(ws2, stH.length);
+        ws2["!cols"] = stH.map(h => ({ wch: Math.max(h.length + 2, 18) }));
+        XLSX.utils.book_append_sheet(wb, ws2, "Test Steps");
+
+      } else {
+        // ── Old flat format ────────────────────────────────────────────────────
+        const ws = XLSX.utils.json_to_sheet(tc);
+        _styleHeaderRow(ws, Object.keys(tc[0]).length);
+        const colKeys = Object.keys(tc[0]);
+        ws["!cols"] = colKeys.map((k) => ({
+          wch: Math.max(k.length + 2, ...(tc as any[]).map(r => cellStr(r[k]).length).slice(0, 100)) + 2,
+        }));
+        XLSX.utils.book_append_sheet(wb, ws, "Test Cases");
+      }
+
+      // By Category pivot (both formats)
       const byCategory: Record<string, number> = {};
       const byTechnique: Record<string, number> = {};
       const byValidity: Record<string, number> = { valid: 0, invalid: 0 };
-      for (const c of tc) {
+      for (const c of tc as any[]) {
         byCategory[c.category] = (byCategory[c.category] ?? 0) + 1;
         byTechnique[c.technique] = (byTechnique[c.technique] ?? 0) + 1;
         if (c.validity === "valid") byValidity.valid++; else byValidity.invalid++;
@@ -138,10 +197,11 @@ export function downloadXLSX(actionId: string, result: any, filename?: string) {
         ["Validity", "Count"],
         ...Object.entries(byValidity).map(([k, v]) => [k, v]),
       ];
-      const ws2 = XLSX.utils.aoa_to_sheet(pivotRows);
-      _styleHeaderRow(ws2, 2);
-      ws2["!cols"] = [{ wch: 28 }, { wch: 10 }];
-      XLSX.utils.book_append_sheet(wb, ws2, "By Category");
+      const wsP = XLSX.utils.aoa_to_sheet(pivotRows);
+      _styleHeaderRow(wsP, 2);
+      wsP["!cols"] = [{ wch: 28 }, { wch: 10 }];
+      XLSX.utils.book_append_sheet(wb, wsP, "By Category");
+
     } else if (result.test_data && typeof result.test_data === "object") {
       // Legacy format: one sheet per category
       const td = result.test_data as Record<string, any[]>;
@@ -325,73 +385,126 @@ export function downloadJSON(actionId: string, result: any, filename?: string) {
 }
 
 // ── JIRA Zephyr Scale export ──────────────────────────────────────────────────
-// Format: https://support.smartbear.com/zephyr-scale-cloud/docs/test-cases/import-and-export-test-cases.html
-// One row per test case. Imports directly into Zephyr Scale as Manual test cases.
+// Industry-standard format: one header row per test case + one row per step.
+// Import path: Zephyr Scale → Test Cases → Import CSV
+// Ref: https://support.smartbear.com/zephyr-scale-cloud/docs/test-cases/import-and-export-test-cases.html
 
 const _JIRA_PRIORITY: Record<string, string> = {
   Critical: "High", High: "High", Medium: "Medium", Low: "Low",
 };
 
+function _testDataStr(td: any): string {
+  if (!td || typeof td !== "object") return cellStr(td);
+  return Object.entries(td).map(([k, v]) => `${k}: ${v}`).join(" | ");
+}
+
+function _precondStr(pre: any): string {
+  if (Array.isArray(pre)) return pre.map((p: string, i: number) => `${i + 1}. ${p}`).join("\n");
+  return cellStr(pre);
+}
+
 export function downloadJIRA(result: any, filename?: string) {
   const tc: any[] = result.test_cases ?? [];
   if (tc.length === 0) return;
 
+  // Zephyr Scale multi-row step format:
+  // First row of each TC → all TC fields populated + first step
+  // Remaining rows → Name/Folder/etc blank + step columns only
   const headers = [
-    "Name", "Status", "Priority", "Type",
-    "Folder", "Label/s", "Description",
+    "Name", "Status", "Priority", "Type", "Folder", "Label/s",
+    "Description", "Precondition",
     "Step No", "Step Description", "Step Test Data", "Step Expected Result",
   ];
 
-  const rows: string[][] = tc.map((t) => [
-    `${t.id} - ${t.field} - ${t.category} Validation`,           // Name
-    "Draft",                                                       // Status
-    _JIRA_PRIORITY[t.priority] ?? "Medium",                       // Priority
-    "Manual",                                                      // Type
-    `/Test Data/${t.field}`,                                       // Folder
-    [
-      t.technique.toLowerCase().replace(/\s+/g, "-"),
-      t.category.toLowerCase().replace(/\s+/g, "-"),
+  const rows: string[][] = [];
+
+  for (const t of tc) {
+    const name = `${t.id} - ${t.summary ?? `${t.feature ?? ""} ${t.category} Validation`}`;
+    const priority = _JIRA_PRIORITY[t.priority] ?? "Medium";
+    const folder = `/${t.module ?? "Tests"}/${t.feature ?? t.module ?? "General"}`;
+    const labels = [
+      t.technique?.toLowerCase().replace(/\s+/g, "-"),
+      t.category?.toLowerCase().replace(/\s+/g, "-"),
       t.validity,
-      "regression",
-    ].join(", "),                                                  // Label/s
-    `Technique: ${t.technique} | Risk: ${t.risk || "N/A"} | Validity: ${t.validity}`, // Description
-    "1",                                                           // Step No
-    `Enter the following value in the "${t.field}" field`,        // Step Description
-    t.value !== "" && t.value !== undefined ? String(t.value) : "(empty string)", // Step Test Data
-    t.expected_result,                                             // Step Expected Result
-  ]);
+      ...(t.automation_tags ?? []).map((tag: string) => tag.toLowerCase()),
+    ].filter(Boolean).join(", ");
+    const desc = [
+      t.requirement_id ? `Requirement: ${t.requirement_id}` : null,
+      `Module: ${t.module ?? ""}`,
+      `Feature: ${t.feature ?? ""}`,
+      `Severity: ${t.severity ?? ""}`,
+      `Type: ${t.type ?? "Functional"}`,
+      `Automation: ${t.automation ?? "Yes"}`,
+      t.expected_api ? `API: ${t.expected_api} → ${t.expected_status_code ?? ""}` : null,
+      t.post_conditions ? `Post Conditions: ${t.post_conditions}` : null,
+      t.expected_db_validation ? `DB: ${t.expected_db_validation}` : null,
+      `Traceability: ${t.traceability ?? t.requirement_id ?? ""}`,
+      `Owner: ${t.owner ?? "QA Team"}`,
+    ].filter(Boolean).join(" | ");
+    const precondition = _precondStr(t.preconditions);
+    const testDataStr = _testDataStr(t.test_data);
+
+    const steps: any[] = Array.isArray(t.steps) && t.steps.length > 0
+      ? t.steps
+      : [{ step_no: 1, action: t.summary ?? "", expected_result: t.expected_result ?? "" }];
+
+    steps.forEach((s: any, idx: number) => {
+      const isFirst = idx === 0;
+      rows.push([
+        isFirst ? name : "",
+        isFirst ? "Draft" : "",
+        isFirst ? priority : "",
+        isFirst ? "Manual" : "",
+        isFirst ? folder : "",
+        isFirst ? labels : "",
+        isFirst ? desc : "",
+        isFirst ? precondition : "",
+        String(s.step_no ?? idx + 1),
+        s.action ?? "",
+        idx === 0 ? testDataStr : "",   // test data on first step only
+        s.expected_result ?? "",
+      ]);
+    });
+  }
 
   const esc = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const lines = [headers.map(esc).join(","), ...rows.map(r => r.map(esc).join(","))];
-  // BOM so Excel opens it correctly on all locales
   const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
-  triggerDownload(blob, filename ?? "test_data_jira_zephyr.csv");
+  triggerDownload(blob, filename ?? "test_cases_jira_zephyr.csv");
 }
 
 // ── Azure DevOps (ADO) Test Case export ───────────────────────────────────────
-// Format: ADO Boards CSV import for Work Item Type = "Test Case"
-// Steps use ADO's parameterizedString XML schema (renders as proper steps in Test Plans)
+// Format: ADO Work Item CSV import (Boards → Work Items → Import CSV)
+// Steps use ADO's parameterizedString XML (renders as proper step table in Test Plans)
+// Ref: https://learn.microsoft.com/en-us/azure/devops/boards/queries/import-work-items-from-csv
 
 const _ADO_PRIORITY: Record<string, string> = {
   Critical: "1", High: "2", Medium: "3", Low: "4",
 };
+const _ADO_SEVERITY: Record<string, string> = {
+  Critical: "1 - Critical", High: "2 - High", Medium: "3 - Medium", Low: "4 - Low",
+};
 
 function _xmlEsc(s: string): string {
   return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function _adoSteps(action: string, expected: string, stepId = 1): string {
-  return (
-    `<steps id="0" last="${stepId}">` +
-    `<step id="${stepId}" type="ActionStep">` +
-    `<parameterizedString isformatted="true">${_xmlEsc(action)}</parameterizedString>` +
-    `<parameterizedString isformatted="true">${_xmlEsc(expected)}</parameterizedString>` +
-    `</step></steps>`
-  );
+function _adoStepsXml(steps: any[], testData: any): string {
+  if (!Array.isArray(steps) || steps.length === 0) return "";
+  const tdStr = _testDataStr(testData);
+  let xml = `<steps id="0" last="${steps.length}">`;
+  steps.forEach((s: any, i: number) => {
+    const action = i === 0 && tdStr
+      ? `${_xmlEsc(s.action ?? "")}<br/><b>Test Data:</b> ${_xmlEsc(tdStr)}`
+      : _xmlEsc(s.action ?? "");
+    xml += `<step id="${i + 1}" type="ActionStep">`;
+    xml += `<parameterizedString isformatted="true">${action}</parameterizedString>`;
+    xml += `<parameterizedString isformatted="true">${_xmlEsc(s.expected_result ?? "")}</parameterizedString>`;
+    xml += `</step>`;
+  });
+  xml += `</steps>`;
+  return xml;
 }
 
 export function downloadADO(result: any, filename?: string) {
@@ -399,35 +512,57 @@ export function downloadADO(result: any, filename?: string) {
   if (tc.length === 0) return;
 
   const headers = [
-    "Work Item Type", "Title", "State", "Priority",
-    "Area Path", "Tags", "Assigned To",
-    "Description", "Steps",
+    "Work Item Type", "Title", "State", "Priority", "Severity",
+    "Area Path", "Iteration Path", "Assigned To", "Tags",
+    "Description", "Automation Status", "Automation Identifier",
+    "Steps", "Requirements",
   ];
 
   const rows: string[][] = tc.map(t => {
-    const title = `${t.id} - [${t.technique}] ${t.field} - ${t.category} Validation`;
-    const tags = [t.technique, t.category, t.validity, "test-data"].join("; ");
-    const desc = `Field: ${t.field} | Category: ${t.category} | Technique: ${t.technique} | Validity: ${t.validity} | Risk: ${t.risk || "N/A"}`;
-    const testVal = t.value !== "" && t.value !== undefined ? String(t.value) : "(empty string)";
-    const action = `Enter the following value in the "${t.field}" field:\n${testVal}`;
-    const steps = _adoSteps(action, t.expected_result);
+    const title = `${t.id} - ${t.summary ?? `[${t.technique}] ${t.feature ?? ""} ${t.category} Validation`}`;
+    const tags = [
+      ...(t.automation_tags ?? []),
+      t.technique,
+      t.category,
+      t.validity,
+    ].filter(Boolean).join("; ");
+    const desc = [
+      `<b>Module:</b> ${t.module ?? ""}`,
+      `<b>Feature:</b> ${t.feature ?? ""}`,
+      `<b>Severity:</b> ${t.severity ?? ""}`,
+      `<b>Type:</b> ${t.type ?? "Functional"}`,
+      `<b>Preconditions:</b><br/>${_precondStr(t.preconditions).replace(/\n/g, "<br/>")}`,
+      t.post_conditions ? `<b>Post Conditions:</b> ${t.post_conditions}` : null,
+      t.expected_api ? `<b>API:</b> ${t.expected_api} | Status: ${t.expected_status_code ?? ""}` : null,
+      t.expected_db_validation ? `<b>DB Validation:</b> ${t.expected_db_validation}` : null,
+      `<b>Owner:</b> ${t.owner ?? "QA Team"}`,
+    ].filter(Boolean).join("<br/>");
+
+    const automationStatus = t.automation === "Yes" ? "Automated" : "Not Automated";
+    const steps = _adoStepsXml(t.steps ?? [], t.test_data);
+
     return [
       "Test Case",
       title,
       "Design",
       _ADO_PRIORITY[t.priority] ?? "3",
-      "",   // Area Path — user fills in their project path
+      _ADO_SEVERITY[t.severity ?? t.priority] ?? "3 - Medium",
+      "",   // Area Path — fill in: \ProjectName\QA
+      "",   // Iteration Path — fill in: \ProjectName\Sprint 25
+      t.owner ?? "QA Team",
       tags,
-      "",   // Assigned To
       desc,
+      automationStatus,
+      t.id,   // Automation Identifier (maps to script ID)
       steps,
+      t.traceability ?? t.requirement_id ?? "",
     ];
   });
 
   const esc = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const lines = [headers.map(esc).join(","), ...rows.map(r => r.map(esc).join(","))];
   const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
-  triggerDownload(blob, filename ?? "test_data_ado.csv");
+  triggerDownload(blob, filename ?? "test_cases_ado.csv");
 }
 
 // ── Script file export ────────────────────────────────────────────────────────
