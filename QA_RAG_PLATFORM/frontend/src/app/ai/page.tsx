@@ -8,7 +8,7 @@ import {
   Code, Database, ChevronRight, X, FileSpreadsheet, FileText,
   FileJson, CheckSquare, Square, Play, Download,
 } from "lucide-react";
-import { downloadCSV, downloadXLSX, downloadXLS, downloadDOCX, downloadJSON, downloadScript } from "@/lib/export";
+import { downloadCSV, downloadXLSX, downloadXLS, downloadDOCX, downloadJSON, downloadScript, downloadJIRA, downloadADO } from "@/lib/export";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -59,6 +59,7 @@ function DlBtn({ label, icon, onClick, accent = false }: { label: string; icon: 
 // ── Export bar (non-script actions) ──────────────────────────────────────────
 
 function ExportBar({ actionId, result }: { actionId: string; result: any }) {
+  const isTestData = actionId === "test_data" && Array.isArray(result?.test_cases) && result.test_cases.length > 0;
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
@@ -73,6 +74,37 @@ function ExportBar({ actionId, result }: { actionId: string; result: any }) {
       <DlBtn label="XLS"  icon={<FileSpreadsheet size={12} />} onClick={() => downloadXLS(actionId, result)} />
       <DlBtn label="DOCX" icon={<FileText size={12} />}        onClick={() => downloadDOCX(actionId, result)} />
       <DlBtn label="JSON" icon={<FileJson size={12} />}        onClick={() => downloadJSON(actionId, result)} />
+
+      {isTestData && (
+        <>
+          <span style={{ width: 1, height: 20, background: "var(--border)", margin: "0 4px" }} />
+          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Import to
+          </span>
+          <DlBtn
+            label="JIRA (Zephyr)"
+            icon={
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <path d="M11.75 2L2 12.25l4.5 4.5L11.75 11.5l5.25 5.25L21.5 12.25 11.75 2z" fill="#0052CC"/>
+                <path d="M11.75 12.5l-5.25 5.25 4.5 4.5 9.75-9.75-4.5-4.5-4.5 4.5z" fill="#2684FF"/>
+              </svg>
+            }
+            onClick={() => downloadJIRA(result)}
+            accent
+          />
+          <DlBtn
+            label="Azure DevOps"
+            icon={
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <path d="M0 5.88L3.84 0l9.12 4.56V21.6L3.84 24 0 18.48V5.88z" fill="#0078D4"/>
+                <path d="M3.84 0L24 6v12l-11.04 2.4V4.56L3.84 0z" fill="#0078D4" opacity="0.7"/>
+              </svg>
+            }
+            onClick={() => downloadADO(result)}
+            accent
+          />
+        </>
+      )}
     </div>
   );
 }

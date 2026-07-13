@@ -324,6 +324,112 @@ export function downloadJSON(actionId: string, result: any, filename?: string) {
   triggerDownload(blob, filename ?? `${actionId}.json`);
 }
 
+// ── JIRA Zephyr Scale export ──────────────────────────────────────────────────
+// Format: https://support.smartbear.com/zephyr-scale-cloud/docs/test-cases/import-and-export-test-cases.html
+// One row per test case. Imports directly into Zephyr Scale as Manual test cases.
+
+const _JIRA_PRIORITY: Record<string, string> = {
+  Critical: "High", High: "High", Medium: "Medium", Low: "Low",
+};
+
+export function downloadJIRA(result: any, filename?: string) {
+  const tc: any[] = result.test_cases ?? [];
+  if (tc.length === 0) return;
+
+  const headers = [
+    "Name", "Status", "Priority", "Type",
+    "Folder", "Label/s", "Description",
+    "Step No", "Step Description", "Step Test Data", "Step Expected Result",
+  ];
+
+  const rows: string[][] = tc.map((t) => [
+    `${t.id} - ${t.field} - ${t.category} Validation`,           // Name
+    "Draft",                                                       // Status
+    _JIRA_PRIORITY[t.priority] ?? "Medium",                       // Priority
+    "Manual",                                                      // Type
+    `/Test Data/${t.field}`,                                       // Folder
+    [
+      t.technique.toLowerCase().replace(/\s+/g, "-"),
+      t.category.toLowerCase().replace(/\s+/g, "-"),
+      t.validity,
+      "regression",
+    ].join(", "),                                                  // Label/s
+    `Technique: ${t.technique} | Risk: ${t.risk || "N/A"} | Validity: ${t.validity}`, // Description
+    "1",                                                           // Step No
+    `Enter the following value in the "${t.field}" field`,        // Step Description
+    t.value !== "" && t.value !== undefined ? String(t.value) : "(empty string)", // Step Test Data
+    t.expected_result,                                             // Step Expected Result
+  ]);
+
+  const esc = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = [headers.map(esc).join(","), ...rows.map(r => r.map(esc).join(","))];
+  // BOM so Excel opens it correctly on all locales
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+  triggerDownload(blob, filename ?? "test_data_jira_zephyr.csv");
+}
+
+// ── Azure DevOps (ADO) Test Case export ───────────────────────────────────────
+// Format: ADO Boards CSV import for Work Item Type = "Test Case"
+// Steps use ADO's parameterizedString XML schema (renders as proper steps in Test Plans)
+
+const _ADO_PRIORITY: Record<string, string> = {
+  Critical: "1", High: "2", Medium: "3", Low: "4",
+};
+
+function _xmlEsc(s: string): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function _adoSteps(action: string, expected: string, stepId = 1): string {
+  return (
+    `<steps id="0" last="${stepId}">` +
+    `<step id="${stepId}" type="ActionStep">` +
+    `<parameterizedString isformatted="true">${_xmlEsc(action)}</parameterizedString>` +
+    `<parameterizedString isformatted="true">${_xmlEsc(expected)}</parameterizedString>` +
+    `</step></steps>`
+  );
+}
+
+export function downloadADO(result: any, filename?: string) {
+  const tc: any[] = result.test_cases ?? [];
+  if (tc.length === 0) return;
+
+  const headers = [
+    "Work Item Type", "Title", "State", "Priority",
+    "Area Path", "Tags", "Assigned To",
+    "Description", "Steps",
+  ];
+
+  const rows: string[][] = tc.map(t => {
+    const title = `${t.id} - [${t.technique}] ${t.field} - ${t.category} Validation`;
+    const tags = [t.technique, t.category, t.validity, "test-data"].join("; ");
+    const desc = `Field: ${t.field} | Category: ${t.category} | Technique: ${t.technique} | Validity: ${t.validity} | Risk: ${t.risk || "N/A"}`;
+    const testVal = t.value !== "" && t.value !== undefined ? String(t.value) : "(empty string)";
+    const action = `Enter the following value in the "${t.field}" field:\n${testVal}`;
+    const steps = _adoSteps(action, t.expected_result);
+    return [
+      "Test Case",
+      title,
+      "Design",
+      _ADO_PRIORITY[t.priority] ?? "3",
+      "",   // Area Path — user fills in their project path
+      tags,
+      "",   // Assigned To
+      desc,
+      steps,
+    ];
+  });
+
+  const esc = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = [headers.map(esc).join(","), ...rows.map(r => r.map(esc).join(","))];
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+  triggerDownload(blob, filename ?? "test_data_ado.csv");
+}
+
 // ── Script file export ────────────────────────────────────────────────────────
 
 export function downloadScript(result: any) {
