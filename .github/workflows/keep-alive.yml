@@ -1,0 +1,19 @@
+name: Keep Render Backend Alive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"  # every 10 minutes
+  workflow_dispatch:         # allow manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping QA RAG Platform API
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            https://qa-rag-platform-api.onrender.com/api/stats/health)
+          echo "Health check status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "Warning: backend returned $STATUS"
+          fi
