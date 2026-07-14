@@ -3,6 +3,7 @@ import { Component, useState, useCallback, useRef, useEffect, type ReactNode } f
 import { motion, AnimatePresence } from "framer-motion";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { aiApi } from "@/lib/api";
+import { useAppStore } from "@/lib/store";
 import { AIAction } from "@/types";
 import {
   TestTube, Copy, Target, Search, FileCheck, AlertCircle, Zap,
@@ -1691,6 +1692,7 @@ export default function AIPage() {
   const [selected, setSelected] = useState<AIAction | null>(null);
   const [content, setContent] = useState("");
   const [options, setOptions] = useState<Record<string, unknown>>({});
+  const addRecentAgent = useAppStore((s) => s.addRecentAgent);
 
   const { data: actionsData } = useQuery({ queryKey: ["ai-actions"], queryFn: aiApi.actions });
   const actions: AIAction[] = actionsData?.actions ?? [];
@@ -1714,6 +1716,11 @@ export default function AIPage() {
   const handleRun = () => {
     if (!selected || !content.trim()) return;
     runMut.mutate({ action: selected.id, content, options });
+  };
+
+  const handleSelect = (action: AIAction) => {
+    addRecentAgent(action.label);
+    setSelected(action);
   };
 
   const handleClose = () => {
@@ -1752,7 +1759,7 @@ export default function AIPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.04, duration: 0.25 }}
                 >
-                  <ActionCard action={a} onSelect={setSelected} />
+                  <ActionCard action={a} onSelect={handleSelect} />
                 </motion.div>
               ))
           }

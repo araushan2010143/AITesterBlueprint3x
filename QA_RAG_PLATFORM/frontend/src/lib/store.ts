@@ -6,6 +6,8 @@ interface AppStore {
   toggleSidebar: () => void;
   commandOpen: boolean;
   setCommandOpen: (v: boolean) => void;
+  recentAgents: string[];
+  addRecentAgent: (label: string) => void;
 }
 
 export const useAppStore = create<AppStore>()(
@@ -15,7 +17,15 @@ export const useAppStore = create<AppStore>()(
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       commandOpen: false,
       setCommandOpen: (v) => set({ commandOpen: v }),
+      recentAgents: [],
+      addRecentAgent: (label) =>
+        set((s) => ({
+          recentAgents: [label, ...s.recentAgents.filter((r) => r !== label)].slice(0, 5),
+        })),
     }),
-    { name: "qa-rag-ui", partialize: (s) => ({ sidebarCollapsed: s.sidebarCollapsed }) }
+    {
+      name: "qa-rag-ui",
+      partialize: (s) => ({ sidebarCollapsed: s.sidebarCollapsed, recentAgents: s.recentAgents }),
+    }
   )
 );

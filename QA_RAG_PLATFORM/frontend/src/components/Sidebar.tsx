@@ -17,11 +17,6 @@ const MAIN_NAV = [
   { href: "/documents", label: "Documents",  icon: FileText        },
 ];
 
-const RECENT_ITEMS = [
-  "Flaky Test Analyzer",
-  "Automation Pipeline",
-  "Release Summary",
-];
 
 function NavItem({ href, label, icon: Icon, collapsed, active }: {
   href: string; label: string; icon: any; collapsed: boolean; active: boolean;
@@ -116,7 +111,7 @@ function LLMStatus({ collapsed }: { collapsed: boolean }) {
 
 export default function Sidebar() {
   const path = usePathname();
-  const { sidebarCollapsed, toggleSidebar, setCommandOpen } = useAppStore();
+  const { sidebarCollapsed, toggleSidebar, setCommandOpen, recentAgents } = useAppStore();
   const W = sidebarCollapsed ? 64 : 240;
 
   return (
@@ -195,17 +190,21 @@ export default function Sidebar() {
           {!sidebarCollapsed && (
             <>
               <p style={{ fontSize: 10, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.08em", padding: "12px 12px 2px", margin: 0 }}>Recent</p>
-              {RECENT_ITEMS.map((item) => (
-                <Link key={item} href="/ai" style={{ textDecoration: "none" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", borderRadius: 8, cursor: "pointer", fontSize: 12, color: "#6B7280", transition: "color 0.15s, background 0.15s" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#9CA3AF"; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#6B7280"; (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                  >
-                    <Clock size={11} style={{ flexShrink: 0 }} />
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item}</span>
-                  </div>
-                </Link>
-              ))}
+              {recentAgents.length === 0 ? (
+                <p style={{ fontSize: 11, color: "#374151", padding: "6px 12px", margin: 0, fontStyle: "italic" }}>No agents used yet</p>
+              ) : (
+                recentAgents.map((item: string) => (
+                  <Link key={item} href="/ai" style={{ textDecoration: "none" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", borderRadius: 8, cursor: "pointer", fontSize: 12, color: "#6B7280", transition: "color 0.15s, background 0.15s" }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#9CA3AF"; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)"; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#6B7280"; (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                    >
+                      <Clock size={11} style={{ flexShrink: 0 }} />
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item}</span>
+                    </div>
+                  </Link>
+                ))
+              )}
             </>
           )}
         </div>
