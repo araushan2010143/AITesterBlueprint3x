@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Upload, Search, Zap, FileText,
   Flame, GitBranch, TestTube, Copy, Target,
-  AlertCircle, FileCheck, Code, Database, X,
+  AlertCircle, FileCheck, Code, Database, RefreshCw,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 
@@ -28,6 +28,7 @@ const AGENT_ITEMS = [
   { label: "Test Data Generator",       href: "/ai", icon: Database,    group: "AI Agents" },
   { label: "Flaky Test Analyzer",       href: "/ai", icon: Flame,       group: "AI Agents" },
   { label: "Automation Pipeline",       href: "/ai", icon: GitBranch,   group: "AI Agents" },
+  { label: "Legacy Migration Engine",   href: "/ai", icon: RefreshCw,   group: "AI Agents" },
 ];
 
 export default function CommandPalette() {
