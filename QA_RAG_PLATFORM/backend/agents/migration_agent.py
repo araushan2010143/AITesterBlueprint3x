@@ -199,7 +199,7 @@ def _chat(router: Any, prompt: str, user_content: str, max_tokens: int = 4096) -
         {"role": "user", "content": prompt + "\n\n" + user_content},
     ]
     result = router.chat(messages, temperature=0.1, max_tokens=max_tokens, json_mode=True)
-    raw = result.get("content", result.get("text", "{}"))
+    raw = result.get("answer", result.get("content", result.get("text", "{}")))
     raw = re.sub(r"^```(?:json)?\s*", "", raw.strip(), flags=re.IGNORECASE)
     raw = re.sub(r"\s*```$", "", raw.strip())
     return json.loads(raw)
