@@ -1,5 +1,6 @@
 "use client";
 import { Component, useState, useCallback, useRef, type ReactNode } from "react";
+import { motion } from "framer-motion";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { aiApi } from "@/lib/api";
 import { AIAction } from "@/types";
@@ -1558,24 +1559,41 @@ function ResultDisplay({ result }: { result: any }) {
 function ActionCard({ action, onSelect }: { action: AIAction; onSelect: (a: AIAction) => void }) {
   const Icon = ICON_MAP[action.icon] ?? Zap;
   return (
-    <button onClick={() => onSelect(action)} className="card" style={{
-      padding: 16, textAlign: "left", cursor: "pointer", border: "1px solid var(--border)",
-      borderRadius: 12, background: "var(--surface-1)", transition: "all 0.15s",
-    }}>
+    <motion.button
+      onClick={() => onSelect(action)}
+      className="card"
+      initial={false}
+      whileHover={{
+        y: -2,
+        borderColor: "rgba(124,58,237,0.4)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px rgba(124,58,237,0.1)",
+      }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ duration: 0.15 }}
+      style={{
+        padding: 16, textAlign: "left", cursor: "pointer",
+        border: "1px solid var(--border)",
+        borderRadius: 12, background: "var(--surface-1)",
+      }}
+    >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: 10, background: "rgba(124,58,237,0.2)",
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-        }}>
+        <motion.div
+          whileHover={{ scale: 1.1 }}
+          transition={{ duration: 0.15 }}
+          style={{
+            width: 36, height: 36, borderRadius: 10, background: "rgba(124,58,237,0.2)",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}
+        >
           <Icon size={15} color="#a78bfa" />
-        </div>
+        </motion.div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-1)", margin: "0 0 3px" }}>{action.label}</p>
           <p style={{ fontSize: 11, color: "var(--text-3)", margin: 0, lineHeight: 1.5 }}>{action.description}</p>
         </div>
         <ChevronRight size={13} color="var(--text-3)" style={{ marginTop: 2, flexShrink: 0 }} />
       </div>
-    </button>
+    </motion.button>
   );
 }
 

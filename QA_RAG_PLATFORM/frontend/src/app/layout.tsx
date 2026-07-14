@@ -1,8 +1,10 @@
 "use client";
 import "./globals.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import Sidebar from "@/components/Sidebar";
+import { Toaster } from "sonner";
 import { useState } from "react";
+import Sidebar from "@/components/Sidebar";
+import CommandPalette from "@/components/CommandPalette";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const [qc] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1 } } }));
@@ -17,9 +19,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ background: "var(--bg)", margin: 0, minHeight: "100vh", display: "flex" }}>
         <QueryClientProvider client={qc}>
           <Sidebar />
-          <main style={{ marginLeft: 220, flex: 1, minHeight: "100vh", overflow: "auto", background: "var(--bg)" }}>
+          <main style={{ flex: 1, minHeight: "100vh", overflow: "auto", background: "var(--bg)" }}>
             {children}
           </main>
+          <CommandPalette />
+          <Toaster
+            position="bottom-right"
+            theme="dark"
+            toastOptions={{
+              style: {
+                background: "#111827",
+                border: "1px solid rgba(124,58,237,0.2)",
+                color: "#F9FAFB",
+                fontSize: 13,
+              },
+            }}
+          />
         </QueryClientProvider>
       </body>
     </html>
