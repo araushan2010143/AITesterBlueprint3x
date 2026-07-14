@@ -857,6 +857,9 @@ def _validate(
     ]
     violating_lines: List[str] = []
     for i, line in enumerate(steps_content.splitlines(), 1):
+        stripped = line.strip()
+        if stripped.startswith("//") or stripped.startswith("*") or stripped.startswith("/*"):
+            continue  # skip comment lines — patterns inside comments are not violations
         if "BeforeAll" in line or "AfterAll" in line or "Browser" in line:
             continue
         if "=" in line and "Page" in line.split("=")[0]:
