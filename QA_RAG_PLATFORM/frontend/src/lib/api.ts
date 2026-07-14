@@ -35,3 +35,9 @@ export const aiApi = {
   run: (action: string, content: string, options?: Record<string, unknown>) =>
     api.post(`/ai/${action}`, { action, content, options: options ?? {} }).then(r => r.data),
 };
+
+export const migrationApi = {
+  jobs: () => api.get("/migration/jobs").then(r => r.data),
+  job: (id: string) => api.get(`/migration/jobs/${id}`).then(r => r.data),
+  delete: (id: string) => api.delete(`/migration/jobs/${id}`).then(r => r.data),
+};

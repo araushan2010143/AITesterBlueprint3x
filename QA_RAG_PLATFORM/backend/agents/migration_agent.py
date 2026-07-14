@@ -213,14 +213,22 @@ def _safe(fn, fallback):
         return fallback
 
 
-def run(content: str, options: Dict[str, Any] = {}) -> Dict[str, Any]:
+def run(content: str, options: Dict[str, Any] = {}, on_stage=None) -> Dict[str, Any]:
     """Run the 5-stage migration pipeline. Returns a rich result dict."""
     from backend.llm.router import get_router
     router = get_router()
 
     chat = lambda prompt, ctx, max_t=4096: _chat(router, prompt, ctx, max_t)
 
+    def _progress(stage: int, name: str) -> None:
+        if on_stage:
+            try:
+                on_stage(stage, name)
+            except Exception:
+                pass
+
     # Stage 1 ─────────────────────────────────────────────────────────────────
+    _progress(1, "Detecting framework")
     logger.info("Migration Stage 1: Framework Detection")
     detection = _safe(lambda: chat(_S1, content, 1024), {
         "language": "Unknown", "framework": "Unknown", "patterns": [],
@@ -229,12 +237,14 @@ def run(content: str, options: Dict[str, Any] = {}) -> Dict[str, Any]:
     })
 
     # Stage 2 ─────────────────────────────────────────────────────────────────
+    _progress(2, "Parsing code")
     logger.info("Migration Stage 2: Code Parsing → IR")
     ir = _safe(lambda: chat(_S2, content, 3500), {"pages": [], "tests": []})
 
     s2_ctx = f"ORIGINAL CODE:\n{content[:3000]}\n\nPARSED IR:\n{json.dumps(ir, indent=2)[:3000]}"
 
     # Stage 3 ─────────────────────────────────────────────────────────────────
+    _progress(3, "Extracting business logic")
     logger.info("Migration Stage 3: Business Logic Extraction")
     business = _safe(lambda: chat(_S3, s2_ctx, 2048), {
         "business_flows": [], "coverage_gaps": [], "migration_notes": [],
@@ -246,6 +256,7 @@ def run(content: str, options: Dict[str, Any] = {}) -> Dict[str, Any]:
     )
 
     # Stage 4 ─────────────────────────────────────────────────────────────────
+    _progress(4, "Generating Page Objects")
     logger.info("Migration Stage 4: Page Object Generation")
     pom = _safe(lambda: chat(_S4, s3_ctx, 4096), {"base_page": "", "page_objects": []})
 
@@ -255,6 +266,7 @@ def run(content: str, options: Dict[str, Any] = {}) -> Dict[str, Any]:
     )
 
     # Stage 5 ─────────────────────────────────────────────────────────────────
+    _progress(5, "Synthesising Playwright spec")
     logger.info("Migration Stage 5: Playwright TypeScript Synthesis")
     synthesis = _safe(lambda: chat(_S5, s4_ctx, 4096), {
         "spec_ts": "", "confidence_score": 0, "issues": [],

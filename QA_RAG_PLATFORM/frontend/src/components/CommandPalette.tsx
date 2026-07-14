@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { label: "Upload",     href: "/upload",    icon: Upload,          group: "Pages" },
   { label: "Explorer",   href: "/search",    icon: Search,          group: "Pages" },
   { label: "AI Agents",  href: "/ai",        icon: Zap,             group: "Pages" },
+  { label: "Migration",  href: "/migration", icon: RefreshCw,       group: "Pages" },
   { label: "Documents",  href: "/documents", icon: FileText,        group: "Pages" },
 ];
 

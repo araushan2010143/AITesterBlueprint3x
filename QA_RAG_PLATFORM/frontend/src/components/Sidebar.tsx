@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard, Upload, Search, Zap, FileText,
-  ChevronLeft, ChevronRight, Clock,
+  ChevronLeft, ChevronRight, Clock, RefreshCw,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 
@@ -14,6 +14,7 @@ const MAIN_NAV = [
   { href: "/upload",    label: "Upload",     icon: Upload          },
   { href: "/search",    label: "Explorer",   icon: Search          },
   { href: "/ai",        label: "AI Agents",  icon: Zap             },
+  { href: "/migration", label: "Migration",  icon: RefreshCw       },
   { href: "/documents", label: "Documents",  icon: FileText        },
 ];
 
