@@ -95,16 +95,16 @@ function LLMStatus({ collapsed }: { collapsed: boolean }) {
   }
 
   return (
-    <div style={{ padding: "12px 14px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+    <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", flexShrink: 0 }}>
+      <div style={{ padding: "10px 14px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: "#4B5563", textTransform: "uppercase", letterSpacing: "0.08em" }}>LLM Router</span>
         <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: allOk ? "rgba(34,197,94,0.12)" : "rgba(245,158,11,0.12)", color: allOk ? "#22c55e" : "#f59e0b" }}>
           {available_count}/{total_count}
         </span>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      <div style={{ padding: "4px 14px 10px", display: "flex", flexDirection: "column", gap: 4, maxHeight: 140, overflowY: "auto" }}>
         {providers?.map((p: any) => (
-          <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
             <div style={{ width: 5, height: 5, borderRadius: "50%", flexShrink: 0, background: p.available ? "#22c55e" : "#ef4444", boxShadow: p.available ? "0 0 4px #22c55e80" : "none" }} />
             <span style={{ fontSize: 10, color: p.available ? "#9CA3AF" : "#4B5563", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
           </div>
