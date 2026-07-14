@@ -1622,7 +1622,7 @@ export default function AIPage() {
     <div style={{ padding: "28px 32px", maxWidth: 900 }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-1)", margin: "0 0 4px" }}>AI Actions</h1>
-        <p style={{ fontSize: 13, color: "var(--text-3)", margin: 0 }}>9 specialized QA agents · Groq llama-3.3-70b-versatile</p>
+        <p style={{ fontSize: 13, color: "var(--text-3)", margin: 0 }}>{actions?.length ?? 11} specialized QA agents · Groq llama-3.3-70b-versatile</p>
       </div>
 
       {!selected ? (
