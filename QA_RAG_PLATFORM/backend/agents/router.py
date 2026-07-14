@@ -2,7 +2,7 @@
 from typing import Any, Dict
 from backend.agents import (
     test_case_agent, duplicate_agent, coverage_agent, report_agent,
-    flaky_agent, automation_pipeline_agent,
+    flaky_agent, automation_pipeline_agent, migration_agent,
 )
 
 ACTION_MAP = {
@@ -17,6 +17,7 @@ ACTION_MAP = {
     "test_data": report_agent.run_test_data,
     "flaky_analyzer": flaky_agent.run,
     "automation_pipeline": automation_pipeline_agent.run,
+    "migration_engine": migration_agent.run,
 }
 
 SUPPORTED_ACTIONS = list(ACTION_MAP.keys())

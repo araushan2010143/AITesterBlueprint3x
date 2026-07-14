@@ -10,13 +10,14 @@ import {
   Code, Database, ChevronRight, X, FileSpreadsheet, FileText,
   FileJson, CheckSquare, Square, Play, Download, Flame, GitBranch,
   CheckCircle, XCircle, AlertTriangle, ChevronDown, Activity,
-  TrendingUp, Bug,
+  TrendingUp, Bug, RefreshCw,
 } from "lucide-react";
 import { downloadCSV, downloadXLSX, downloadXLS, downloadDOCX, downloadJSON, downloadScript, downloadJIRA, downloadADO } from "@/lib/export";
+import MigrationResultViewer from "@/components/MigrationResultViewer";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ICON_MAP: Record<string, any> = { TestTube, Copy, Target, Search, FileCheck, AlertCircle, Zap, Code, Database, Flame, GitBranch };
+const ICON_MAP: Record<string, any> = { TestTube, Copy, Target, Search, FileCheck, AlertCircle, Zap, Code, Database, Flame, GitBranch, RefreshCw };
 
 type Complexity = "low" | "med" | "high";
 const ACTION_META: Record<string, { category: string; complexity: Complexity; time: string; accent: string }> = {
@@ -31,6 +32,7 @@ const ACTION_META: Record<string, { category: string; complexity: Complexity; ti
   test_data:           { category: "Test Design",   complexity: "med",  time: "~8s",  accent: "#22c55e" },
   flaky_analyzer:      { category: "Analysis",      complexity: "high", time: "~25s", accent: "#f97316" },
   automation_pipeline: { category: "Automation",    complexity: "high", time: "~30s", accent: "#ec4899" },
+  migration_engine:    { category: "Migration",     complexity: "high", time: "~60s", accent: "#e11d48" },
 };
 
 const COMPLEXITY_COLORS: Record<Complexity, string> = { low: "#22c55e", med: "#f59e0b", high: "#ef4444" };
@@ -70,6 +72,7 @@ const CONTENT_LABEL: Record<string, string> = {
   test_data:           "Describe the feature / fields you need data for",
   flaky_analyzer:      "Paste test execution results from multiple runs (JSON, CSV, or plain text log)",
   automation_pipeline: "Paste test case from JIRA, ADO, Xray, Zephyr, or plain text (title + steps + expected result)",
+  migration_engine:    "Paste legacy test code — Java Selenium, C# NUnit/MSTest, Python Selenium, Robot Framework, Cucumber, TestNG, JUnit (any framework)",
 };
 
 // ── Shared download-file button ───────────────────────────────────────────────
@@ -1727,9 +1730,10 @@ export default function AIPage() {
     setSelected(null); setContent(""); setOptions({}); runMut.reset();
   };
 
-  const isScriptAction   = selected?.id === "generate_script";
-  const isPipelineAction = selected?.id === "automation_pipeline";
-  const isFlakyAction    = selected?.id === "flaky_analyzer";
+  const isScriptAction     = selected?.id === "generate_script";
+  const isPipelineAction   = selected?.id === "automation_pipeline";
+  const isFlakyAction      = selected?.id === "flaky_analyzer";
+  const isMigrationAction  = selected?.id === "migration_engine";
   const elapsed          = useElapsedTime(runMut.isPending);
   const isActionsLoading = !actionsData;
 
@@ -1893,7 +1897,7 @@ export default function AIPage() {
                 {runMut.isPending ? (
                   <>
                     <div style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white", borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
-                    {isPipelineAction ? "Running pipeline…" : "Running agent…"}
+                    {isPipelineAction ? "Running pipeline…" : isMigrationAction ? "Migrating…" : "Running agent…"}
                     <span style={{ fontSize: 12, opacity: 0.7, marginLeft: 2 }}>{elapsed}s</span>
                   </>
                 ) : (
@@ -1928,20 +1932,26 @@ export default function AIPage() {
               })()}
 
               {/* ── Automation Pipeline: loading stages indicator ── */}
-              {runMut.isPending && isPipelineAction && (
+              {runMut.isPending && (isPipelineAction || isMigrationAction) && (
                 <div style={{
                   display: "flex", flexDirection: "column", gap: 10,
                   padding: "16px 18px", borderRadius: 10,
                   background: "rgba(124,58,237,0.06)", border: "1px solid rgba(124,58,237,0.2)",
                 }}>
                   <p style={{ fontSize: 12, fontWeight: 700, color: "#a78bfa", margin: 0 }}>
-                    Running 3-stage AI pipeline…
+                    {isMigrationAction ? "Running 5-stage migration pipeline…" : "Running 3-stage AI pipeline…"}
                   </p>
-                  {[
+                  {(isMigrationAction ? [
+                    "Stage 1 — Framework & language detection",
+                    "Stage 2 — Code parsing → Intermediate Representation",
+                    "Stage 3 — Business logic extraction",
+                    "Stage 4 — Page Object Model generation",
+                    "Stage 5 — Playwright TypeScript synthesis",
+                  ] : [
                     "Stage 1 — Intent extraction + Gherkin feature file",
                     "Stage 2 — Step definitions (Cucumber + Playwright)",
                     "Stage 3 — Page Object Model + Locators",
-                  ].map((stage, i) => (
+                  ]).map((stage, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <div style={{
                         width: 14, height: 14, borderRadius: "50%",
@@ -1984,7 +1994,16 @@ export default function AIPage() {
                 </motion.div>
               )}
 
-              {runMut.data && !isPipelineAction && !isFlakyAction && (
+              {/* ── Legacy Migration Engine: rich viewer ── */}
+              {runMut.data && isMigrationAction && (
+                <motion.div key="migration-result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+                  <ErrorBoundary>
+                    <MigrationResultViewer result={runMut.data.result} />
+                  </ErrorBoundary>
+                </motion.div>
+              )}
+
+              {runMut.data && !isPipelineAction && !isFlakyAction && !isMigrationAction && (
                 <motion.div key="generic-result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
                   style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {/* Script action: show code viewer + direct download, not generic ExportBar */}

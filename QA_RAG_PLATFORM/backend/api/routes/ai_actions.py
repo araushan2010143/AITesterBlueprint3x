@@ -21,6 +21,7 @@ def list_actions():
             {"id": "test_data", "label": "Test Data Generator", "description": "Generate valid, invalid, boundary, SQL injection, and XSS test data.", "icon": "Database"},
             {"id": "flaky_analyzer", "label": "Flaky Test Analyzer", "description": "Detect non-deterministic tests from multi-run results, diagnose root causes, and get code-level fixes to make tests prod-ready.", "icon": "Flame"},
             {"id": "automation_pipeline", "label": "Automation Pipeline", "description": "Convert manual test cases into production-ready Playwright + Cucumber BDD + TypeScript POM — Feature file, Step Definitions, Page Object, and Locators.", "icon": "GitBranch"},
+            {"id": "migration_engine", "label": "Legacy Migration Engine", "description": "Migrate Java Selenium, C# NUnit/MSTest, Python Selenium, Robot Framework, Cucumber, TestNG/JUnit to production-ready Playwright TypeScript with full POM architecture.", "icon": "RefreshCw"},
         ]
     }
 
