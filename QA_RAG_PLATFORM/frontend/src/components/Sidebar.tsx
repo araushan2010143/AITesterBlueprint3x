@@ -103,7 +103,7 @@ function LLMStatus({ collapsed }: { collapsed: boolean }) {
         </span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-        {providers?.slice(0, 4).map((p: any) => (
+        {providers?.map((p: any) => (
           <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <div style={{ width: 5, height: 5, borderRadius: "50%", flexShrink: 0, background: p.available ? "#22c55e" : "#ef4444", boxShadow: p.available ? "0 0 4px #22c55e80" : "none" }} />
             <span style={{ fontSize: 10, color: p.available ? "#9CA3AF" : "#4B5563", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
