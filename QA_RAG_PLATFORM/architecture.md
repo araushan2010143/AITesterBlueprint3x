@@ -4,20 +4,27 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           BROWSER (Next.js 15)                          │
+│                         BROWSER (Next.js 15.3 + React 19)               │
 │                                                                         │
-│  ┌──────────┐  ┌──────────────────────────────────────────────────┐    │
-│  │ Sidebar  │  │              AI Actions Page                      │    │
-│  │ Dashboard│  │  ┌─────────────────────────────────────────────┐ │    │
-│  │ Upload   │  │  │  ReportUploadZone (multi-file, drag-drop)   │ │    │
-│  │ Explorer │  │  │  → parse-report API → auto-detect format    │ │    │
-│  │ Documents│  │  └─────────────────────────────────────────────┘ │    │
-│  └──────────┘  │  ┌─────────────────────────────────────────────┐ │    │
-│                │  │  FlakyResultViewer (ErrorBoundary wrapped)  │ │    │
-│                │  │  → summary · gate · category bars · cards   │ │    │
-│                │  │  → RCA hypotheses · code diffs · AI report  │ │    │
-│                │  └─────────────────────────────────────────────┘ │    │
-│                └──────────────────────────────────────────────────┘    │
+│  ┌─────────────────────┐  ┌──────────────────────────────────────────┐  │
+│  │  Enterprise Sidebar │  │           Page Content                   │  │
+│  │  (Framer Motion)    │  │                                          │  │
+│  │  240px ↔ 64px icon  │  │  Dashboard: stat cards (count-up) +     │  │
+│  │  Zustand persist    │  │    LLM status widget + quick-launch      │  │
+│  │  LLM status dots    │  │                                          │  │
+│  │                     │  │  AI Agents: skeleton → card grid         │  │
+│  │  ⌘K CommandPalette  │  │    (category badge, complexity dots,    │  │
+│  │  (cmdk + backdrop)  │  │     time estimate, accent per agent)     │  │
+│  │                     │  │    → detail panel (AnimatePresence)      │  │
+│  │  Sonner toasts      │  │    → run button (shimmer + elapsed timer)│  │
+│  │  (bottom-right)     │  │    → result (slide-up animation)         │  │
+│  └─────────────────────┘  │                                          │  │
+│                            │  ┌────────────────────────────────────┐ │  │
+│                            │  │  ReportUploadZone (drag-drop)      │ │  │
+│                            │  │  FlakyResultViewer (ErrorBoundary) │ │  │
+│                            │  │  AutomationResultViewer (tabs)     │ │  │
+│                            │  └────────────────────────────────────┘ │  │
+│                            └──────────────────────────────────────────┘  │
 └──────────────────────────────┬──────────────────────────────────────────┘
                                │ /api/* (Next.js rewrites proxy)
                                ▼
@@ -172,19 +179,25 @@ The LLM occasionally returns structured objects where strings are expected (e.g.
 
 1. Push to GitHub
 2. New → Web Service → connect repo
-3. Root directory: `QA_RAG_PLATFORM/backend`
-4. Build command: `pip install -r requirements.txt`
+3. Root directory: `QA_RAG_PLATFORM` (not `/backend` — needed so `from backend.xxx import` resolves)
+4. Build command: `pip install -r backend/requirements.txt`
 5. Start command: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
-6. Add environment variables (Groq, Mistral, Pinecone keys)
+6. Add environment variables: `GROQ_API_KEY`, `MISTRAL_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, and optionally `COHERE_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`
 7. Free instance type is fine for demos (spins down after 15 min idle)
+
+**24/7 keep-alive** (Render free tier spins down after 15 min of inactivity):
+- `.github/workflows/keep-alive.yml` — GitHub Actions cron pings `/api/stats/health` every 10 minutes
+- UptimeRobot external monitor — pings the same endpoint every 5 minutes
+- Health endpoint accepts `GET` and `HEAD` (UptimeRobot default): `@router.api_route("/health", methods=["GET","HEAD"])`
 
 **Frontend on Vercel**
 
 1. New Project → import repo
 2. Root directory: `QA_RAG_PLATFORM/frontend`
 3. Framework: Next.js (auto-detected)
-4. Environment variable: `NEXT_PUBLIC_API_URL=https://<your-render-app>.onrender.com`
-5. Deploy
+4. Install command: `npm install --legacy-peer-deps` (required for React 19 + Next.js 15.3 peer deps)
+5. Environment variable: `NEXT_PUBLIC_API_URL=https://<your-render-app>.onrender.com`
+6. Deploy
 
 ### Option B: Docker Compose (self-hosted / VPS)
 
@@ -194,6 +207,69 @@ git clone https://github.com/araushan2010143/AITesterBlueprint3x.git
 cd AITesterBlueprint3x/QA_RAG_PLATFORM
 cp .env.example .env   # fill in keys
 docker-compose up -d
+```
+
+---
+
+## Enterprise UI Architecture
+
+```
+src/
+├── lib/
+│   └── store.ts          Zustand store (persist middleware)
+│                         sidebarCollapsed  ← persisted to localStorage
+│                         commandOpen       ← ephemeral (not persisted)
+│
+├── components/
+│   ├── Sidebar.tsx       motion.aside  width: 240px ↔ 64px
+│   │                     ├── Logo + collapse toggle
+│   │                     ├── ⌘K search trigger
+│   │                     ├── NavItem  (layoutId="sidebar-active" pill)
+│   │                     ├── Recent items
+│   │                     └── LLMStatus  GET /api/llm/status  30s refetch
+│   │                           └── provider list  overflowY:auto  maxH:140
+│   │
+│   └── CommandPalette.tsx  AnimatePresence modal + blur backdrop
+│                           cmdk Command.List with Pages + AI Agents groups
+│                           Global keydown: ⌘K toggle · ESC close
+│
+└── app/
+    ├── layout.tsx        QueryClientProvider + Sidebar + CommandPalette + Toaster
+    │
+    ├── page.tsx          Dashboard
+    │   ├── StatCard      Framer Motion stagger entrance + CountUp animation
+    │   ├── LLMStatusWidget  live dots, refresh button, 30s auto-refresh
+    │   ├── QuickLaunchWidget  4 agent shortcuts (whileHover lift)
+    │   ├── Charts        recharts PieChart (by type) + BarChart (by module)
+    │   └── DocRow        per-row slide-in entrance + relative timeAgo stamp
+    │
+    └── ai/page.tsx       AI Agents
+        ├── SkeletonCard  shimmer placeholder grid (9 cards) while loading
+        ├── ActionCard    motion.button
+        │   ├── accent colour per ACTION_META category
+        │   ├── category badge (uppercase pill)
+        │   ├── ComplexityDots (3 dots, green/amber/red)
+        │   └── time estimate (~5s … ~30s)
+        ├── AnimatePresence  grid → detail slide transition
+        ├── Run button    motion.button, shimmer sweep, live elapsed timer
+        └── Result panels  motion.div slide-up on arrival
+```
+
+### State flow
+
+```
+User clicks sidebar toggle
+  → useAppStore.toggleSidebar()
+  → Zustand updates sidebarCollapsed
+  → persist middleware writes to localStorage["qa-rag-ui"]
+  → motion.aside animates width: 64px ↔ 240px (spring ease)
+  → spacer motion.div mirrors the same width animation (layout shift prevention)
+
+User presses ⌘K
+  → global keydown handler in CommandPalette.tsx
+  → useAppStore.setCommandOpen(true)
+  → AnimatePresence mounts: backdrop (opacity 0→1) + modal (scale 0.96→1, y -8→0)
+  → cmdk filters items as user types, router.push on select
 ```
 
 ---

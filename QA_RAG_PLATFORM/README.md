@@ -2,7 +2,7 @@
 
 > Enterprise QA Knowledge & AI Intelligence Platform — multi-format RAG pipeline + 11 specialized AI agents
 
-[![Tests](https://img.shields.io/badge/tests-96%20passed-22c55e)](./tests) [![Python](https://img.shields.io/badge/python-3.9%2B-3572a5)](./backend) [![Next.js](https://img.shields.io/badge/next.js-15-black)](./frontend) [![FastAPI](https://img.shields.io/badge/fastapi-0.115-009688)](./backend)
+[![Tests](https://img.shields.io/badge/tests-96%20passed-22c55e)](./tests) [![Python](https://img.shields.io/badge/python-3.9%2B-3572a5)](./backend) [![Next.js](https://img.shields.io/badge/next.js-15.3-black)](./frontend) [![FastAPI](https://img.shields.io/badge/fastapi-0.115-009688)](./backend)
 
 ---
 
@@ -32,13 +32,40 @@ The QA RAG Platform ingests your QA documentation (test cases, requirements, exe
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 15, React 18, TypeScript, TanStack Query |
+| Frontend | Next.js 15.3, React 19, TypeScript, TanStack Query, Framer Motion, Zustand, cmdk, Sonner |
 | Backend | FastAPI, Python 3.9+, SQLModel, SQLite |
 | LLM Router | Groq (primary) + 5-provider fallback (Mistral, Cohere, OpenAI, Gemini) |
 | Embeddings | Mistral 1024-dim |
 | Vector DB | Pinecone (serverless) |
 | Parsers | PDF, XLSX, CSV, DOCX, HTML, MD, JSON, YAML, TS/JS/PY, JUnit XML, Playwright JSON |
 | Deployment | Render (backend) + Vercel (frontend) / Docker Compose |
+
+---
+
+## Enterprise UI
+
+The frontend ships a deep-navy enterprise shell built across three phases.
+
+### Phase 1 — Theme + Sidebar + ⌘K Palette
+- **Collapsible sidebar** — 240 px expanded / 64 px icon-only, Framer Motion width animation, `layoutId` active indicator, persisted to localStorage via Zustand
+- **⌘K / Ctrl+K command palette** — `cmdk` library, blur backdrop, Pages + AI Agents groups, keyboard navigation (↑↓ / ↵ / ESC)
+- **Sonner toasts** — dark theme with purple border, bottom-right position
+- **Zustand store** — `sidebarCollapsed` + `commandOpen` state, persist middleware
+
+### Phase 2 — Dashboard Widgets
+- **Animated stat cards** — Framer Motion stagger entrance + count-up animation per metric
+- **LLM Router status widget** — live per-provider green/red dots, "~Xm" reset badge, auto-refresh every 30 s
+- **Quick-launch AI panel** — 4 most-used agents as clickable shortcuts beside the LLM widget
+- **Relative timestamps** — recent documents show "5m ago / 2h ago" instead of raw datetime
+- **Dynamic agent count** — header subtitle pulls real count from `/api/ai/actions`
+
+### Phase 3 — Richer AI Action Cards
+- **Skeleton loading** — shimmer placeholder grid (9 cards) while `/api/ai/actions` loads
+- **Per-agent metadata** — category badge (Test Design / Analysis / Automation / Reporting), 3-dot complexity indicator, estimated run time
+- **Accent colours per category** — each agent has a unique accent used for the icon, badge, and hover glow
+- **Grid ↔ detail transition** — `AnimatePresence` slides the card grid out and the detail panel in
+- **Live elapsed timer** — run button shows "Running agent… 12s" with spinner and shimmer sweep while pending
+- **Animated results** — all result panels (pipeline viewer, flaky viewer, generic) slide up on arrival
 
 ---
 
@@ -109,7 +136,9 @@ docker-compose up --build
 | `MISTRAL_API_KEY` | ✅ | Embeddings (1024-dim) — [platform.mistral.ai](https://platform.mistral.ai) (free tier) |
 | `PINECONE_API_KEY` | ✅ | Vector store — [pinecone.io](https://pinecone.io) (free serverless) |
 | `PINECONE_INDEX_NAME` | ✅ | Index name (auto-created on first run, default: `qa-rag-platform`) |
-| `COHERE_API_KEY` | ⬜ | Optional reranker — [dashboard.cohere.com](https://dashboard.cohere.com) |
+| `COHERE_API_KEY` | ⬜ | LLM fallback (Cohere command-r-plus) — [dashboard.cohere.com](https://dashboard.cohere.com) |
+| `OPENAI_API_KEY` | ⬜ | LLM fallback (gpt-4o-mini) — [platform.openai.com](https://platform.openai.com) |
+| `GEMINI_API_KEY` | ⬜ | LLM fallback (gemini-1.5-flash) — [aistudio.google.com](https://aistudio.google.com) |
 
 ---
 
@@ -168,11 +197,20 @@ QA_RAG_PLATFORM/
 │   ├── main.py           # FastAPI app entry point
 │   └── requirements.txt
 ├── frontend/
-│   └── src/app/
-│       ├── ai/page.tsx   # AI Actions page (all 11 agents)
-│       ├── upload/       # Document ingestion
-│       ├── search/       # RAG search
-│       └── documents/    # Document library
+│   └── src/
+│       ├── app/
+│       │   ├── page.tsx          # Dashboard (stat cards, LLM status, quick-launch)
+│       │   ├── ai/page.tsx       # AI Actions page (all 11 agents)
+│       │   ├── upload/           # Document ingestion
+│       │   ├── search/           # RAG search
+│       │   └── documents/        # Document library
+│       ├── components/
+│       │   ├── Sidebar.tsx       # Collapsible enterprise sidebar (Framer Motion)
+│       │   └── CommandPalette.tsx# ⌘K command palette (cmdk)
+│       └── lib/
+│           ├── store.ts          # Zustand store (sidebar + command palette state)
+│           ├── api.ts            # API client (TanStack Query)
+│           └── export.ts         # CSV/XLSX/DOCX/JSON download helpers
 ├── tests/
 │   ├── test_api.py            # Integration tests (28 tests)
 │   ├── test_flaky_scoring.py  # Unit tests — scoring logic (37 tests)
@@ -211,6 +249,10 @@ Quick summary:
 1. Push to GitHub
 2. Create Render Web Service → set env vars → deploy (`render.yaml` included)
 3. Create Vercel project → set `NEXT_PUBLIC_API_URL=https://your-app.onrender.com` → deploy
+
+**24/7 uptime on Render free tier** — two keep-alive mechanisms run in parallel:
+- **GitHub Actions cron** (`.github/workflows/keep-alive.yml`) — pings `/api/stats/health` every 10 minutes
+- **UptimeRobot** — external monitor pings the same endpoint every 5 minutes; the health endpoint accepts both `GET` and `HEAD` requests (`@router.api_route(methods=["GET","HEAD"])`) to avoid 405 errors
 
 ---
 
