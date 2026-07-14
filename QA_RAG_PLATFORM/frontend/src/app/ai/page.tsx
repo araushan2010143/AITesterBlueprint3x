@@ -1,6 +1,6 @@
 "use client";
-import { Component, useState, useCallback, useRef, type ReactNode } from "react";
-import { motion } from "framer-motion";
+import { Component, useState, useCallback, useRef, useEffect, type ReactNode } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { aiApi } from "@/lib/api";
 import { AIAction } from "@/types";
@@ -16,6 +16,23 @@ import { downloadCSV, downloadXLSX, downloadXLS, downloadDOCX, downloadJSON, dow
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const ICON_MAP: Record<string, any> = { TestTube, Copy, Target, Search, FileCheck, AlertCircle, Zap, Code, Database, Flame, GitBranch };
+
+type Complexity = "low" | "med" | "high";
+const ACTION_META: Record<string, { category: string; complexity: Complexity; time: string; accent: string }> = {
+  generate_test_cases: { category: "Test Design",   complexity: "med",  time: "~10s", accent: "#7c3aed" },
+  find_duplicates:     { category: "Analysis",      complexity: "low",  time: "~5s",  accent: "#10b981" },
+  coverage_analysis:   { category: "Analysis",      complexity: "med",  time: "~8s",  accent: "#3b82f6" },
+  rca:                 { category: "Reporting",     complexity: "med",  time: "~8s",  accent: "#f59e0b" },
+  release_summary:     { category: "Reporting",     complexity: "low",  time: "~6s",  accent: "#06b6d4" },
+  explain_failure:     { category: "Analysis",      complexity: "low",  time: "~5s",  accent: "#ef4444" },
+  automate:            { category: "Automation",    complexity: "med",  time: "~10s", accent: "#8b5cf6" },
+  generate_script:     { category: "Automation",    complexity: "high", time: "~20s", accent: "#a855f7" },
+  test_data:           { category: "Test Design",   complexity: "med",  time: "~8s",  accent: "#22c55e" },
+  flaky_analyzer:      { category: "Analysis",      complexity: "high", time: "~25s", accent: "#f97316" },
+  automation_pipeline: { category: "Automation",    complexity: "high", time: "~30s", accent: "#ec4899" },
+};
+
+const COMPLEXITY_COLORS: Record<Complexity, string> = { low: "#22c55e", med: "#f59e0b", high: "#ef4444" };
 
 const FRAMEWORKS = [
   // ── E2E ──────────────────────────────────────────────────────────────────
@@ -1554,10 +1571,55 @@ function ResultDisplay({ result }: { result: any }) {
   );
 }
 
+// ── Skeleton card ─────────────────────────────────────────────────────────────
+
+function SkeletonCard() {
+  return (
+    <div style={{
+      padding: 16, borderRadius: 12,
+      background: "var(--surface-1)", border: "1px solid var(--border)",
+    }}>
+      <style>{`@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}`}</style>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+          background: "linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%)",
+          backgroundSize: "200% 100%", animation: "shimmer 1.4s ease infinite",
+        }} />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ height: 13, width: "60%", borderRadius: 6, background: "linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.4s ease infinite" }} />
+          <div style={{ height: 10, width: "90%", borderRadius: 6, background: "linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.4s ease 0.1s infinite" }} />
+          <div style={{ height: 10, width: "70%", borderRadius: 6, background: "linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.4s ease 0.2s infinite" }} />
+        </div>
+      </div>
+      <div style={{ marginTop: 14, display: "flex", gap: 6 }}>
+        <div style={{ height: 18, width: 64, borderRadius: 20, background: "linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.4s ease 0.15s infinite" }} />
+        <div style={{ height: 18, width: 32, borderRadius: 20, background: "linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.4s ease 0.25s infinite" }} />
+      </div>
+    </div>
+  );
+}
+
 // ── Action card grid ──────────────────────────────────────────────────────────
+
+function ComplexityDots({ level }: { level: Complexity }) {
+  const filled = level === "low" ? 1 : level === "med" ? 2 : 3;
+  return (
+    <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+      {[1, 2, 3].map(i => (
+        <div key={i} style={{
+          width: 5, height: 5, borderRadius: "50%",
+          background: i <= filled ? COMPLEXITY_COLORS[level] : "rgba(255,255,255,0.1)",
+        }} />
+      ))}
+    </div>
+  );
+}
 
 function ActionCard({ action, onSelect }: { action: AIAction; onSelect: (a: AIAction) => void }) {
   const Icon = ICON_MAP[action.icon] ?? Zap;
+  const meta = ACTION_META[action.id];
+  const accent = meta?.accent ?? "#7c3aed";
   return (
     <motion.button
       onClick={() => onSelect(action)}
@@ -1565,8 +1627,8 @@ function ActionCard({ action, onSelect }: { action: AIAction; onSelect: (a: AIAc
       initial={false}
       whileHover={{
         y: -2,
-        borderColor: "rgba(124,58,237,0.4)",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px rgba(124,58,237,0.1)",
+        borderColor: `${accent}66`,
+        boxShadow: `0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px ${accent}1a`,
       }}
       whileTap={{ scale: 0.98 }}
       transition={{ duration: 0.15 }}
@@ -1581,11 +1643,12 @@ function ActionCard({ action, onSelect }: { action: AIAction; onSelect: (a: AIAc
           whileHover={{ scale: 1.1 }}
           transition={{ duration: 0.15 }}
           style={{
-            width: 36, height: 36, borderRadius: 10, background: "rgba(124,58,237,0.2)",
+            width: 36, height: 36, borderRadius: 10,
+            background: `${accent}22`,
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}
         >
-          <Icon size={15} color="#a78bfa" />
+          <Icon size={15} color={accent} />
         </motion.div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-1)", margin: "0 0 3px" }}>{action.label}</p>
@@ -1593,8 +1656,33 @@ function ActionCard({ action, onSelect }: { action: AIAction; onSelect: (a: AIAc
         </div>
         <ChevronRight size={13} color="var(--text-3)" style={{ marginTop: 2, flexShrink: 0 }} />
       </div>
+
+      {/* Metadata footer */}
+      {meta && (
+        <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{
+            fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 20,
+            background: `${accent}18`, color: accent,
+            border: `1px solid ${accent}33`, letterSpacing: "0.04em", textTransform: "uppercase",
+          }}>{meta.category}</span>
+          <ComplexityDots level={meta.complexity} />
+          <span style={{ fontSize: 10, color: "var(--text-3)", marginLeft: "auto" }}>{meta.time}</span>
+        </div>
+      )}
     </motion.button>
   );
+}
+
+// ── Elapsed timer hook ────────────────────────────────────────────────────────
+
+function useElapsedTime(running: boolean) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!running) { setElapsed(0); return; }
+    const id = setInterval(() => setElapsed(s => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [running]);
+  return elapsed;
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -1635,6 +1723,8 @@ export default function AIPage() {
   const isScriptAction   = selected?.id === "generate_script";
   const isPipelineAction = selected?.id === "automation_pipeline";
   const isFlakyAction    = selected?.id === "flaky_analyzer";
+  const elapsed          = useElapsedTime(runMut.isPending);
+  const isActionsLoading = !actionsData;
 
   return (
     <div style={{ padding: "28px 32px", maxWidth: 900 }}>
@@ -1643,23 +1733,65 @@ export default function AIPage() {
         <p style={{ fontSize: 13, color: "var(--text-3)", margin: 0 }}>{actions?.length ?? 11} specialized QA agents · Groq llama-3.3-70b-versatile</p>
       </div>
 
+      <AnimatePresence mode="wait">
       {!selected ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-          {actions.map(a => <ActionCard key={a.id} action={a} onSelect={setSelected} />)}
-        </div>
+        <motion.div
+          key="grid"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.2 }}
+          style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}
+        >
+          {isActionsLoading
+            ? Array.from({ length: 9 }).map((_, i) => <SkeletonCard key={i} />)
+            : actions.map((a, i) => (
+                <motion.div
+                  key={a.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.04, duration: 0.25 }}
+                >
+                  <ActionCard action={a} onSelect={setSelected} />
+                </motion.div>
+              ))
+          }
+        </motion.div>
       ) : (
-        <div style={{ maxWidth: 820, display: "flex", flexDirection: "column", gap: 16 }}>
+        <motion.div
+          key="detail"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.22 }}
+          style={{ maxWidth: 820, display: "flex", flexDirection: "column", gap: 16 }}
+        >
 
           {/* Header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              {(() => { const Icon = ICON_MAP[selected.icon] ?? Zap; return (
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(124,58,237,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Icon size={15} color="#a78bfa" />
-                </div>
-              ); })()}
+              {(() => {
+                const Icon = ICON_MAP[selected.icon] ?? Zap;
+                const accent = ACTION_META[selected.id]?.accent ?? "#7c3aed";
+                return (
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: `${accent}22`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon size={15} color={accent} />
+                  </div>
+                );
+              })()}
               <div>
-                <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>{selected.label}</h2>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>{selected.label}</h2>
+                  {ACTION_META[selected.id] && (
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 20,
+                      background: `${ACTION_META[selected.id].accent}18`,
+                      color: ACTION_META[selected.id].accent,
+                      border: `1px solid ${ACTION_META[selected.id].accent}33`,
+                      letterSpacing: "0.04em", textTransform: "uppercase",
+                    }}>{ACTION_META[selected.id].category}</span>
+                  )}
+                </div>
                 <p style={{ fontSize: 11, color: "var(--text-3)", margin: 0 }}>{selected.description}</p>
               </div>
             </div>
@@ -1723,23 +1855,47 @@ export default function AIPage() {
                 </div>
               )}
 
-              <button
+              <motion.button
                 onClick={handleRun}
                 disabled={!content.trim() || runMut.isPending}
+                whileHover={!content.trim() || runMut.isPending ? {} : { scale: 1.01 }}
+                whileTap={!content.trim() || runMut.isPending ? {} : { scale: 0.98 }}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                   padding: "12px 24px", borderRadius: 10, fontSize: 14, fontWeight: 700,
-                  background: "linear-gradient(135deg, #7c3aed, #a78bfa)",
+                  background: runMut.isPending
+                    ? "linear-gradient(135deg, #5b21b6, #7c3aed)"
+                    : "linear-gradient(135deg, #7c3aed, #a78bfa)",
                   color: "white", border: "none",
                   cursor: !content.trim() || runMut.isPending ? "not-allowed" : "pointer",
-                  opacity: !content.trim() || runMut.isPending ? 0.6 : 1,
+                  opacity: !content.trim() ? 0.5 : 1,
+                  position: "relative", overflow: "hidden",
                 }}
               >
-                <Play size={15} />
-                {runMut.isPending
-                  ? (isPipelineAction ? "Running pipeline (3 AI stages)…" : "Running AI agent…")
-                  : `Run — ${selected.label}`}
-              </button>
+                {runMut.isPending && (
+                  <motion.div
+                    animate={{ x: ["−100%", "200%"] }}
+                    transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+                    style={{
+                      position: "absolute", inset: 0,
+                      background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)",
+                      pointerEvents: "none",
+                    }}
+                  />
+                )}
+                {runMut.isPending ? (
+                  <>
+                    <div style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white", borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
+                    {isPipelineAction ? "Running pipeline…" : "Running agent…"}
+                    <span style={{ fontSize: 12, opacity: 0.7, marginLeft: 2 }}>{elapsed}s</span>
+                  </>
+                ) : (
+                  <>
+                    <Play size={15} />
+                    {`Run — ${selected.label}`}
+                  </>
+                )}
+              </motion.button>
 
               {runMut.data && (selected.id === "test_data" || selected.id === "generate_test_cases") && (() => {
                 const tc: any[] = runMut.data.result?.test_cases ?? [];
@@ -1791,10 +1947,15 @@ export default function AIPage() {
                 </div>
               )}
 
+              <AnimatePresence>
               {/* ── Automation Pipeline: rich 4-tab viewer ── */}
               {runMut.data && isPipelineAction && (() => {
                 try {
-                  return <AutomationResultViewer result={runMut.data.result} />;
+                  return (
+                    <motion.div key="pipeline-result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+                      <AutomationResultViewer result={runMut.data.result} />
+                    </motion.div>
+                  );
                 } catch (e) {
                   return (
                     <div style={{ padding: 14, borderRadius: 8, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
@@ -1809,13 +1970,16 @@ export default function AIPage() {
 
               {/* ── Flaky Test Intelligence: rich viewer ── */}
               {runMut.data && isFlakyAction && (
-                <ErrorBoundary>
-                  <FlakyResultViewer result={runMut.data.result} />
-                </ErrorBoundary>
+                <motion.div key="flaky-result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+                  <ErrorBoundary>
+                    <FlakyResultViewer result={runMut.data.result} />
+                  </ErrorBoundary>
+                </motion.div>
               )}
 
               {runMut.data && !isPipelineAction && !isFlakyAction && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <motion.div key="generic-result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+                  style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {/* Script action: show code viewer + direct download, not generic ExportBar */}
                   {selected.id === "generate_script" && runMut.data.result?.script ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 0, border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
@@ -1873,8 +2037,9 @@ export default function AIPage() {
                     </div>
                     <ResultDisplay result={runMut.data.result} />
                   </div>
-                </div>
+                </motion.div>
               )}
+              </AnimatePresence>
 
               {/* Error display for ALL actions including pipeline */}
               {runMut.error && (() => {
@@ -1903,8 +2068,9 @@ export default function AIPage() {
               })()}
             </>
           )}
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }
