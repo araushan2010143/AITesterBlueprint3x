@@ -1,8 +1,9 @@
-"""V2 Migration API — multi-file pipeline with SSE progress streaming."""
+"""V2/V3 Migration API — multi-file pipeline, SSE progress, standards RAG, PR generation."""
 import io
 import json
 import uuid
 import zipfile
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -12,7 +13,9 @@ from sqlmodel import Session, select
 
 from backend.database.db import engine
 from backend.models.migration_job import MigrationJob
+from backend.models.migration_standards import MigrationStandard
 from backend.services.file_extractor import extract_from_github, extract_from_zip
+from backend.services import standards_service, github_service
 from backend.services.migration_orchestrator import (
     get_or_create_queue,
     run_migration_job,
@@ -199,3 +202,120 @@ def delete_job(job_id: str):
         s.delete(job)
         s.commit()
     return {"ok": True}
+
+
+# ── Version history ────────────────────────────────────────────────────────────
+
+@router.post("/jobs/{job_id}/versions")
+def save_version(job_id: str):
+    """Snapshot current results as a new version (for rollback)."""
+    with Session(engine) as s:
+        job = s.get(MigrationJob, job_id)
+        if not job or not job.results_json:
+            raise HTTPException(404, "Job not found or no results yet")
+        versions = json.loads(job.versions_json) if job.versions_json else []
+        versions.append({
+            "version": len(versions) + 1,
+            "created_at": datetime.utcnow().isoformat(),
+            "results_json": job.results_json,
+        })
+        job.versions_json = json.dumps(versions[-10:])  # keep last 10
+        job.updated_at = datetime.utcnow()
+        s.add(job)
+        s.commit()
+    return {"ok": True, "version": len(versions)}
+
+
+@router.get("/jobs/{job_id}/versions")
+def list_versions(job_id: str):
+    with Session(engine) as s:
+        job = s.get(MigrationJob, job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    versions = json.loads(job.versions_json) if job.versions_json else []
+    return {"versions": [{"version": v["version"], "created_at": v["created_at"]} for v in versions]}
+
+
+@router.post("/jobs/{job_id}/versions/{version}/restore")
+def restore_version(job_id: str, version: int):
+    """Restore a previous version as the current results."""
+    with Session(engine) as s:
+        job = s.get(MigrationJob, job_id)
+        if not job or not job.versions_json:
+            raise HTTPException(404, "Job or versions not found")
+        versions = json.loads(job.versions_json)
+        match = next((v for v in versions if v["version"] == version), None)
+        if not match:
+            raise HTTPException(404, f"Version {version} not found")
+        job.results_json = match["results_json"]
+        job.updated_at = datetime.utcnow()
+        s.add(job)
+        s.commit()
+    return {"ok": True, "restored_version": version}
+
+
+# ── Company standards ──────────────────────────────────────────────────────────
+
+@router.get("/standards")
+def list_stds():
+    return {"standards": standards_service.list_standards()}
+
+
+@router.post("/standards")
+async def upload_standard(
+    file: UploadFile = File(...),
+    name: str = Form(""),
+):
+    content = (await file.read()).decode("utf-8", errors="replace")
+    std_name = name or file.filename or "Standard"
+    std = standards_service.save_standard(std_name, file.filename or "", content)
+    return {"id": std.id, "name": std.name, "ok": True}
+
+
+@router.delete("/standards/{std_id}")
+def delete_std(std_id: str):
+    ok = standards_service.delete_standard(std_id)
+    if not ok:
+        raise HTTPException(404, "Standard not found")
+    return {"ok": True}
+
+
+# ── GitHub PR auto-generation ──────────────────────────────────────────────────
+
+@router.post("/jobs/{job_id}/create-pr")
+def create_pr(
+    job_id: str,
+    github_token: str = Form(...),
+    repo: str = Form(...),           # "owner/repo" or full GitHub URL
+    branch_prefix: str = Form("migration"),
+    base_branch: str = Form("main"),
+):
+    with Session(engine) as s:
+        job = s.get(MigrationJob, job_id)
+    if not job or not job.results_json:
+        raise HTTPException(404, "Job not found or results not ready")
+
+    results = json.loads(job.results_json)
+    branch_name = f"{branch_prefix}/{job_id[:8]}"
+
+    files = github_service.build_pr_files(results)
+    if not files:
+        raise HTTPException(400, "No successfully migrated files to push")
+
+    pr_title = f"chore(migration): migrate {job.source_name} to Playwright TypeScript"
+    pr_body = github_service.build_pr_body(job_id, results)
+
+    try:
+        result = github_service.create_pr(
+            token=github_token,
+            repo=repo,
+            files=files,
+            branch_name=branch_name,
+            pr_title=pr_title,
+            pr_body=pr_body,
+            base_branch=base_branch,
+        )
+    except Exception as exc:
+        raise HTTPException(400, str(exc))
+
+    return result

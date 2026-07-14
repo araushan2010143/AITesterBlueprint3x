@@ -214,11 +214,22 @@ def _safe(fn, fallback):
 
 
 def run(content: str, options: Dict[str, Any] = {}, on_stage=None) -> Dict[str, Any]:
-    """Run the 5-stage migration pipeline. Returns a rich result dict."""
-    from backend.llm.router import get_router
-    router = get_router()
+    """
+    V3 migration pipeline — 6 stages.
 
+    Stage 2 uses tree-sitter AST parsing (falls back to LLM if unavailable).
+    Stages 4+5 inject company coding standards when any are uploaded.
+    Stage 6 validates the generated TypeScript with tsc or structural heuristics.
+    """
+    from backend.llm.router import get_router
+    from backend.services import ast_parser, ts_validator, standards_service
+
+    router = get_router()
     chat = lambda prompt, ctx, max_t=4096: _chat(router, prompt, ctx, max_t)
+
+    # V3 options
+    skip_ast = options.get("skip_ast", False)
+    skip_validate = options.get("skip_validate", False)
 
     def _progress(stage: int, name: str) -> None:
         if on_stage:
@@ -237,9 +248,22 @@ def run(content: str, options: Dict[str, Any] = {}, on_stage=None) -> Dict[str, 
     })
 
     # Stage 2 ─────────────────────────────────────────────────────────────────
-    _progress(2, "Parsing code")
-    logger.info("Migration Stage 2: Code Parsing → IR")
-    ir = _safe(lambda: chat(_S2, content, 3500), {"pages": [], "tests": []})
+    _progress(2, "AST parsing")
+    logger.info("Migration Stage 2: AST Parsing (tree-sitter V3)")
+    ast_lang = detection.get("language", "unknown").lower().replace(" ", "").replace("#", "sharp")
+    ir = None
+
+    if not skip_ast:
+        ir = _safe(lambda: ast_parser.parse(content, ast_lang), None)
+        if ir and (ir.get("tests") or ir.get("pages")):
+            logger.info("Stage 2 used tree-sitter (%s)", ir.get("_ast_method", "?"))
+        else:
+            ir = None   # fall through to LLM
+
+    if not ir:
+        logger.info("Stage 2 falling back to LLM parsing")
+        ir = _safe(lambda: chat(_S2, content, 3500), {"pages": [], "tests": []})
+        ir["_ast_method"] = "llm"
 
     s2_ctx = f"ORIGINAL CODE:\n{content[:3000]}\n\nPARSED IR:\n{json.dumps(ir, indent=2)[:3000]}"
 
@@ -255,31 +279,69 @@ def run(content: str, options: Dict[str, Any] = {}, on_stage=None) -> Dict[str, 
         f"BUSINESS FLOWS:\n{json.dumps(business, indent=2)[:2000]}"
     )
 
-    # Stage 4 ─────────────────────────────────────────────────────────────────
+    # Stage 4 — inject company standards ──────────────────────────────────────
     _progress(4, "Generating Page Objects")
-    logger.info("Migration Stage 4: Page Object Generation")
-    pom = _safe(lambda: chat(_S4, s3_ctx, 4096), {"base_page": "", "page_objects": []})
+    logger.info("Migration Stage 4: Page Object Generation (V3 + standards)")
+    standards_pom = _safe(
+        lambda: standards_service.retrieve("TypeScript Playwright POM page object naming conventions"),
+        "",
+    )
+    s4_prompt = _S4 + (standards_pom or "")
+    pom = _safe(lambda: chat(s4_prompt, s3_ctx, 4096), {"base_page": "", "page_objects": []})
 
     s4_ctx = (
         f"BUSINESS FLOWS:\n{json.dumps(business, indent=2)[:2000]}\n\n"
         f"PAGE OBJECTS GENERATED:\n{json.dumps(pom, indent=2)[:2000]}"
     )
 
-    # Stage 5 ─────────────────────────────────────────────────────────────────
+    # Stage 5 — inject company standards ──────────────────────────────────────
     _progress(5, "Synthesising Playwright spec")
-    logger.info("Migration Stage 5: Playwright TypeScript Synthesis")
-    synthesis = _safe(lambda: chat(_S5, s4_ctx, 4096), {
+    logger.info("Migration Stage 5: Playwright TypeScript Synthesis (V3 + standards)")
+    standards_spec = _safe(
+        lambda: standards_service.retrieve("Playwright test spec describe it beforeEach assertions"),
+        "",
+    )
+    s5_prompt = _S5 + (standards_spec or "")
+    synthesis = _safe(lambda: chat(s5_prompt, s4_ctx, 4096), {
         "spec_ts": "", "confidence_score": 0, "issues": [],
         "migration_summary": "Migration could not complete — check input format.",
     })
+
+    # Stage 6 — TypeScript validation ─────────────────────────────────────────
+    _progress(6, "Validating TypeScript output")
+    logger.info("Migration Stage 6: TypeScript Validation")
+    spec_ts = synthesis.get("spec_ts", "")
+    pom_data = pom or {}
+    validation: Dict[str, Any] = {"method": "skipped", "passed": None, "error_count": 0, "errors": []}
+
+    if not skip_validate and spec_ts:
+        validation = _safe(
+            lambda: ts_validator.validate(
+                spec_ts,
+                pom_data.get("base_page", ""),
+                pom_data.get("page_objects", []),
+            ),
+            {"method": "error", "passed": None, "error_count": 0, "errors": []},
+        )
+
+    # Merge validation issues into the LLM issues list
+    llm_issues = synthesis.get("issues", [])
+    if validation.get("issues"):
+        llm_issues = llm_issues + [
+            {"severity": i.get("severity", "info"), "message": i["message"]}
+            for i in validation["issues"]
+            if isinstance(i, dict)
+        ]
 
     return {
         "source_analysis": detection,
         "ir": ir,
         "business_flows": business,
         "page_objects": pom,
-        "spec_ts": synthesis.get("spec_ts", ""),
+        "spec_ts": spec_ts,
         "confidence_score": synthesis.get("confidence_score", 0),
-        "issues": synthesis.get("issues", []),
+        "issues": llm_issues,
         "migration_summary": synthesis.get("migration_summary", ""),
+        "validation": validation,
+        "ast_method": ir.get("_ast_method", "unknown"),
     }

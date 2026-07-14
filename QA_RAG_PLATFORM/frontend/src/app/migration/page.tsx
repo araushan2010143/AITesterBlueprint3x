@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload, Github, Play, Download, FileCode, CheckCircle,
   XCircle, Clock, RefreshCw, Trash2, ChevronDown, ChevronRight,
-  Zap, AlertTriangle, Info,
+  Zap, AlertTriangle, Info, BookOpen, GitPullRequest, RotateCcw,
+  ShieldCheck, ShieldAlert, ShieldX, Cpu,
 } from "lucide-react";
 import MigrationResultViewer from "@/components/MigrationResultViewer";
 
@@ -49,17 +50,290 @@ type FileResult = {
   error?: string;
 };
 
-const STAGE_LABELS = ["", "Detecting", "Parsing", "Business Logic", "POMs", "Spec"];
+type Standard = { id: string; name: string; filename: string; chunk_count: number; created_at: string };
+
+type ValidationResult = {
+  method: string;
+  passed: boolean | null;
+  error_count: number;
+  errors: string[];
+};
+
+const STAGE_LABELS = ["", "Detecting", "AST Parse", "Business Logic", "POMs", "Spec", "Validate"];
 
 const CONFIDENCE_COLOR = (n: number) =>
   n >= 80 ? "#10b981" : n >= 60 ? "#f59e0b" : "#ef4444";
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
+// ── V3 sub-components ─────────────────────────────────────────────────────────
+
+function ValidationBadge({ v }: { v?: ValidationResult }) {
+  if (!v || v.method === "skipped") return null;
+  const passed = v.passed;
+  const [open, setOpen] = useState(false);
+  const Icon = passed === true ? ShieldCheck : passed === false ? ShieldAlert : ShieldX;
+  const color = passed === true ? "#10b981" : passed === false ? "#ef4444" : "#f59e0b";
+  const label = passed === true ? "TS valid" : passed === null ? "TS unknown" : `${v.error_count} TS error${v.error_count !== 1 ? "s" : ""}`;
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{ display: "flex", alignItems: "center", gap: 4, background: "transparent", border: "none", cursor: "pointer", color, fontSize: 11 }}
+        title={v.method}
+      >
+        <Icon size={12} /> {label}
+      </button>
+      <AnimatePresence>
+        {open && v.errors.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            style={{ position: "absolute", right: 0, top: "100%", zIndex: 20, background: "#111827", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: 12, minWidth: 280, maxHeight: 160, overflowY: "auto" }}
+          >
+            {v.errors.slice(0, 8).map((e, i) => (
+              <p key={i} style={{ fontSize: 11, color: "#e5e7eb", fontFamily: "monospace", marginBottom: 4, lineHeight: 1.4 }}>{e}</p>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function AstBadge({ method }: { method?: string }) {
+  if (!method || method === "llm") return null;
+  return (
+    <span title={`Parsed via ${method}`} style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, color: "#a78bfa", background: "rgba(124,58,237,0.1)", border: "1px solid rgba(124,58,237,0.2)", borderRadius: 4, padding: "1px 5px" }}>
+      <Cpu size={9} /> AST
+    </span>
+  );
+}
+
+function StandardsPanel() {
+  const [standards, setStandards] = useState<Standard[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const load = useCallback(async () => {
+    const r = await fetch("/api/migration/standards");
+    const d = await r.json();
+    setStandards(d.standards || []);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const upload = async (file: File) => {
+    setUploading(true);
+    const form = new FormData();
+    form.append("file", file);
+    form.append("name", file.name.replace(/\.[^.]+$/, ""));
+    await fetch("/api/migration/standards", { method: "POST", body: form });
+    await load();
+    setUploading(false);
+  };
+
+  const remove = async (id: string) => {
+    await fetch(`/api/migration/standards/${id}`, { method: "DELETE" });
+    setStandards((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  return (
+    <div style={{ background: "#0d111b", border: "1px solid rgba(124,58,237,0.15)", borderRadius: 12, marginBottom: 20 }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer", color: "#9ca3af" }}
+      >
+        <BookOpen size={14} color="#7c3aed" />
+        <span style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", flex: 1, textAlign: "left" }}>
+          Company Coding Standards
+          {standards.length > 0 && <span style={{ marginLeft: 8, fontSize: 11, color: "#7c3aed" }}>{standards.length} uploaded</span>}
+        </span>
+        <span style={{ fontSize: 11, color: "#4b5563" }}>V3 — injected into Stage 4+5</span>
+        <motion.div animate={{ rotate: open ? 90 : 0 }} transition={{ duration: 0.15 }}>
+          <ChevronRight size={13} color="#4b5563" />
+        </motion.div>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} style={{ overflow: "hidden" }}>
+            <div style={{ padding: "0 16px 16px" }}>
+              <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 12 }}>
+                Upload .md or .txt files with your naming conventions, test patterns, or style guides. Relevant sections are automatically retrieved and injected into POM generation and Playwright synthesis.
+              </p>
+              {standards.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  {standards.map((s) => (
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                      <BookOpen size={12} color="#7c3aed" />
+                      <span style={{ fontSize: 12, color: "#e5e7eb", flex: 1 }}>{s.name}</span>
+                      <span style={{ fontSize: 11, color: "#4b5563" }}>{s.chunk_count} sections</span>
+                      <button onClick={() => remove(s.id)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#374151" }}>
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <input ref={fileRef} type="file" accept=".md,.txt" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", background: "rgba(124,58,237,0.1)", border: "1px solid rgba(124,58,237,0.3)", borderRadius: 8, color: "#a78bfa", cursor: "pointer", fontSize: 12 }}
+              >
+                <Upload size={12} /> {uploading ? "Uploading…" : "Upload Standard"}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function PRPanel({ jobId, results }: { jobId: string; results: FileResult[] }) {
+  const [open, setOpen] = useState(false);
+  const [token, setToken] = useState("");
+  const [repo, setRepo] = useState("");
+  const [baseBranch, setBaseBranch] = useState("main");
+  const [loading, setLoading] = useState(false);
+  const [prUrl, setPrUrl] = useState("");
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    if (!token || !repo) return;
+    setLoading(true); setError(""); setPrUrl("");
+    const form = new FormData();
+    form.append("github_token", token);
+    form.append("repo", repo);
+    form.append("base_branch", baseBranch);
+    try {
+      const r = await fetch(`/api/migration/jobs/${jobId}/create-pr`, { method: "POST", body: form });
+      const d = await r.json();
+      if (!r.ok) { setError(d.detail || "Failed"); return; }
+      setPrUrl(d.pr_url);
+    } catch (e: any) { setError(e.message); } finally { setLoading(false); }
+  };
+
+  const doneCount = results.filter((r) => r.status === "done").length;
+
+  return (
+    <div style={{ background: "#0d111b", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, marginTop: 16 }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer" }}
+      >
+        <GitPullRequest size={14} color="#7c3aed" />
+        <span style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", flex: 1, textAlign: "left" }}>
+          Create GitHub PR <span style={{ color: "#4b5563", fontWeight: 400 }}>— push {doneCount} file{doneCount !== 1 ? "s" : ""} to your repo</span>
+        </span>
+        <motion.div animate={{ rotate: open ? 90 : 0 }} transition={{ duration: 0.15 }}>
+          <ChevronRight size={13} color="#4b5563" />
+        </motion.div>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} style={{ overflow: "hidden" }}>
+            <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+              {prUrl ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px", background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", borderRadius: 8 }}>
+                  <CheckCircle size={16} color="#10b981" />
+                  <a href={prUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#10b981", fontSize: 13, fontWeight: 600 }}>PR created → {prUrl}</a>
+                </div>
+              ) : (
+                <>
+                  <input value={token} onChange={(e) => setToken(e.target.value)} placeholder="GitHub Personal Access Token (repo scope)" type="password"
+                    style={{ padding: "9px 12px", background: "#111827", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 13, color: "#e5e7eb", outline: "none" }} />
+                  <input value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="owner/repository"
+                    style={{ padding: "9px 12px", background: "#111827", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 13, color: "#e5e7eb", outline: "none" }} />
+                  <input value={baseBranch} onChange={(e) => setBaseBranch(e.target.value)} placeholder="Base branch (default: main)"
+                    style={{ padding: "9px 12px", background: "#111827", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 13, color: "#e5e7eb", outline: "none" }} />
+                  {error && <p style={{ fontSize: 12, color: "#ef4444" }}>{error}</p>}
+                  <button onClick={submit} disabled={loading || !token || !repo}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 16px", background: loading ? "#374151" : "#7c3aed", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>
+                    {loading ? <><motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}><RefreshCw size={13} /></motion.div> Creating PR…</> : <><GitPullRequest size={13} /> Create Pull Request</>}
+                  </button>
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function VersionHistory({ jobId }: { jobId: string }) {
+  const [versions, setVersions] = useState<{ version: number; created_at: string }[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    const r = await fetch(`/api/migration/jobs/${jobId}/versions`);
+    const d = await r.json();
+    setVersions(d.versions || []);
+  }, [jobId]);
+
+  useEffect(() => { if (open) load(); }, [open, load]);
+
+  const save = async () => {
+    setSaving(true);
+    await fetch(`/api/migration/jobs/${jobId}/versions`, { method: "POST" });
+    await load();
+    setSaving(false);
+  };
+
+  const restore = async (v: number) => {
+    await fetch(`/api/migration/jobs/${jobId}/versions/${v}/restore`, { method: "POST" });
+    window.location.reload();
+  };
+
+  return (
+    <div style={{ background: "#0d111b", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, marginTop: 16 }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer" }}
+      >
+        <RotateCcw size={14} color="#7c3aed" />
+        <span style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", flex: 1, textAlign: "left" }}>
+          Version History
+          {versions.length > 0 && <span style={{ marginLeft: 8, fontSize: 11, color: "#4b5563" }}>{versions.length} snapshot{versions.length !== 1 ? "s" : ""}</span>}
+        </span>
+        <motion.div animate={{ rotate: open ? 90 : 0 }} transition={{ duration: 0.15 }}>
+          <ChevronRight size={13} color="#4b5563" />
+        </motion.div>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} style={{ overflow: "hidden" }}>
+            <div style={{ padding: "0 16px 16px" }}>
+              <button onClick={save} disabled={saving}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "rgba(124,58,237,0.1)", border: "1px solid rgba(124,58,237,0.2)", borderRadius: 7, color: "#a78bfa", cursor: "pointer", fontSize: 12, marginBottom: 12 }}>
+                {saving ? "Saving…" : "Save snapshot"}
+              </button>
+              {versions.length === 0 && <p style={{ fontSize: 12, color: "#4b5563" }}>No snapshots yet. Save one before re-running to allow rollback.</p>}
+              {versions.map((v) => (
+                <div key={v.version} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                  <span style={{ fontSize: 12, color: "#9ca3af", minWidth: 24 }}>v{v.version}</span>
+                  <span style={{ fontSize: 11, color: "#6b7280", flex: 1 }}>{new Date(v.created_at).toLocaleString()}</span>
+                  <button onClick={() => restore(v.version)}
+                    style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", background: "transparent", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 5, color: "#6b7280", cursor: "pointer", fontSize: 11 }}>
+                    <RotateCcw size={9} /> Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function StageDots({ stage, status }: { stage: number; status: FileStatus["status"] }) {
   return (
     <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-      {[1, 2, 3, 4, 5].map((i) => {
+      {[1, 2, 3, 4, 5, 6].map((i) => {
         const done = stage > i || status === "done";
         const active = stage === i && status === "running";
         const col = done ? "#7c3aed" : active ? "#a78bfa" : "#374151";
@@ -143,7 +417,9 @@ function ExpandableResult({ fr }: { fr: FileResult }) {
         {fr.status === "done" && (
           <>
             <span style={{ fontSize: 11, color: "#6b7280" }}>{sa.language} · {sa.framework}</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: CONFIDENCE_COLOR(conf), marginLeft: 8 }}>{conf}%</span>
+            <AstBadge method={fr.result?.ast_method} />
+            <ValidationBadge v={fr.result?.validation} />
+            <span style={{ fontSize: 13, fontWeight: 700, color: CONFIDENCE_COLOR(conf), marginLeft: 4 }}>{conf}%</span>
           </>
         )}
         {fr.status === "failed" && (
@@ -463,6 +739,9 @@ export default function MigrationPage() {
         {tab === "new" && (
           <motion.div key="new" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
 
+            {/* V3: Standards panel — always visible */}
+            {!activeJob && <StandardsPanel />}
+
             {/* Source selector */}
             {!activeJob && (
               <>
@@ -653,6 +932,14 @@ export default function MigrationPage() {
                     {completedResults && completedResults.map((fr) => (
                       <ExpandableResult key={fr.file} fr={fr} />
                     ))}
+
+                    {/* V3: PR generation + Version history */}
+                    {completedResults && (
+                      <>
+                        <PRPanel jobId={activeJob.jobId} results={completedResults} />
+                        <VersionHistory jobId={activeJob.jobId} />
+                      </>
+                    )}
 
                     <button
                       onClick={() => { setActiveJob(null); setCompletedResults(null); setSelectedFile(null); setGithubUrl(""); }}

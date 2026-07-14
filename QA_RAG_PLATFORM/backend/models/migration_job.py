@@ -18,5 +18,6 @@ class MigrationJob(SQLModel, table=True):
     completed_files: int = Field(default=0)
     failed_files: int = Field(default=0)
     results_json: Optional[str] = Field(default=None)   # JSON list of per-file results
+    versions_json: Optional[str] = Field(default=None)  # JSON list of {version, created_at, results_json}
     report_html: Optional[str] = Field(default=None)
     error: Optional[str] = Field(default=None)
