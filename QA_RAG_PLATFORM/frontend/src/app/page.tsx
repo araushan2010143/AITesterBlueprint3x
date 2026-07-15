@@ -303,7 +303,7 @@ export default function Dashboard() {
     processing: stats?.by_status?.processing ?? 0,
   };
 
-  const agentCount = actionsData?.length ?? 11;
+  const agentCount = actionsData?.actions?.length ?? 12;
 
   if (isLoading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
