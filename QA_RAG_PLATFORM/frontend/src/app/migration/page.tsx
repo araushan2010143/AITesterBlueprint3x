@@ -5,7 +5,7 @@ import {
   Upload, Github, Play, Download, FileCode, CheckCircle,
   XCircle, Clock, RefreshCw, Trash2, ChevronDown, ChevronRight,
   Zap, AlertTriangle, Info, BookOpen, GitPullRequest, RotateCcw,
-  ShieldCheck, ShieldAlert, ShieldX, Cpu,
+  ShieldCheck, ShieldAlert, ShieldX, Cpu, GitBranch, Cloud, Lock,
 } from "lucide-react";
 import MigrationResultViewer from "@/components/MigrationResultViewer";
 
@@ -494,8 +494,9 @@ function HistoryRow({ job, onOpen }: { job: HistoryJob; onOpen: (id: string) => 
 
 export default function MigrationPage() {
   const [tab, setTab] = useState<"new" | "history">("new");
-  const [sourceType, setSourceType] = useState<"zip" | "github">("zip");
-  const [githubUrl, setGithubUrl] = useState("");
+  const [sourceType, setSourceType] = useState<"zip" | "github" | "gitlab" | "bitbucket" | "azure" | "s3">("zip");
+  const [repoUrl, setRepoUrl] = useState("");
+  const [repoToken, setRepoToken] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -533,16 +534,20 @@ export default function MigrationPage() {
 
   const startJob = async () => {
     setUploadError("");
-    if (sourceType === "zip" && !selectedFile) { setUploadError("Please select a ZIP file"); return; }
-    if (sourceType === "github" && !githubUrl.trim()) { setUploadError("Please enter a GitHub URL"); return; }
+    const isUrl = sourceType !== "zip";
+    if (!isUrl && !selectedFile) { setUploadError("Please select a ZIP file"); return; }
+    if (isUrl && !repoUrl.trim()) { setUploadError("Please enter a repository URL"); return; }
 
     setUploading(true);
     setActiveJob(null);
     setCompletedResults(null);
 
     const form = new FormData();
-    if (sourceType === "zip" && selectedFile) form.append("file", selectedFile);
-    if (sourceType === "github") form.append("github_url", githubUrl.trim());
+    if (!isUrl && selectedFile) form.append("file", selectedFile);
+    if (isUrl) {
+      form.append("repo_url", repoUrl.trim());
+      if (repoToken.trim()) form.append("repo_token", repoToken.trim());
+    }
 
     let jobId = "";
     let sourceName = "";
@@ -745,23 +750,28 @@ export default function MigrationPage() {
             {/* Source selector */}
             {!activeJob && (
               <>
-                <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-                  {(["zip", "github"] as const).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => { setSourceType(t); setUploadError(""); }}
+                {/* Source type pills */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                  {([
+                    { id: "zip",       icon: <Upload size={13} />,    label: "ZIP Upload"   },
+                    { id: "github",    icon: <Github size={13} />,    label: "GitHub"       },
+                    { id: "gitlab",    icon: <GitBranch size={13} />, label: "GitLab"       },
+                    { id: "bitbucket", icon: <Cloud size={13} />,     label: "Bitbucket"    },
+                    { id: "azure",     icon: <FileCode size={13} />,  label: "Azure DevOps" },
+                    { id: "s3",        icon: <Cloud size={13} />,     label: "S3 Bucket"    },
+                  ] as const).map(({ id, icon, label }) => (
+                    <button key={id}
+                      onClick={() => { setSourceType(id as any); setUploadError(""); setRepoUrl(""); setRepoToken(""); }}
                       style={{
-                        display: "flex", alignItems: "center", gap: 8,
-                        padding: "10px 20px", borderRadius: 10, cursor: "pointer",
-                        fontSize: 13, fontWeight: 500,
-                        border: sourceType === t ? "1px solid rgba(124,58,237,0.5)" : "1px solid rgba(255,255,255,0.07)",
-                        background: sourceType === t ? "rgba(124,58,237,0.12)" : "#111827",
-                        color: sourceType === t ? "#a78bfa" : "#6b7280",
+                        display: "flex", alignItems: "center", gap: 6,
+                        padding: "7px 14px", borderRadius: 9, cursor: "pointer",
+                        fontSize: 12, fontWeight: 500,
+                        border: sourceType === id ? "1px solid rgba(124,58,237,0.5)" : "1px solid rgba(255,255,255,0.07)",
+                        background: sourceType === id ? "rgba(124,58,237,0.12)" : "#111827",
+                        color: sourceType === id ? "#a78bfa" : "#6b7280",
                         transition: "all 0.15s",
-                      }}
-                    >
-                      {t === "zip" ? <Upload size={14} /> : <Github size={14} />}
-                      {t === "zip" ? "Upload ZIP" : "GitHub URL"}
+                      }}>
+                      {icon} {label}
                     </button>
                   ))}
                 </div>
@@ -799,29 +809,66 @@ export default function MigrationPage() {
                   </div>
                 )}
 
-                {/* GitHub URL input */}
-                {sourceType === "github" && (
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ position: "relative" }}>
-                      <Github size={16} color="#6b7280" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }} />
+                {/* URL-based sources */}
+                {sourceType !== "zip" && (() => {
+                  const cfg: Record<string, { placeholder: string; hint: string; tokenLabel?: string; tokenHint?: string }> = {
+                    github: {
+                      placeholder: "https://github.com/owner/repo",
+                      hint: "Public repos need no token. For private repos enter a Personal Access Token.",
+                      tokenLabel: "Personal Access Token (optional)",
+                      tokenHint: "Needs repo read scope",
+                    },
+                    gitlab: {
+                      placeholder: "https://gitlab.com/namespace/repo  or  https://your-gitlab.company.com/ns/repo",
+                      hint: "Works with gitlab.com and self-hosted GitLab instances.",
+                      tokenLabel: "Private Token / PAT (optional for private repos)",
+                      tokenHint: "Settings → Access Tokens → read_repository scope",
+                    },
+                    bitbucket: {
+                      placeholder: "https://bitbucket.org/workspace/repo",
+                      hint: "Bitbucket Cloud (bitbucket.org). For private repos use username:app_password.",
+                      tokenLabel: "Credentials: username:app_password (optional)",
+                      tokenHint: "Bitbucket → Personal Settings → App passwords → Repository read",
+                    },
+                    azure: {
+                      placeholder: "https://dev.azure.com/org/project/_git/repo",
+                      hint: "Azure DevOps Services. Private projects require a Personal Access Token.",
+                      tokenLabel: "Personal Access Token",
+                      tokenHint: "User Settings → Personal Access Tokens → Code (Read) scope",
+                    },
+                    s3: {
+                      placeholder: "s3://bucket-name/path/archive.zip  or  https://bucket.s3.amazonaws.com/archive.zip",
+                      hint: "Public buckets work directly. For private buckets: AWS Console → S3 → object → Share with pre-signed URL.",
+                    },
+                  };
+                  const c = cfg[sourceType] || cfg.github;
+                  return (
+                    <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 10 }}>
                       <input
-                        type="url"
-                        value={githubUrl}
-                        onChange={(e) => setGithubUrl(e.target.value)}
-                        placeholder="https://github.com/owner/repo"
-                        style={{
-                          width: "100%", padding: "13px 14px 13px 40px",
-                          background: "#0d111b", border: "1px solid rgba(255,255,255,0.1)",
-                          borderRadius: 10, fontSize: 14, color: "#e5e7eb",
-                          outline: "none",
-                        }}
+                        type="text"
+                        value={repoUrl}
+                        onChange={(e) => setRepoUrl(e.target.value)}
+                        placeholder={c.placeholder}
+                        style={{ width: "100%", padding: "12px 14px", background: "#0d111b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, fontSize: 13, color: "#e5e7eb", outline: "none" }}
                       />
+                      {c.tokenLabel && (
+                        <div style={{ position: "relative" }}>
+                          <Lock size={13} color="#4b5563" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
+                          <input
+                            type="password"
+                            value={repoToken}
+                            onChange={(e) => setRepoToken(e.target.value)}
+                            placeholder={c.tokenLabel}
+                            style={{ width: "100%", padding: "10px 12px 10px 32px", background: "#0d111b", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, fontSize: 13, color: "#e5e7eb", outline: "none" }}
+                          />
+                        </div>
+                      )}
+                      <p style={{ fontSize: 11, color: "#4b5563", margin: 0 }}>
+                        {c.hint}{c.tokenHint && <span style={{ color: "#374151" }}> — {c.tokenHint}</span>}
+                      </p>
                     </div>
-                    <p style={{ fontSize: 11, color: "#4b5563", marginTop: 6 }}>
-                      Public repos only. Downloads the default branch as ZIP and extracts test files automatically.
-                    </p>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {uploadError && (
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 8, marginBottom: 16 }}>
@@ -942,7 +989,7 @@ export default function MigrationPage() {
                     )}
 
                     <button
-                      onClick={() => { setActiveJob(null); setCompletedResults(null); setSelectedFile(null); setGithubUrl(""); }}
+                      onClick={() => { setActiveJob(null); setCompletedResults(null); setSelectedFile(null); setRepoUrl(""); setRepoToken(""); }}
                       style={{ marginTop: 16, padding: "10px 20px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, color: "#6b7280", cursor: "pointer", fontSize: 13 }}
                     >
                       Start another migration

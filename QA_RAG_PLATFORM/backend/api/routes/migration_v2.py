@@ -14,7 +14,9 @@ from sqlmodel import Session, select
 from backend.database.db import engine
 from backend.models.migration_job import MigrationJob
 from backend.models.migration_standards import MigrationStandard
-from backend.services.file_extractor import extract_from_github, extract_from_zip
+from backend.services.file_extractor import (
+    extract_from_zip, extract_from_url, detect_source_type,
+)
 from backend.services import standards_service, github_service
 from backend.services.migration_orchestrator import (
     get_or_create_queue,
@@ -31,10 +33,14 @@ router = APIRouter(prefix="/api/migration", tags=["Migration V2"])
 async def create_job(
     background_tasks: BackgroundTasks,
     file: Optional[UploadFile] = File(None),
+    repo_url: Optional[str] = Form(None),
+    repo_token: Optional[str] = Form(None),   # PAT / private token / "user:app_password"
+    # Legacy field — kept for backwards compat
     github_url: Optional[str] = Form(None),
 ):
-    if not file and not github_url:
-        raise HTTPException(400, "Provide a ZIP file or a GitHub URL")
+    url = repo_url or github_url
+    if not file and not url:
+        raise HTTPException(400, "Provide a ZIP file or a repository URL")
 
     if file:
         data = await file.read()
@@ -45,12 +51,13 @@ async def create_job(
         source_type = "zip"
         source_name = file.filename or "upload.zip"
     else:
+        url = url.strip()
+        source_type = detect_source_type(url)
+        source_name = url
         try:
-            files = extract_from_github(github_url.strip())
+            files = extract_from_url(url, token=repo_token or "")
         except Exception as exc:
-            raise HTTPException(400, f"Could not fetch GitHub repo: {exc}")
-        source_type = "github"
-        source_name = github_url.strip()
+            raise HTTPException(400, f"Could not fetch repository: {exc}")
 
     if not files:
         raise HTTPException(
