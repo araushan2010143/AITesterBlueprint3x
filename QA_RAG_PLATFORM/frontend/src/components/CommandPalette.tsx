@@ -96,7 +96,18 @@ export default function CommandPalette() {
                     fontSize: 14, color: "#F9FAFB", caretColor: "#7C3AED",
                   }}
                 />
-                <button onClick={close} style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "2px 6px", cursor: "pointer", color: "#6B7280", fontSize: 11 }}>ESC</button>
+                <button
+                  onClick={close}
+                  style={{
+                    background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: "#9CA3AF",
+                    fontSize: 13, fontWeight: 600, lineHeight: 1, minWidth: 36, minHeight: 36,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
               </div>
 
               <Command.List style={{ maxHeight: 360, overflowY: "auto", padding: "8px 8px" }}>

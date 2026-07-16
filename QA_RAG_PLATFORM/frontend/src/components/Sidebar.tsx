@@ -129,7 +129,7 @@ const ROLE_COLOR: Record<string, string> = { admin: "#f59e0b", user: "#10b981", 
 export default function Sidebar() {
   const path = usePathname();
   const router = useRouter();
-  const { sidebarCollapsed, toggleSidebar, setCommandOpen, recentAgents } = useAppStore();
+  const { sidebarCollapsed: _sc, toggleSidebar, setCommandOpen, recentAgents } = useAppStore();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -143,7 +143,9 @@ export default function Sidebar() {
   // Close mobile sidebar on route change
   useEffect(() => { setMobileOpen(false); }, [path]);
 
-  const W = isMobile ? 240 : (sidebarCollapsed ? 64 : 240);
+  // On mobile the sidebar always renders expanded (never icon-only)
+  const sidebarCollapsed = isMobile ? false : _sc;
+  const W = isMobile ? 240 : (_sc ? 64 : 240);
   const sidebarVisible = isMobile ? mobileOpen : true;
 
   const user = getUser();
