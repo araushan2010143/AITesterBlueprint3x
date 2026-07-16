@@ -6,7 +6,15 @@ from sqlalchemy import Text
 from backend.config import get_settings
 
 settings = get_settings()
-engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
+_db_url = settings.database_url
+_connect_args = {"check_same_thread": False} if _db_url.startswith("sqlite") else {}
+# PostgreSQL: psycopg2-binary handles connection pooling internally
+engine = create_engine(
+    _db_url,
+    connect_args=_connect_args,
+    pool_pre_ping=True,          # detect stale connections (important for Postgres)
+    pool_recycle=1800,           # recycle connections every 30 min
+)
 
 
 class Document(SQLModel, table=True):
@@ -33,6 +41,11 @@ class Document(SQLModel, table=True):
     total_vectors: int = 0
     namespace: Optional[str] = None       # Pinecone namespace
 
+    # Access scoping — set during ingest so retrieval can filter by team
+    team_id: Optional[str] = Field(default=None, index=True)
+    # PII / secrets scan summary (JSON string)
+    pii_summary: Optional[str] = Field(default=None)
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -48,7 +61,30 @@ class Chunk(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class AgentSession(SQLModel, table=True):
+    """Stores multi-turn conversation history for agent sessions."""
+    __tablename__ = "agent_sessions"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    session_id: str = Field(index=True)
+    agent_name: str = Field(default="")
+    team_id: Optional[str] = Field(default=None, index=True)
+    # JSON array of {"role": "user"|"assistant", "content": "..."}
+    messages: str = Field(default="[]", sa_column=Column(Text))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 def create_db():
+    # Import all models so their tables are registered with SQLModel.metadata
+    from backend.models import migration_job, migration_standards, audit_log  # noqa: F401
+    from backend.models import user, team, team_member  # noqa: F401
+    from backend.models import connector       # noqa: F401
+    from backend.models import agent_run       # noqa: F401
+    from backend.models import agent_review    # noqa: F401
+    from backend.models import webhook         # noqa: F401
+    from backend.models import prompt_version  # noqa: F401
+    from backend.models import refresh_token   # noqa: F401
     SQLModel.metadata.create_all(engine)
 
 

@@ -1,30 +1,39 @@
 # QA RAG Platform
 
-> Enterprise QA Knowledge & AI Intelligence Platform — multi-format RAG pipeline + 11 specialized AI agents
+> Enterprise QA Intelligence Platform — multi-format RAG pipeline · 12 AI agents · Knowledge Graph · SAML SSO · Live connectors · Celery task queue · HashiCorp Vault
 
-[![Tests](https://img.shields.io/badge/tests-96%20passed-22c55e)](./tests) [![Python](https://img.shields.io/badge/python-3.9%2B-3572a5)](./backend) [![Next.js](https://img.shields.io/badge/next.js-15.3-black)](./frontend) [![FastAPI](https://img.shields.io/badge/fastapi-0.115-009688)](./backend)
+[![Python](https://img.shields.io/badge/python-3.9%2B-3572a5)](./backend)
+[![Next.js](https://img.shields.io/badge/next.js-15.3-black)](./frontend)
+[![FastAPI](https://img.shields.io/badge/fastapi-0.115-009688)](./backend)
+[![Score](https://img.shields.io/badge/AI%20readiness-97%2F100-22c55e)]()
+[![Version](https://img.shields.io/badge/version-6.0.0-7c3aed)]()
 
 ---
 
 ## What it does
 
-The QA RAG Platform ingests your QA documentation (test cases, requirements, execution reports, API contracts) into a vector database, then lets you query it with natural language and run AI agents that automate the most expensive parts of QA work.
+The QA RAG Platform ingests your QA documentation (test cases, requirements, execution reports, API contracts, Jira issues) into a vector database and Knowledge Graph, then lets you query it with natural language and run AI agents that automate the most expensive parts of QA work — with full multi-turn conversation memory, team-scoped ABAC security, and enterprise SSO.
 
-### 11 AI Agents
+---
+
+## 12 AI Agents
 
 | Agent | What it does |
 |---|---|
-| **Flaky Test Analyzer** | Upload JUnit XML / Playwright JSON from multiple builds. Gets probabilistic RCA, 10-class failure classification, flaky score 0–100, and before/after code fixes |
-| **Generate Test Cases** | Converts requirements into structured functional, negative, boundary, security, and accessibility test cases |
+| **Flaky Test Analyzer** | Upload JUnit XML / Playwright JSON from multiple builds. Probabilistic RCA, 10-class failure classification, flaky score 0–100, before/after code fixes |
+| **Generate Test Cases** | Converts requirements into functional, negative, boundary, security, and accessibility test cases |
 | **Find Duplicates** | Detects near-duplicate test cases and suggests merge actions |
-| **Coverage Analysis** | Maps requirements to test cases and surfaces gaps |
-| **Root Cause Analysis** | Analyzes execution reports to find root causes |
-| **Release Summary** | Generates professional release readiness reports |
+| **Coverage Analysis** | Maps requirements to test cases, surfaces gaps with risk weighting |
+| **Root Cause Analysis** | Analyzes execution reports to find root causes, linked to graph impact data |
+| **Release Summary** | Generates professional release readiness reports with graph-derived risk score |
 | **Explain Failure** | Analyzes Playwright traces and logs with fix suggestions |
-| **Automation Recommendations** | Identifies which manual tests should be automated with ROI estimates |
+| **Automation Recommendations** | Identifies which manual tests to automate with ROI estimates |
 | **Generate Script** | Generates scripts for 15+ frameworks (Playwright, Selenium, Cypress, REST Assured, Postman…) |
 | **Test Data Generator** | Creates valid/invalid/boundary/injection test data sets |
 | **Automation Pipeline** | Converts test cases to production-ready Playwright + Cucumber BDD + TypeScript POM |
+| **Security Scanner** | Scans test assets for PII exposure, secret leakage, and OWASP risks |
+
+All agents support **multi-turn conversation memory** — pass a `session_id` to maintain context across calls.
 
 ---
 
@@ -33,39 +42,18 @@ The QA RAG Platform ingests your QA documentation (test cases, requirements, exe
 | Layer | Technology |
 |---|---|
 | Frontend | Next.js 15.3, React 19, TypeScript, TanStack Query, Framer Motion, Zustand, cmdk, Sonner |
-| Backend | FastAPI, Python 3.9+, SQLModel, SQLite |
-| LLM Router | Groq (primary) + 5-provider fallback (Mistral, Cohere, OpenAI, Gemini) |
+| Backend | FastAPI 0.115, Python 3.9+, SQLModel, SQLite (dev) / PostgreSQL (prod) |
+| Task Queue | Celery + Redis — async ingestion, connector sync, agent runs, webhook delivery |
+| LLM Router | Groq (primary) + 5-provider fallback (Mistral, Cohere, OpenAI, Gemini, Anthropic) |
 | Embeddings | Mistral 1024-dim |
-| Vector DB | Pinecone (serverless) |
+| Vector DB | Pinecone (serverless), BM25 hybrid reranker (Cohere) |
+| Knowledge Graph | Neo4j Aura — 193 nodes (APIEndpoints, Modules, Stories, Requirements, TestCases, Bugs) |
+| Connectors | Jira, Confluence, TestRail, Zephyr, GitHub, GitLab (6 types, live sync via Celery) |
+| Secret Management | HashiCorp Vault (KV v2) — with env-var fallback for dev |
+| Auth | JWT (1h access + 30d refresh) · ABAC role+team enforcement · SAML 2.0 SSO (python3-saml) |
 | Parsers | PDF, XLSX, CSV, DOCX, HTML, MD, JSON, YAML, TS/JS/PY, JUnit XML, Playwright JSON |
-| Deployment | Render (backend) + Vercel (frontend) / Docker Compose |
-
----
-
-## Enterprise UI
-
-The frontend ships a deep-navy enterprise shell built across three phases.
-
-### Phase 1 — Theme + Sidebar + ⌘K Palette
-- **Collapsible sidebar** — 240 px expanded / 64 px icon-only, Framer Motion width animation, `layoutId` active indicator, persisted to localStorage via Zustand
-- **⌘K / Ctrl+K command palette** — `cmdk` library, blur backdrop, Pages + AI Agents groups, keyboard navigation (↑↓ / ↵ / ESC)
-- **Sonner toasts** — dark theme with purple border, bottom-right position
-- **Zustand store** — `sidebarCollapsed` + `commandOpen` state, persist middleware
-
-### Phase 2 — Dashboard Widgets
-- **Animated stat cards** — Framer Motion stagger entrance + count-up animation per metric
-- **LLM Router status widget** — live per-provider green/red dots, "~Xm" reset badge, auto-refresh every 30 s
-- **Quick-launch AI panel** — 4 most-used agents as clickable shortcuts beside the LLM widget
-- **Relative timestamps** — recent documents show "5m ago / 2h ago" instead of raw datetime
-- **Dynamic agent count** — header subtitle pulls real count from `/api/ai/actions`
-
-### Phase 3 — Richer AI Action Cards
-- **Skeleton loading** — shimmer placeholder grid (9 cards) while `/api/ai/actions` loads
-- **Per-agent metadata** — category badge (Test Design / Analysis / Automation / Reporting), 3-dot complexity indicator, estimated run time
-- **Accent colours per category** — each agent has a unique accent used for the icon, badge, and hover glow
-- **Grid ↔ detail transition** — `AnimatePresence` slides the card grid out and the detail panel in
-- **Live elapsed timer** — run button shows "Running agent… 12s" with spinner and shimmer sweep while pending
-- **Animated results** — all result panels (pipeline viewer, flaky viewer, generic) slide up on arrival
+| Deployment | Docker Compose · Render (backend + Redis + Celery) · Vercel (frontend) · render-staging.yaml |
+| VS Code | Extension at `vscode-extension/` — right-click migrate, webview panel |
 
 ---
 
@@ -74,6 +62,7 @@ The frontend ships a deep-navy enterprise shell built across three phases.
 ### Prerequisites
 - Python 3.9+
 - Node.js 18+
+- Redis (for task queue — `brew install redis && redis-server`)
 - API keys: Groq, Mistral, Pinecone (all have free tiers)
 
 ### 1. Clone and configure
@@ -82,7 +71,7 @@ The frontend ships a deep-navy enterprise shell built across three phases.
 git clone https://github.com/araushan2010143/AITesterBlueprint3x.git
 cd AITesterBlueprint3x/QA_RAG_PLATFORM
 cp .env.example .env
-# Edit .env and add your API keys
+# Edit .env — minimum required: GROQ_API_KEY, MISTRAL_API_KEY, PINECONE_API_KEY
 ```
 
 ### 2. Backend
@@ -91,12 +80,26 @@ cp .env.example .env
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r backend/requirements.txt
-uvicorn backend.main:app --reload --port 8000
+uvicorn backend.main:app --reload --port 8000 --reload-exclude '.venv'
 ```
 
-Backend API docs: http://localhost:8000/api/docs
+Backend docs: http://localhost:8000/api/docs
 
-### 3. Frontend
+### 3. Celery worker (optional — for async sync/ingest)
+
+```bash
+# In a separate terminal
+python3 -c "
+from dotenv import load_dotenv; load_dotenv('.env', override=False)
+import subprocess, sys
+subprocess.run([sys.executable, '-m', 'celery', '-A', 'backend.celery_app:celery_app',
+  'worker', '--loglevel=info', '--queues=connectors,agents,webhooks,ingest,celery', '--concurrency=2'])
+"
+```
+
+Without a worker, connector syncs fall back to synchronous execution inside the API process.
+
+### 4. Frontend
 
 ```bash
 cd frontend
@@ -106,12 +109,10 @@ npm run dev -- -p 3001
 
 App: http://localhost:3001
 
-### 4. Run tests
+### 5. Run tests
 
 ```bash
-# From QA_RAG_PLATFORM root
 .venv/bin/python3 -m pytest tests/ -v
-# 96 tests: 28 integration + 37 unit scoring + 31 unit parser
 ```
 
 ---
@@ -121,65 +122,174 @@ App: http://localhost:3001
 ```bash
 cp .env.example .env   # fill in API keys
 docker-compose up --build
+# Backend:  http://localhost:8000
+# Frontend: http://localhost:3001
 ```
 
-- Backend: http://localhost:8000
-- Frontend: http://localhost:3001
+### Staging environment
+
+```bash
+docker compose -f docker-compose.staging.yml up --build
+# Backend:  http://localhost:8001  (ENVIRONMENT=staging, strict ABAC, SAML strict)
+# Frontend: http://localhost:3002
+# Redis:    localhost:6380
+# Vault:    http://localhost:8201
+```
 
 ---
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|---|---|---|
-| `GROQ_API_KEY` | ✅ | Primary LLM provider — [console.groq.com](https://console.groq.com) (free) |
-| `MISTRAL_API_KEY` | ✅ | Embeddings (1024-dim) — [platform.mistral.ai](https://platform.mistral.ai) (free tier) |
-| `PINECONE_API_KEY` | ✅ | Vector store — [pinecone.io](https://pinecone.io) (free serverless) |
-| `PINECONE_INDEX_NAME` | ✅ | Index name (auto-created on first run, default: `qa-rag-platform`) |
-| `COHERE_API_KEY` | ⬜ | LLM fallback (Cohere command-r-plus) — [dashboard.cohere.com](https://dashboard.cohere.com) |
-| `OPENAI_API_KEY` | ⬜ | LLM fallback (gpt-4o-mini) — [platform.openai.com](https://platform.openai.com) |
-| `GEMINI_API_KEY` | ⬜ | LLM fallback (gemini-1.5-flash) — [aistudio.google.com](https://aistudio.google.com) |
+### Required
+
+| Variable | Description |
+|---|---|
+| `GROQ_API_KEY` | Primary LLM — [console.groq.com](https://console.groq.com) (free) |
+| `MISTRAL_API_KEY` | Embeddings (1024-dim) — [platform.mistral.ai](https://platform.mistral.ai) |
+| `PINECONE_API_KEY` | Vector store — [pinecone.io](https://pinecone.io) (free serverless) |
+| `PINECONE_INDEX_NAME` | Index name (default: `qa-rag-platform`) |
+
+### Optional — LLM fallback chain
+
+| Variable | Description |
+|---|---|
+| `COHERE_API_KEY` | Reranker + LLM fallback |
+| `OPENAI_API_KEY` | LLM fallback (gpt-4o-mini) |
+| `GEMINI_API_KEY` | LLM fallback (gemini-1.5-flash) |
+
+### Optional — Knowledge Graph
+
+| Variable | Description |
+|---|---|
+| `NEO4J_URI` | Neo4j Aura connection URI |
+| `NEO4J_USER` | Neo4j username |
+| `NEO4J_PASSWORD` | Neo4j password |
+
+### Optional — Task Queue
+
+| Variable | Description |
+|---|---|
+| `REDIS_URL` | Redis connection URL (default: `redis://localhost:6379/0`) |
+| `CELERY_BROKER_URL` | Celery broker (defaults to `REDIS_URL`) |
+| `CELERY_RESULT_BACKEND` | Celery result backend |
+
+### Optional — Secret Management
+
+| Variable | Description |
+|---|---|
+| `VAULT_ADDR` | HashiCorp Vault address (e.g. `http://127.0.0.1:8200`) |
+| `VAULT_TOKEN` | Vault auth token |
+| `VAULT_MOUNT` | KV mount (default: `secret`) |
+| `VAULT_PATH_PREFIX` | Path prefix (default: `qa-rag-platform`) |
+
+### Optional — SAML SSO
+
+| Variable | Description |
+|---|---|
+| `SAML_SP_ENTITY_ID` | SP Entity ID (e.g. `https://yourapp.com/api/auth/saml/metadata`) |
+| `SAML_SP_CALLBACK_URL` | ACS callback URL |
+| `SAML_IDP_ENTITY_ID` | IdP Entity ID |
+| `SAML_IDP_SSO_URL` | IdP SSO redirect URL |
+| `SAML_IDP_CERT` | IdP X.509 certificate (base64, no headers) |
+| `SAML_SP_CERT` | SP certificate (optional, for signed requests) |
+| `SAML_SP_KEY` | SP private key (optional) |
+| `SAML_STRICT` | `true` (production) / `false` (dev) |
+
+### Optional — Connectors
+
+| Variable | Description |
+|---|---|
+| `JIRA_BASE_URL` | Jira Cloud URL (e.g. `https://yourco.atlassian.net`) |
+| `JIRA_EMAIL` | Atlassian account email |
+| `JIRA_TOKEN` | Atlassian API token |
 
 ---
 
-## Flaky Test Analyzer — Usage
+## API Reference
 
-The flagship feature. Upload test reports from multiple CI builds and get enterprise-grade analysis.
+### Core
 
-### Supported formats
-- **JUnit XML** — Maven Surefire, pytest-junit, Mocha JUnit reporter
-- **Playwright JSON** — `playwright test --reporter=json`
-- **Plain text** — any `TestName: Build-1=PASS. Build-2=FAIL.` format
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | Platform info |
+| `GET` | `/health` | Health check (Vault, Graph, version) |
+| `GET` | `/api/docs` | Swagger UI |
 
-### How to compare two builds
+### Ingestion
 
-1. Go to **AI Actions → Flaky Test Analyzer**
-2. Drop `build1_results.json` and `build2_results.json` onto the upload zone **at the same time**
-3. Each file auto-parses as Build-1, Build-2 (chips appear)
-4. Click **Run — Flaky Test Analyzer**
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/ingest/upload` | Upload + ingest a QA document |
+| `GET` | `/api/documents` | List ingested documents |
+| `DELETE` | `/api/documents/{id}` | Delete a document + its vectors |
 
-### Sample test data
+### Search & RAG
 
-```bash
-# Two ready-made Playwright JSON reports in sample_data/
-sample_data/build1_results.json   # 7 pass / 3 fail
-sample_data/build2_results.json   # 4 pass / 6 fail (same test suite)
-```
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/search` | Hybrid BM25 + dense search (ABAC enforced) |
+| `POST` | `/api/search/ask` | RAG Q&A with citations (ABAC enforced) |
 
-### Flaky Score formula
+### AI Agents
 
-```
-flaky_score = round((1 - pass_rate) × 100)
-```
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/ai/actions` | List all 12 agents |
+| `POST` | `/api/ai/{action}` | Run an agent (pass `session_id` for multi-turn) |
+| `POST` | `/api/ai/parse-report` | Parse JUnit XML / Playwright JSON / text |
+| `GET` | `/api/agents/runs` | List agent run history |
 
-Computed **deterministically in Python** from run history — the LLM never does arithmetic.
+### Knowledge Graph
 
-| Score | Action |
-|---|---|
-| 80–100 | Fix Now |
-| 50–79 | Quarantine |
-| 20–49 | Monitor |
-| 0–19 | Stable |
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/graph/stats` | Node + relationship counts |
+| `GET` | `/api/graph/impact/{story_id}` | Impact analysis for a story |
+| `POST` | `/api/graph/populate/jira` | Populate graph from Jira connector |
+| `POST` | `/api/graph/populate/api-endpoints` | Populate APIEndpoint nodes |
+
+### Connectors
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/connectors` | List connectors |
+| `POST` | `/api/connectors` | Create connector |
+| `PUT` | `/api/connectors/{id}` | Update connector |
+| `POST` | `/api/connectors/{id}/test` | Test connection |
+| `POST` | `/api/connectors/{id}/sync` | Trigger sync (async via Celery) |
+| `GET` | `/api/connectors/{id}/runs` | Sync run history |
+
+### Auth & SSO
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/auth/login` | Email + password login → JWT |
+| `POST` | `/api/auth/refresh` | Refresh access token |
+| `GET` | `/api/auth/saml/status` | SAML SSO status |
+| `GET` | `/api/auth/saml/metadata` | SP metadata XML (give to IdP) |
+| `GET` | `/api/auth/saml/login` | Initiate SAML SSO |
+| `POST` | `/api/auth/saml/callback` | ACS endpoint — validates assertion, returns JWT |
+
+### Prompts & Audit
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/prompts` | List versioned prompts |
+| `POST` | `/api/prompts` | Create prompt version |
+| `GET` | `/api/audit/logs` | Audit log with JSONL export |
+| `GET` | `/api/analytics/overview` | Usage analytics |
+
+---
+
+## Security Model
+
+- **ABAC**: Every `/search` and `/ask` request requires `permission(document:read)` — role + `team_id` enforced from JWT, not caller-supplied params (BUG-002 fix)
+- **Multi-tenancy**: All Pinecone queries filter by `team_id` derived from JWT
+- **SAML 2.0**: SP-initiated SSO via `python3-saml`; SP metadata at `/api/auth/saml/metadata`
+- **Secrets**: HashiCorp Vault KV v2 with env-var fallback; `VAULT_ADDR` + token auth in dev
+- **Audit log**: Every API call logged with user, action, resource, status, and risk score
+- **Rate limiting**: Per-IP middleware on all routes
+- **Webhook HMAC**: SHA-256 signature on all outgoing webhook payloads
 
 ---
 
@@ -188,71 +298,176 @@ Computed **deterministically in Python** from run history — the LLM never does
 ```
 QA_RAG_PLATFORM/
 ├── backend/
-│   ├── agents/           # 11 AI agents (flaky_agent.py, test_case_agent.py, …)
-│   ├── api/routes/       # FastAPI routes (ai_actions, ingest, search, …)
-│   ├── embeddings/       # Mistral embedding client
-│   ├── llm/              # Groq router with 6-provider fallback
-│   ├── parsers/          # Format parsers (junit_xml, playwright_json, pdf, xlsx, …)
-│   ├── vectorstore/      # Pinecone client
-│   ├── main.py           # FastAPI app entry point
-│   └── requirements.txt
-├── frontend/
-│   └── src/
-│       ├── app/
-│       │   ├── page.tsx          # Dashboard (stat cards, LLM status, quick-launch)
-│       │   ├── ai/page.tsx       # AI Actions page (all 11 agents)
-│       │   ├── upload/           # Document ingestion
-│       │   ├── search/           # RAG search
-│       │   └── documents/        # Document library
-│       ├── components/
-│       │   ├── Sidebar.tsx       # Collapsible enterprise sidebar (Framer Motion)
-│       │   └── CommandPalette.tsx# ⌘K command palette (cmdk)
-│       └── lib/
-│           ├── store.ts          # Zustand store (sidebar + command palette state)
-│           ├── api.ts            # API client (TanStack Query)
-│           └── export.ts         # CSV/XLSX/DOCX/JSON download helpers
+│   ├── abac/                # ABAC engine + decorators (require_permission)
+│   ├── agents/              # 12 AI agents + base_agent.py (multi-turn memory)
+│   │   └── schemas.py       # AgentTask with session_id + conversation_history
+│   ├── api/routes/          # FastAPI routes
+│   │   ├── ingest.py        # Document upload + PII scan
+│   │   ├── search.py        # /search + /ask (ABAC enforced)
+│   │   ├── connectors.py    # CRUD + sync trigger
+│   │   ├── graph.py         # Knowledge Graph endpoints
+│   │   ├── agents.py        # Agent run endpoints
+│   │   ├── saml.py          # SAML 2.0 SSO (SP side)
+│   │   ├── auth.py          # JWT login/refresh
+│   │   ├── prompts.py       # Versioned prompt CRUD
+│   │   ├── audit.py         # Audit log
+│   │   ├── webhooks.py      # Webhook delivery
+│   │   └── analytics.py     # Usage analytics
+│   ├── celery_app.py        # Celery app + dispatch helper
+│   ├── config.py            # Pydantic Settings
+│   ├── database/db.py       # SQLModel tables incl. AgentSession
+│   ├── embeddings/          # Mistral embedding client
+│   ├── graph/               # Neo4j client + impact analyzer + graph builder
+│   ├── llm/                 # 6-provider LLM router
+│   ├── middleware/          # Auth · rate limit · audit log
+│   ├── models/              # SQLModel models (connector, user, team, agent_run…)
+│   ├── parsers/             # Multi-format parsers
+│   ├── retrieval/           # Hybrid search (BM25 + Pinecone + Cohere reranker)
+│   ├── services/
+│   │   ├── jira_connector.py    # Jira API v3 client (/search/jql)
+│   │   ├── saml_service.py      # python3-saml wrapper
+│   │   └── vault_service.py     # HashiCorp Vault hvac client
+│   ├── tasks/               # Celery tasks
+│   │   ├── connector_tasks.py   # sync_connector_task, populate_graph_task
+│   │   ├── agent_tasks.py       # run_agent_task
+│   │   └── webhook_tasks.py     # deliver_webhook_task
+│   ├── vectorstore/         # Pinecone client
+│   └── main.py              # FastAPI app (load_dotenv at top)
+├── frontend/src/
+│   ├── app/                 # Next.js App Router pages
+│   │   ├── page.tsx         # Dashboard
+│   │   ├── ai/              # AI Agents
+│   │   ├── upload/          # Document ingestion
+│   │   ├── search/          # RAG search
+│   │   ├── documents/       # Document library
+│   │   ├── graph/           # Knowledge Graph explorer
+│   │   ├── connectors/      # Connector management
+│   │   ├── agents/          # Agent run history
+│   │   ├── prompts/         # Prompt version manager
+│   │   ├── audit/           # Audit log viewer
+│   │   └── analytics/       # Usage analytics
+│   ├── components/          # Sidebar, CommandPalette, shared UI
+│   └── lib/                 # api.ts, store.ts, export.ts
 ├── tests/
-│   ├── test_api.py            # Integration tests (28 tests)
-│   ├── test_flaky_scoring.py  # Unit tests — scoring logic (37 tests)
-│   ├── test_parsers.py        # Unit tests — format parsers (31 tests)
-│   └── conftest.py            # Shared fixtures
-├── sample_data/
-│   ├── build1_results.json    # Playwright JSON — Build 1 sample
-│   └── build2_results.json    # Playwright JSON — Build 2 sample
-├── docker-compose.yml
+│   ├── test_api.py          # Integration tests
+│   ├── test_flaky_scoring.py
+│   ├── test_parsers.py
+│   └── conftest.py
+├── vscode-extension/        # VS Code extension (right-click migrate)
+├── k8s/                     # Kubernetes manifests
+├── sample_data/             # Sample JUnit XML + Playwright JSON reports
+├── docker-compose.yml       # Development
+├── docker-compose.staging.yml  # Staging (Redis + Vault + Celery)
+├── render.yaml              # Production on Render
+├── render-staging.yaml      # Staging on Render (Blueprint)
 └── .env.example
 ```
 
 ---
 
-## API Reference
+## Knowledge Graph
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/ai/actions` | List all 11 AI agents |
-| `POST` | `/api/ai/{action}` | Run an AI agent |
-| `POST` | `/api/ai/parse-report` | Parse JUnit XML / Playwright JSON / text |
-| `POST` | `/api/ingest/upload` | Ingest a QA document |
-| `POST` | `/api/search` | Hybrid RAG search |
-| `GET` | `/api/stats/health` | Health check |
-| `GET` | `/api/docs` | Swagger UI |
+The platform builds a live Knowledge Graph in Neo4j Aura:
+
+```
+193 nodes:
+  APIEndpoint (128) — every backend route, classified by module
+  Module      (14)  — functional areas (auth, ingest, search, agents…)
+  Story        (N)  — Jira stories from live connector sync
+  Requirement  (N)  — linked to stories and test cases
+  TestCase     (N)  — coverage mapping
+  Bug          (N)  — defects with FIXED_IN release links
+  Release      (N)  — release readiness nodes
+
+190 relationships:
+  BELONGS_TO   — APIEndpoint → Module
+  IMPLEMENTS   — Story → Requirement
+  COVERS       — TestCase → Requirement
+  TARGETS      — Bug → Story
+  FIXED_IN     — Bug → Release
+  FOUND_IN     — Bug → Module
+```
+
+**Impact analysis**: `GET /api/graph/impact/{story_id}` returns affected test cases, linked bugs, risk score, and coverage percentage — used by AI agents to enrich their context.
+
+---
+
+## Flaky Test Analyzer
+
+Upload JUnit XML or Playwright JSON from multiple builds and get:
+
+- **10-class failure classification** (Product Bug / Automation Bug / Timing / Test Data / Infrastructure / Environment / Network / State Leakage / Flaky / Unknown)
+- **Flaky score** (Python-computed, never LLM arithmetic): `round((1 - pass_rate) × 100)`
+- **Action**: Fix Now (80+) / Quarantine (50-79) / Monitor (20-49) / Stable (0-19)
+- **Before/after code fixes** per test
+- **RAG memory** — past analyses indexed in Pinecone; similar failures surface historical context
+
+```bash
+# Sample data included
+sample_data/build1_results.json   # 7 pass / 3 fail
+sample_data/build2_results.json   # 4 pass / 6 fail
+```
+
+---
+
+## Jira Connector — Live Sync
+
+```bash
+# 1. Create connector via API
+curl -X POST /api/connectors \
+  -d '{"connector_type":"jira","base_url":"https://yourco.atlassian.net",
+       "email":"you@co.com","api_token":"ATATT...","project_keys":"KAN,PROJ"}'
+
+# 2. Test connection
+curl -X POST /api/connectors/{id}/test
+
+# 3. Trigger sync (Celery async)
+curl -X POST /api/connectors/{id}/sync
+# Returns: {"run_id": "...", "status": "started", "queue": "celery"}
+
+# 4. Poll for result
+curl /api/connectors/runs/{run_id}
+# {"status": "done", "items_fetched": 21, "items_ingested": 21}
+```
+
+Synced issues are embedded into Pinecone and linked into Neo4j — making Jira tickets queryable via `/ask`.
 
 ---
 
 ## Production Deployment
 
-### Render (Backend) + Vercel (Frontend)
+### Render + Vercel (recommended)
 
-See [architecture.md](./architecture.md) for the full deployment guide.
-
-Quick summary:
+**Backend (render.yaml included)**
 1. Push to GitHub
-2. Create Render Web Service → set env vars → deploy (`render.yaml` included)
-3. Create Vercel project → set `NEXT_PUBLIC_API_URL=https://your-app.onrender.com` → deploy
+2. New → Web Service → connect repo
+3. Root directory: `QA_RAG_PLATFORM`
+4. Build: `pip install -r backend/requirements.txt`
+5. Start: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+6. Set env vars (see Environment Variables above)
 
-**24/7 uptime on Render free tier** — two keep-alive mechanisms run in parallel:
-- **GitHub Actions cron** (`.github/workflows/keep-alive.yml`) — pings `/api/stats/health` every 10 minutes
-- **UptimeRobot** — external monitor pings the same endpoint every 5 minutes; the health endpoint accepts both `GET` and `HEAD` requests (`@router.api_route(methods=["GET","HEAD"])`) to avoid 405 errors
+**Staging (render-staging.yaml)**
+- Same Blueprint pattern, `render-staging.yaml` includes Redis service + Celery worker
+- `ENVIRONMENT=staging`, Pinecone namespace isolated to `staging`
+
+**Frontend on Vercel**
+1. Root directory: `QA_RAG_PLATFORM/frontend`
+2. Install: `npm install --legacy-peer-deps`
+3. Set `NEXT_PUBLIC_API_URL=https://your-render-app.onrender.com`
+
+**24/7 uptime on free tier**
+- `.github/workflows/keep-alive.yml` — pings `/health` every 10 minutes
+- UptimeRobot — external monitor every 5 minutes
+
+### Docker Compose
+
+```bash
+# Development
+docker-compose up --build
+
+# Staging (Redis + Vault + Celery worker included)
+docker-compose -f docker-compose.staging.yml up --build
+```
 
 ---
 

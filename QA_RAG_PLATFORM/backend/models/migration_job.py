@@ -21,3 +21,9 @@ class MigrationJob(SQLModel, table=True):
     versions_json: Optional[str] = Field(default=None)  # JSON list of {version, created_at, results_json}
     report_html: Optional[str] = Field(default=None)
     error: Optional[str] = Field(default=None)
+    # Team scoping — jobs belong to a workspace
+    team_id: Optional[str] = Field(default=None, index=True)
+    created_by: Optional[str] = Field(default=None)     # user_id
+    # Notifications
+    webhook_url: Optional[str] = Field(default=None)
+    notify_email: Optional[str] = Field(default=None)

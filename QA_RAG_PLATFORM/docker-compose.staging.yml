@@ -1,0 +1,156 @@
+version: "3.9"
+
+# Staging environment — mirrors production topology locally.
+# Usage:
+#   docker compose -f docker-compose.staging.yml up --build
+#
+# Differences from dev (docker-compose.yml):
+#   - ENVIRONMENT=staging (disables dev-mode RBAC bypass)
+#   - Redis + Celery worker run as separate services
+#   - HashiCorp Vault in dev-server mode for secret management
+#   - Dedicated staging SQLite volume (staging_db)
+#   - SAML strict mode ON
+#   - Pinecone namespace isolated to "staging"
+
+services:
+
+  # ── Redis (broker + cache) ───────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"          # offset to avoid conflict with local Redis
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_staging_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Vault dev server ─────────────────────────────────────────────────────────
+  vault:
+    image: hashicorp/vault:1.15
+    ports:
+      - "8201:8200"          # offset to avoid conflict with local vault
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: staging-vault-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend API ──────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8001:8000"          # offset to avoid conflict with local dev server
+    environment:
+      ENVIRONMENT: staging
+      # LLM + vector keys (inject from CI secrets or .env.staging)
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      PINECONE_API_KEY: ${PINECONE_API_KEY}
+      PINECONE_INDEX_NAME: ${PINECONE_INDEX_NAME:-qa-rag-platform}
+      PINECONE_NAMESPACE: staging
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      COHERE_API_KEY: ${COHERE_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # Graph
+      NEO4J_URI: ${NEO4J_URI:-}
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-}
+      # Redis + Celery
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      # Vault
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: staging-vault-token
+      VAULT_MOUNT: secret
+      VAULT_PATH_PREFIX: qa-rag-platform
+      # SAML — staging SP URLs
+      SAML_SP_ENTITY_ID: http://localhost:8001/api/auth/saml/metadata
+      SAML_SP_CALLBACK_URL: http://localhost:8001/api/auth/saml/callback
+      SAML_IDP_ENTITY_ID: ${SAML_IDP_ENTITY_ID:-https://samltest.id/saml/idp}
+      SAML_IDP_SSO_URL: ${SAML_IDP_SSO_URL:-https://samltest.id/idp/profile/SAML2/Redirect/SSO}
+      SAML_IDP_CERT: ${SAML_IDP_CERT:-}
+      SAML_SP_CERT: ${SAML_SP_CERT:-}
+      SAML_SP_KEY: ${SAML_SP_KEY:-}
+      SAML_STRICT: "true"
+      # Auth / API key
+      API_KEY: ${STAGING_API_KEY:-staging-dev-key}
+      JWT_SECRET: ${STAGING_JWT_SECRET:-staging-jwt-secret-change-in-prod}
+      # Staging DB (separate from dev)
+      DATABASE_URL: sqlite:////data/qa_rag_staging.db
+    volumes:
+      - staging_db:/data
+      - staging_uploads:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+      vault:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # ── Celery worker ────────────────────────────────────────────────────────────
+  celery_worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: >
+      celery -A backend.celery_app:celery_app worker
+      --loglevel=info
+      --concurrency=2
+      --queues=default,ingestion,agents
+    environment:
+      ENVIRONMENT: staging
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      PINECONE_API_KEY: ${PINECONE_API_KEY}
+      PINECONE_INDEX_NAME: ${PINECONE_INDEX_NAME:-qa-rag-platform}
+      PINECONE_NAMESPACE: staging
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      DATABASE_URL: sqlite:////data/qa_rag_staging.db
+    volumes:
+      - staging_db:/data
+      - staging_uploads:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Frontend ─────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3000"          # offset to avoid conflict with dev frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8001
+      NEXT_PUBLIC_ENV: staging
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  redis_staging_data:
+  staging_db:
+  staging_uploads:

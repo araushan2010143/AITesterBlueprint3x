@@ -5,7 +5,7 @@ import uuid
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse
@@ -15,9 +15,9 @@ from backend.database.db import engine
 from backend.models.migration_job import MigrationJob
 from backend.models.migration_standards import MigrationStandard
 from backend.services.file_extractor import (
-    extract_from_zip, extract_from_url, detect_source_type,
+    extract_from_zip, extract_from_url, extract_from_file_list, detect_source_type,
 )
-from backend.services import standards_service, github_service
+from backend.services import standards_service, github_service, gitlab_service, azure_devops_service, bitbucket_service
 from backend.services.migration_orchestrator import (
     get_or_create_queue,
     run_migration_job,
@@ -29,14 +29,47 @@ router = APIRouter(prefix="/api/migration", tags=["Migration V2"])
 
 # ── Create job ─────────────────────────────────────────────────────────────────
 
+@router.post("/jobs/files")
+async def create_job_from_files(
+    background_tasks: BackgroundTasks,
+    files: List[UploadFile] = File(...),
+):
+    """Accept multiple uploaded files (from a local folder picker) and start a migration job."""
+    raw = [(uf.filename or "file", await uf.read()) for uf in files]
+    extracted = extract_from_file_list(raw)
+    if not extracted:
+        raise HTTPException(
+            400,
+            "No test files found in uploaded files. "
+            "Ensure your folder contains .java/.py/.cs/.ts/.robot/.feature files with test markers.",
+        )
+    job_id = str(uuid.uuid4())
+    get_or_create_queue(job_id)
+    source_name = f"Local folder ({len(extracted)} file{'s' if len(extracted) != 1 else ''})"
+    with Session(engine) as s:
+        job = MigrationJob(
+            id=job_id,
+            source_type="folder",
+            source_name=source_name,
+            file_count=len(extracted),
+        )
+        s.add(job)
+        s.commit()
+    background_tasks.add_task(run_migration_job, job_id, extracted)
+    return {"job_id": job_id, "file_count": len(extracted), "source_name": source_name}
+
+
 @router.post("/jobs")
 async def create_job(
     background_tasks: BackgroundTasks,
     file: Optional[UploadFile] = File(None),
     repo_url: Optional[str] = Form(None),
-    repo_token: Optional[str] = Form(None),   # PAT / private token / "user:app_password"
-    # Legacy field — kept for backwards compat
+    repo_token: Optional[str] = Form(None),
+    repo_branch: Optional[str] = Form(None),
+    source_type_hint: Optional[str] = Form(None),
     github_url: Optional[str] = Form(None),
+    webhook_url: Optional[str] = Form(None),
+    notify_email: Optional[str] = Form(None),
 ):
     url = repo_url or github_url
     if not file and not url:
@@ -52,10 +85,15 @@ async def create_job(
         source_name = file.filename or "upload.zip"
     else:
         url = url.strip()
-        source_type = detect_source_type(url)
+        source_type = source_type_hint or detect_source_type(url)
         source_name = url
         try:
-            files = extract_from_url(url, token=repo_token or "")
+            files = extract_from_url(
+                url,
+                token=repo_token or "",
+                source_type=source_type,
+                branch=repo_branch or "",
+            )
         except Exception as exc:
             raise HTTPException(400, f"Could not fetch repository: {exc}")
 
@@ -75,12 +113,56 @@ async def create_job(
             source_type=source_type,
             source_name=source_name,
             file_count=len(files),
+            webhook_url=webhook_url or None,
+            notify_email=notify_email or None,
         )
         s.add(job)
         s.commit()
 
     background_tasks.add_task(run_migration_job, job_id, files)
     return {"job_id": job_id, "file_count": len(files), "source_name": source_name}
+
+
+# ── Retry failed files ─────────────────────────────────────────────────────────
+
+@router.post("/jobs/{job_id}/retry-failed")
+async def retry_failed_files(job_id: str, background_tasks: BackgroundTasks):
+    """Re-run only the files that failed in a previous job. Source content is
+    stored in results_json by the orchestrator for exactly this purpose."""
+    with Session(engine) as s:
+        job = s.get(MigrationJob, job_id)
+    if not job or not job.results_json:
+        raise HTTPException(404, "Job not found or has no results yet")
+
+    results = json.loads(job.results_json)
+    retry_files = [
+        (r["file"], r["source"])
+        for r in results
+        if r.get("status") == "failed" and r.get("source")
+    ]
+    if not retry_files:
+        raise HTTPException(
+            400,
+            "No retryable failed files found. "
+            "Files must have been processed by this version of Migration Studio."
+        )
+
+    new_job_id = str(uuid.uuid4())
+    get_or_create_queue(new_job_id)
+    source_name = f"Retry ({len(retry_files)} file{'s' if len(retry_files) != 1 else ''}) from {job.source_name}"
+
+    with Session(engine) as s:
+        new_job = MigrationJob(
+            id=new_job_id,
+            source_type=job.source_type,
+            source_name=source_name,
+            file_count=len(retry_files),
+        )
+        s.add(new_job)
+        s.commit()
+
+    background_tasks.add_task(run_migration_job, new_job_id, retry_files)
+    return {"job_id": new_job_id, "file_count": len(retry_files), "source_name": source_name}
 
 
 # ── SSE stream ─────────────────────────────────────────────────────────────────
@@ -259,6 +341,112 @@ def restore_version(job_id: str, version: int):
         s.add(job)
         s.commit()
     return {"ok": True, "restored_version": version}
+
+
+# ── GitLab MR auto-generation ─────────────────────────────────────────────────
+
+@router.post("/jobs/{job_id}/create-gitlab-mr")
+def create_gitlab_mr(
+    job_id: str,
+    gitlab_token: str = Form(...),
+    repo: str = Form(...),
+    branch_prefix: str = Form("migration"),
+    base_branch: str = Form("main"),
+    gitlab_url: str = Form("https://gitlab.com"),
+):
+    with Session(engine) as s:
+        job = s.get(MigrationJob, job_id)
+    if not job or not job.results_json:
+        raise HTTPException(404, "Job not found or results not ready")
+
+    results = json.loads(job.results_json)
+    files = gitlab_service.build_mr_files(results)
+    if not files:
+        raise HTTPException(400, "No successfully migrated files to push")
+
+    branch_name = f"{branch_prefix}/{job_id[:8]}"
+    mr_title = f"chore(migration): migrate {job.source_name} to Playwright TypeScript"
+    mr_body = github_service.build_pr_body(job_id, results)
+
+    try:
+        result = gitlab_service.create_mr(
+            token=gitlab_token, repo=repo, files=files,
+            branch_name=branch_name, mr_title=mr_title, mr_body=mr_body,
+            base_branch=base_branch, gitlab_url=gitlab_url,
+        )
+    except Exception as exc:
+        raise HTTPException(400, str(exc))
+    return result
+
+
+# ── Azure DevOps PR auto-generation ──────────────────────────────────────────
+
+@router.post("/jobs/{job_id}/create-azure-pr")
+def create_azure_pr(
+    job_id: str,
+    azure_token: str = Form(...),
+    repo_url: str = Form(...),
+    branch_prefix: str = Form("migration"),
+    base_branch: str = Form("main"),
+):
+    with Session(engine) as s:
+        job = s.get(MigrationJob, job_id)
+    if not job or not job.results_json:
+        raise HTTPException(404, "Job not found or results not ready")
+
+    results = json.loads(job.results_json)
+    files = azure_devops_service.build_pr_files(results)
+    if not files:
+        raise HTTPException(400, "No successfully migrated files to push")
+
+    branch_name = f"{branch_prefix}/{job_id[:8]}"
+    pr_title = f"chore(migration): migrate {job.source_name} to Playwright TypeScript"
+    pr_body = github_service.build_pr_body(job_id, results)
+
+    try:
+        result = azure_devops_service.create_pr(
+            token=azure_token, repo_url=repo_url, files=files,
+            branch_name=branch_name, pr_title=pr_title, pr_body=pr_body,
+            base_branch=base_branch,
+        )
+    except Exception as exc:
+        raise HTTPException(400, str(exc))
+    return result
+
+
+# ── Bitbucket Cloud PR auto-generation ───────────────────────────────────────
+
+@router.post("/jobs/{job_id}/create-bitbucket-pr")
+def create_bitbucket_pr(
+    job_id: str,
+    bitbucket_token: str = Form(...),
+    repo_url: str = Form(...),
+    branch_prefix: str = Form("migration"),
+    base_branch: str = Form("main"),
+):
+    with Session(engine) as s:
+        job = s.get(MigrationJob, job_id)
+    if not job or not job.results_json:
+        raise HTTPException(404, "Job not found or results not ready")
+
+    results = json.loads(job.results_json)
+    files = bitbucket_service.build_pr_files(results)
+    if not files:
+        raise HTTPException(400, "No successfully migrated files to push")
+
+    branch_name = f"{branch_prefix}/{job_id[:8]}"
+    pr_title = f"chore(migration): migrate {job.source_name} to Playwright TypeScript"
+    pr_body = github_service.build_pr_body(job_id, results)
+
+    try:
+        result = bitbucket_service.create_pr(
+            token=bitbucket_token, repo_url=repo_url, files=files,
+            branch_name=branch_name, pr_title=pr_title, pr_body=pr_body,
+            base_branch=base_branch,
+        )
+    except Exception as exc:
+        raise HTTPException(400, str(exc))
+    return result
 
 
 # ── Company standards ──────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@ from sqlmodel import Session, select, func
 from collections import Counter
 from backend.database.db import Document, Chunk, get_session
 from backend.models.schemas import Stats, DocumentOut
-from backend.vectorstore import pinecone_store
+from backend.vectorstore import get_stats as _vs_get_stats
 
 router = APIRouter(prefix="/api/stats", tags=["Stats"])
 
@@ -17,7 +17,7 @@ def get_stats(session: Session = Depends(get_session)):
     by_module = Counter(d.module for d in docs if d.module)
     by_status = Counter(d.status for d in docs)
 
-    pc_stats = pinecone_store.get_stats()
+    pc_stats = _vs_get_stats()
     total_vectors = pc_stats.get("total_vectors", 0)
 
     recent = session.exec(

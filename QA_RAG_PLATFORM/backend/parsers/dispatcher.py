@@ -32,11 +32,19 @@ def parse_file(file_path: str, filename: str) -> List[Dict[str, Any]]:
         return parse_md(content, filename)
 
     elif ext in ("json",):
+        # Route OpenAPI/Swagger JSON specs to the dedicated parser
+        from backend.parsers.openapi_parser import is_openapi, parse as parse_openapi
+        if is_openapi(content):
+            return parse_openapi(content, filename)
         from backend.parsers.json_parser import parse as parse_json
         return parse_json(content, filename)
 
     elif ext in ("yaml", "yml"):
+        from backend.parsers.openapi_parser import is_openapi, parse as parse_openapi
         from backend.parsers.swagger_parser import parse as parse_swagger
+        # Route structured OpenAPI specs to the richer parser; plain YAML to swagger_parser
+        if is_openapi(content):
+            return parse_openapi(content, filename)
         return parse_swagger(content, filename)
 
     elif ext in ("ts", "js", "py", "java"):

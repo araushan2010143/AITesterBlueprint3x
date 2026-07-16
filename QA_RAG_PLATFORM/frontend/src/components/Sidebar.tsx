@@ -1,23 +1,36 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard, Upload, Search, Zap, FileText,
-  ChevronLeft, ChevronRight, Clock, RefreshCw,
+  ChevronLeft, ChevronRight, Clock, RefreshCw, ScanSearch, BarChart2,
+  Users, LogOut, LogIn, Plug, GitBranch, Shield, Webhook, BookOpen, Settings,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
+import { getUser, clearSession, isLoggedIn } from "@/lib/auth";
 
 const MAIN_NAV = [
-  { href: "/",          label: "Dashboard",  icon: LayoutDashboard },
-  { href: "/upload",    label: "Upload",     icon: Upload          },
-  { href: "/search",    label: "Explorer",   icon: Search          },
-  { href: "/ai",        label: "AI Agents",  icon: Zap             },
-  { href: "/migration", label: "Migration",  icon: RefreshCw       },
-  { href: "/documents", label: "Documents",  icon: FileText        },
+  { href: "/",           label: "Dashboard",  icon: LayoutDashboard },
+  { href: "/upload",     label: "Upload",     icon: Upload          },
+  { href: "/search",     label: "Explorer",   icon: Search          },
+  { href: "/ai",         label: "AI Agents",  icon: Zap             },
+  { href: "/scanner",    label: "Scanner",    icon: ScanSearch      },
+  { href: "/migration",  label: "Migration",  icon: RefreshCw       },
+  { href: "/analytics",  label: "Analytics",  icon: BarChart2       },
+  { href: "/documents",  label: "Documents",  icon: FileText        },
+  { href: "/team",       label: "Team",       icon: Users           },
 ];
 
+const PLATFORM_NAV = [
+  { href: "/connectors", label: "Connectors", icon: Plug      },
+  { href: "/graph",      label: "Graph",      icon: GitBranch },
+  { href: "/audit",      label: "Audit Log",  icon: Shield    },
+  { href: "/webhooks",   label: "Webhooks",   icon: Webhook   },
+  { href: "/prompts",    label: "Prompts",    icon: BookOpen  },
+  { href: "/settings",   label: "Settings",   icon: Settings  },
+];
 
 function NavItem({ href, label, icon: Icon, collapsed, active }: {
   href: string; label: string; icon: any; collapsed: boolean; active: boolean;
@@ -110,10 +123,21 @@ function LLMStatus({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+const ROLE_COLOR: Record<string, string> = { admin: "#f59e0b", user: "#10b981", viewer: "#6b7fa8" };
+
 export default function Sidebar() {
   const path = usePathname();
+  const router = useRouter();
   const { sidebarCollapsed, toggleSidebar, setCommandOpen, recentAgents } = useAppStore();
   const W = sidebarCollapsed ? 64 : 240;
+
+  const user = getUser();
+  const loggedIn = isLoggedIn();
+
+  function handleLogout() {
+    clearSession();
+    router.push("/login");
+  }
 
   return (
     <>
@@ -187,6 +211,15 @@ export default function Sidebar() {
             <NavItem key={href} href={href} label={label} icon={icon} collapsed={sidebarCollapsed} active={path === href} />
           ))}
 
+          {/* Platform section */}
+          {!sidebarCollapsed && (
+            <p style={{ fontSize: 10, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.08em", padding: "12px 12px 2px", margin: 0 }}>Platform</p>
+          )}
+          {sidebarCollapsed && <div style={{ height: 8 }} />}
+          {PLATFORM_NAV.map(({ href, label, icon }) => (
+            <NavItem key={href} href={href} label={label} icon={icon} collapsed={sidebarCollapsed} active={path === href} />
+          ))}
+
           {/* Recent section */}
           {!sidebarCollapsed && (
             <>
@@ -223,13 +256,94 @@ export default function Sidebar() {
         <LLMStatus collapsed={sidebarCollapsed} />
 
         {!sidebarCollapsed && (
-          <div style={{ padding: "10px 14px 14px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+          <div style={{ padding: "8px 14px 4px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
             {[["Embeddings", "Mistral 1024d"], ["Vector DB", "Pinecone"]].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
                 <span style={{ fontSize: 10, color: "#374151" }}>{k}</span>
                 <span style={{ fontSize: 10, color: "#6B7280", fontWeight: 600 }}>{v}</span>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* User profile panel */}
+        {loggedIn && user ? (
+          <div style={{
+            borderTop: "1px solid rgba(255,255,255,0.05)",
+            padding: sidebarCollapsed ? "10px 0" : "10px 12px 12px",
+            display: "flex", flexDirection: "column", gap: 0,
+          }}>
+            {sidebarCollapsed ? (
+              <div
+                title={`${user.name || user.email} (${user.role})`}
+                style={{ display: "flex", justifyContent: "center", cursor: "pointer" }}
+                onClick={() => router.push("/team")}
+              >
+                <div style={{
+                  width: 28, height: 28, borderRadius: "50%",
+                  background: `linear-gradient(135deg,${ROLE_COLOR[user.role] || "#7C3AED"},#7C3AED)`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontWeight: 700, color: "white",
+                }}>
+                  {(user.name || user.email)[0].toUpperCase()}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                  <div
+                    style={{
+                      width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+                      background: `linear-gradient(135deg,${ROLE_COLOR[user.role] || "#7C3AED"},#7C3AED)`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 11, fontWeight: 700, color: "white",
+                    }}
+                  >
+                    {(user.name || user.email)[0].toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, overflow: "hidden" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#F9FAFB", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {user.name || user.email.split("@")[0]}
+                    </div>
+                    <div style={{ fontSize: 10, color: ROLE_COLOR[user.role] || "#6B7280", fontFamily: "monospace", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      {user.role}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }} title="Team settings"
+                      onClick={() => router.push("/team")}
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, padding: 5, cursor: "pointer", color: "#6B7280", display: "flex" }}
+                    >
+                      <Users size={12} />
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }} title="Sign out"
+                      onClick={handleLogout}
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, padding: 5, cursor: "pointer", color: "#6B7280", display: "flex" }}
+                    >
+                      <LogOut size={12} />
+                    </motion.button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: sidebarCollapsed ? "10px 0" : "10px 12px 12px" }}>
+            {sidebarCollapsed ? (
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <motion.button whileHover={{ scale: 1.1 }} title="Sign in" onClick={() => router.push("/login")}
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, padding: 5, cursor: "pointer", color: "#6B7280", display: "flex" }}>
+                  <LogIn size={12} />
+                </motion.button>
+              </div>
+            ) : (
+              <button onClick={() => router.push("/login")}
+                style={{ width: "100%", padding: "8px 0", borderRadius: 7, border: "1px solid rgba(124,58,237,0.3)", background: "rgba(124,58,237,0.08)", color: "#A78BFA", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <LogIn size={12} /> Sign In
+              </button>
+            )}
           </div>
         )}
       </motion.aside>

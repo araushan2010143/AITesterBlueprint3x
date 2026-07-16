@@ -1,275 +1,366 @@
-# Architecture — QA RAG Platform
+# Architecture — QA RAG Platform v6.0.0
 
 ## System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         BROWSER (Next.js 15.3 + React 19)               │
-│                                                                         │
-│  ┌─────────────────────┐  ┌──────────────────────────────────────────┐  │
-│  │  Enterprise Sidebar │  │           Page Content                   │  │
-│  │  (Framer Motion)    │  │                                          │  │
-│  │  240px ↔ 64px icon  │  │  Dashboard: stat cards (count-up) +     │  │
-│  │  Zustand persist    │  │    LLM status widget + quick-launch      │  │
-│  │  LLM status dots    │  │                                          │  │
-│  │                     │  │  AI Agents: skeleton → card grid         │  │
-│  │  ⌘K CommandPalette  │  │    (category badge, complexity dots,    │  │
-│  │  (cmdk + backdrop)  │  │     time estimate, accent per agent)     │  │
-│  │                     │  │    → detail panel (AnimatePresence)      │  │
-│  │  Sonner toasts      │  │    → run button (shimmer + elapsed timer)│  │
-│  │  (bottom-right)     │  │    → result (slide-up animation)         │  │
-│  └─────────────────────┘  │                                          │  │
-│                            │  ┌────────────────────────────────────┐ │  │
-│                            │  │  ReportUploadZone (drag-drop)      │ │  │
-│                            │  │  FlakyResultViewer (ErrorBoundary) │ │  │
-│                            │  │  AutomationResultViewer (tabs)     │ │  │
-│                            │  └────────────────────────────────────┘ │  │
-│                            └──────────────────────────────────────────┘  │
-└──────────────────────────────┬──────────────────────────────────────────┘
-                               │ /api/* (Next.js rewrites proxy)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     BROWSER  (Next.js 15.3 + React 19)                      │
+│                                                                             │
+│  ┌──────────────────┐  ┌───────────────────────────────────────────────┐   │
+│  │  Enterprise      │  │  Pages                                        │   │
+│  │  Sidebar         │  │  Dashboard · AI Agents · Documents · Search   │   │
+│  │  (Framer Motion) │  │  Graph · Connectors · Prompts · Audit · SAML  │   │
+│  │  240px ↔ 64px   │  │                                               │   │
+│  │  Zustand persist │  │  ⌘K CommandPalette (cmdk + blur backdrop)    │   │
+│  │  LLM status dots │  │  Sonner toasts (bottom-right)                │   │
+│  └──────────────────┘  │  TanStack Query (stale-while-revalidate)     │   │
+│                         │  Axios interceptors: JWT attach + 401 refresh│   │
+│                         └───────────────────────────────────────────────┘   │
+└──────────────────────────────┬──────────────────────────────────────────────┘
+                               │ HTTPS /api/* (Next.js rewrites proxy)
                                ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        FastAPI Backend (Python 3.9+)                    │
-│                                                                         │
-│  ┌────────────────┐  ┌────────────────┐  ┌──────────────────────────┐  │
-│  │  POST          │  │  POST          │  │  POST /api/ingest/upload  │  │
-│  │  /api/ai/      │  │  /api/ai/      │  │                          │  │
-│  │  parse-report  │  │  {action}      │  │  dispatcher.py           │  │
-│  │                │  │                │  │  → PDF/XLSX/DOCX/MD/     │  │
-│  │  auto-detect   │  │  agent router  │  │    HTML/JSON/YAML/       │  │
-│  │  format        │  │  dispatch()    │  │    TS/JS/PY parsers      │  │
-│  └───────┬────────┘  └───────┬────────┘  └──────────┬───────────────┘  │
-│          │                   │                        │                  │
-│  ┌───────▼────────────────────▼────────────────────────▼─────────────┐  │
-│  │                      Parser Layer                                  │  │
-│  │  junit_xml_parser  playwright_json_parser  test_report_normalizer  │  │
-│  │  (→ multi-build flat text for agent consumption)                   │  │
-│  └───────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                       AI Agent Layer                             │   │
-│  │                                                                  │   │
-│  │  flaky_agent (2-stage)      test_case_agent    coverage_agent   │   │
-│  │  ┌──────────────────────┐   duplicate_agent    report_agent     │   │
-│  │  │ Stage 1: Classify    │   automation_pipeline_agent           │   │
-│  │  │ + Pinecone RAG search│                                       │   │
-│  │  │ → 10-class category  │                                       │   │
-│  │  │ → run_history array  │                                       │   │
-│  │  │ → root_causes        │                                       │   │
-│  │  └──────────┬───────────┘                                       │   │
-│  │             │ Python enrichment                                  │   │
-│  │             │ flaky_score = round((1 - pass_rate) × 100)        │   │
-│  │             │ action = Fix Now / Quarantine / Monitor / Stable   │   │
-│  │  ┌──────────▼───────────┐                                       │   │
-│  │  │ Stage 2: Code fixes  │                                       │   │
-│  │  │ + AI narrative report│                                       │   │
-│  │  └──────────────────────┘                                       │   │
-│  │  Background: index failures → Pinecone (daemon thread)          │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-│                                                                         │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │                        LLM Router (6 providers)                    │ │
-│  │                                                                    │ │
-│  │  Primary: Groq llama-3.3-70b-versatile (fastest)                  │ │
-│  │  Fallback chain:                                                   │ │
-│  │    Groq llama-3.1-8b-instant → Mistral/mistral-small-latest →     │ │
-│  │    Cohere/command-r-plus → OpenAI/gpt-4o-mini → Gemini/1.5-flash  │ │
-│  │                                                                    │ │
-│  │  Auto-retry on 429/503 · Token budget tracking · JSON mode        │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-└──────────────────────────────┬──────────────────────────────────────────┘
-                               │
-              ┌────────────────┴────────────────┐
-              ▼                                 ▼
-┌─────────────────────────┐       ┌─────────────────────────────┐
-│   Pinecone (Serverless) │       │      SQLite (qa_rag.db)     │
-│                         │       │                             │
-│  Namespace: qa-docs     │       │  documents table            │
-│  → 1024-dim Mistral     │       │  chunks table               │
-│    embeddings           │       │  (metadata, status)         │
-│  → cosine similarity    │       │                             │
-│                         │       └─────────────────────────────┘
-│  Namespace: test-intel  │
-│  → failure memory (RAG) │
-│  → indexed after each   │
-│    flaky analysis run   │
-└─────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    FastAPI Backend  (Python 3.9+)  :8000                     │
+│                                                                             │
+│  Middleware stack (outermost → innermost):                                  │
+│    APIKeyMiddleware → RateLimitMiddleware → AuditLogMiddleware               │
+│                                                                             │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────────┐  │
+│  │  /ingest     │ │  /search     │ │  /ai/{action}│ │  /connectors     │  │
+│  │  upload+PII  │ │  /ask        │ │  12 agents   │ │  /graph          │  │
+│  │  → Celery    │ │  ABAC guard  │ │  session_id  │ │  /auth/saml      │  │
+│  │    ingest    │ │  JWT team_id │ │  history     │ │  /prompts /audit │  │
+│  └──────┬───────┘ └──────┬───────┘ └──────┬───────┘ └──────┬───────────┘  │
+│         └────────────────┴────────────────┴────────────────┘               │
+│                                    │                                        │
+│  ┌─────────────────────────────────▼──────────────────────────────────┐    │
+│  │                         Core Services                              │    │
+│  │                                                                    │    │
+│  │  hybrid_search.py     — BM25 + Pinecone dense + Cohere reranker   │    │
+│  │  jira_connector.py    — Jira API v3 (/search/jql)                 │    │
+│  │  saml_service.py      — python3-saml SP-initiated SSO             │    │
+│  │  vault_service.py     — hvac KV v2 client, env-var fallback       │    │
+│  └────────────────────────────────────────────────────────────────────┘    │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                        LLM Router  (6 providers)                    │   │
+│  │                                                                     │   │
+│  │  Primary:  Groq llama-3.3-70b-versatile                            │   │
+│  │  Fallback: Groq llama-3.1-8b-instant → Mistral mistral-small →    │   │
+│  │            Cohere command-r-plus → OpenAI gpt-4o-mini →            │   │
+│  │            Gemini gemini-1.5-flash                                 │   │
+│  │                                                                     │   │
+│  │  Auto-retry on 429/503 · token budget · JSON mode                 │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└──────┬───────────────────────┬───────────────────────┬──────────────────────┘
+       │                       │                       │
+       ▼                       ▼                       ▼
+┌─────────────┐   ┌────────────────────┐   ┌────────────────────────┐
+│   Redis     │   │  Celery Workers    │   │  HashiCorp Vault       │
+│  :6379      │   │  (2+ concurrent)   │   │  KV v2  :8200          │
+│             │   │                    │   │                        │
+│  Broker +   │◄──│  queues:           │   │  secret/qa-rag-*/      │
+│  Result     │   │  connectors        │   │   pinecone api_key     │
+│  backend    │   │  agents            │   │   groq    api_key      │
+│             │   │  webhooks          │   │   mistral api_key      │
+│  Rate limit │   │  ingest            │   │   neo4j   password     │
+│  cache      │   │  celery (default)  │   │   redis   url          │
+└─────────────┘   └────────────────────┘   └────────────────────────┘
+       │
+       │                ┌──────────────────────────────────────────────────┐
+       │                │              Data Layer                          │
+       │                │                                                  │
+       │                │  ┌──────────────────┐  ┌──────────────────────┐ │
+       │                │  │  Pinecone        │  │  SQLite / PostgreSQL │ │
+       │                │  │  (Serverless)    │  │                      │ │
+       └───────────────►│  │                  │  │  documents           │ │
+                        │  │  1024-dim Mistral│  │  chunks              │ │
+                        │  │  cosine sim      │  │  agent_runs          │ │
+                        │  │  team_id filter  │  │  agent_sessions      │ │
+                        │  │  namespace:      │  │  connectors          │ │
+                        │  │    default       │  │  connector_runs      │ │
+                        │  │    staging       │  │  prompt_versions     │ │
+                        │  └──────────────────┘  │  audit_logs          │ │
+                        │                         │  webhooks            │ │
+                        │  ┌──────────────────┐  │  users / teams       │ │
+                        │  │  Neo4j Aura      │  │  refresh_tokens      │ │
+                        │  │  Knowledge Graph │  └──────────────────────┘ │
+                        │  │                  │                            │
+                        │  │  193 nodes       │                            │
+                        │  │  190 rels        │                            │
+                        │  │  128 APIEndpoint │                            │
+                        │  │   14 Module      │                            │
+                        │  │   51 domain nodes│                            │
+                        │  └──────────────────┘                            │
+                        └──────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Data Flow — Flaky Test Analyzer
+## Security Architecture
 
 ```
-User uploads build1.json + build2.json
-          │
-          ▼
-POST /api/ai/parse-report (×2, sequential)
-  test_report_normalizer.normalize(content, build_label="Build-N")
-    ├── XML? → junit_xml_parser.parse()
-    ├── Playwright JSON? → playwright_json_parser.parse()
-    └── Plain text → pass-through
-  → "=== Playwright Test Report (Build-1) ===\nAuth › login: Build-1=FAIL..."
-          │
-          ▼
-Frontend appends both parsed texts → textarea
-User clicks Run
-          │
-          ▼
-POST /api/ai/flaky_analyzer  { content: "<combined text>" }
-          │
-          ▼
-flaky_agent.run(content)
-  1. normalize(content)                    ← re-normalize in case pasted raw
-  2. _stage1_classify(normalised)
-     a. _search_similar_failures(content)  ← Pinecone RAG (score > 0.82)
-     b. chat(CLASSIFY_PROMPT + history)    ← Groq LLM
-     c. LLM returns: name, failure_category, confidence,
-                     pass_rate, run_history, root_causes, priority
-     d. _enrich_test(t) for each test      ← PYTHON (not LLM!)
-        flaky_score = round((1 - passes/total) × 100)
-        action      = Fix Now | Quarantine | Monitor | Stable
-  3. _stage2_fixes(tests, summary)
-     a. chat(FIX_PROMPT + concise tests)   ← Groq LLM
-     b. returns: fixes{before/after/desc}, ai_report{exec/recommend/breakdown}
-  4. Merge fixes → tests
-  5. _index_failures_bg(tests)             ← daemon thread, non-blocking
-  6. Return full result JSON
-          │
-          ▼
-Frontend renders FlakyResultViewer (wrapped in ErrorBoundary)
-  • Summary header (4 stat boxes)
-  • Release gate banner (Block/Conditional/Proceed)
-  • Category distribution bar chart
-  • Per-test cards with score bar, RCA, before/after code diff
-  • RAG memory matches (history_matches)
-  • AI Intelligence Report (3 cards)
-  • Export bar (CSV/XLSX/DOCX/JSON)
+Request
+  │
+  ▼
+APIKeyMiddleware
+  ├── If API_KEY not set → dev mode (bypass, warn)
+  ├── Header X-API-Key matches → set request.state.user
+  └── Authorization: Bearer <jwt>
+        └── decode JWT → {sub, email, role, team_id, exp}
+
+  ▼
+RateLimitMiddleware (per-IP sliding window)
+
+  ▼
+AuditLogMiddleware (records after response, captures status + user)
+
+  ▼
+Route handler
+  └── Depends(require_permission(RESOURCE_DOCUMENT, ACTION_READ))
+        ├── Checks role ∈ {admin, user}  (viewer → 403)
+        ├── team_id from JWT (never from query param — BUG-002)
+        └── Returns user dict for downstream use
+
+  ▼
+Pinecone query
+  └── filter = {"team_id": {"$eq": user["team_id"]}}
+      (enforced server-side, not trust-but-verify)
 ```
 
----
+### SAML 2.0 Flow
 
-## Key Design Decisions
+```
+Browser → GET /api/auth/saml/login
+            │
+            └── saml_service.get_login_url()
+                  → python3-saml builds AuthnRequest
+                  → 302 redirect to IdP SSO URL (samltest.id / Okta / Azure AD)
 
-### 1. Python computes scores — LLM never does arithmetic
-LLMs are unreliable for arithmetic. `flaky_score` and `action` are explicitly removed from the LLM output schema. Stage 1 returns only `run_history` (array of PASS/FAIL strings). Python computes the score deterministically with `round((1 - passes/total) * 100)`.
-
-### 2. Two-stage agent pipeline
-Stage 1 (classify) and Stage 2 (fix) are separate LLM calls with distinct prompts and token budgets. This gives better quality than a single monolithic prompt and lets Stage 2 receive the enriched (Python-scored) data.
-
-### 3. Non-blocking RAG indexing
-After analysis, failures are indexed into Pinecone in a `daemon Thread`. The HTTP response is returned immediately — indexing happens in the background. Future runs receive contextual hints from past analyses.
-
-### 4. Format auto-detection
-`test_report_normalizer.normalize()` detects format from content, not filename:
-- Starts with `<` → JUnit XML
-- Valid JSON with `suites` + `stats` keys → Playwright JSON
-- Anything else → plain text pass-through
-
-### 5. Error Boundary + toStr() for LLM output safety
-The LLM occasionally returns structured objects where strings are expected (e.g., `defect_breakdown` as `{"product_bugs": 2}`). A `toStr()` helper converts any value to a renderable string. A React `ErrorBoundary` class prevents a single render crash from black-screening the entire app.
-
----
-
-## Production Deployment
-
-### Option A: Render + Vercel (recommended free tier)
-
-**Backend on Render**
-
-1. Push to GitHub
-2. New → Web Service → connect repo
-3. Root directory: `QA_RAG_PLATFORM` (not `/backend` — needed so `from backend.xxx import` resolves)
-4. Build command: `pip install -r backend/requirements.txt`
-5. Start command: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
-6. Add environment variables: `GROQ_API_KEY`, `MISTRAL_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, and optionally `COHERE_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`
-7. Free instance type is fine for demos (spins down after 15 min idle)
-
-**24/7 keep-alive** (Render free tier spins down after 15 min of inactivity):
-- `.github/workflows/keep-alive.yml` — GitHub Actions cron pings `/api/stats/health` every 10 minutes
-- UptimeRobot external monitor — pings the same endpoint every 5 minutes
-- Health endpoint accepts `GET` and `HEAD` (UptimeRobot default): `@router.api_route("/health", methods=["GET","HEAD"])`
-
-**Frontend on Vercel**
-
-1. New Project → import repo
-2. Root directory: `QA_RAG_PLATFORM/frontend`
-3. Framework: Next.js (auto-detected)
-4. Install command: `npm install --legacy-peer-deps` (required for React 19 + Next.js 15.3 peer deps)
-5. Environment variable: `NEXT_PUBLIC_API_URL=https://<your-render-app>.onrender.com`
-6. Deploy
-
-### Option B: Docker Compose (self-hosted / VPS)
-
-```bash
-# On any Ubuntu VPS (DigitalOcean $4/mo, Railway, Fly.io)
-git clone https://github.com/araushan2010143/AITesterBlueprint3x.git
-cd AITesterBlueprint3x/QA_RAG_PLATFORM
-cp .env.example .env   # fill in keys
-docker-compose up -d
+IdP authenticates user
+            │
+            └── POST /api/auth/saml/callback
+                  SAMLResponse (base64 encoded XML)
+                  │
+                  └── saml_service.process_response()
+                        → validate signature + conditions
+                        → extract email, display_name, groups
+                        → provision_user() → upsert in SQLite
+                        → _create_token() → JWT (24h)
+                  └── return {"access_token": "...", "user": {...}}
 ```
 
 ---
 
-## Enterprise UI Architecture
+## Celery Task Architecture
 
 ```
-src/
-├── lib/
-│   └── store.ts          Zustand store (persist middleware)
-│                         sidebarCollapsed  ← persisted to localStorage
-│                         commandOpen       ← ephemeral (not persisted)
-│
-├── components/
-│   ├── Sidebar.tsx       motion.aside  width: 240px ↔ 64px
-│   │                     ├── Logo + collapse toggle
-│   │                     ├── ⌘K search trigger
-│   │                     ├── NavItem  (layoutId="sidebar-active" pill)
-│   │                     ├── Recent items
-│   │                     └── LLMStatus  GET /api/llm/status  30s refetch
-│   │                           └── provider list  overflowY:auto  maxH:140
-│   │
-│   └── CommandPalette.tsx  AnimatePresence modal + blur backdrop
-│                           cmdk Command.List with Pages + AI Agents groups
-│                           Global keydown: ⌘K toggle · ESC close
-│
-└── app/
-    ├── layout.tsx        QueryClientProvider + Sidebar + CommandPalette + Toaster
-    │
-    ├── page.tsx          Dashboard
-    │   ├── StatCard      Framer Motion stagger entrance + CountUp animation
-    │   ├── LLMStatusWidget  live dots, refresh button, 30s auto-refresh
-    │   ├── QuickLaunchWidget  4 agent shortcuts (whileHover lift)
-    │   ├── Charts        recharts PieChart (by type) + BarChart (by module)
-    │   └── DocRow        per-row slide-in entrance + relative timeAgo stamp
-    │
-    └── ai/page.tsx       AI Agents
-        ├── SkeletonCard  shimmer placeholder grid (9 cards) while loading
-        ├── ActionCard    motion.button
-        │   ├── accent colour per ACTION_META category
-        │   ├── category badge (uppercase pill)
-        │   ├── ComplexityDots (3 dots, green/amber/red)
-        │   └── time estimate (~5s … ~30s)
-        ├── AnimatePresence  grid → detail slide transition
-        ├── Run button    motion.button, shimmer sweep, live elapsed timer
-        └── Result panels  motion.div slide-up on arrival
+API Request
+  │
+  └── dispatch(task_fn, run_id, connector_id)
+        │
+        ├── Redis available? → task_fn.delay(run_id, connector_id)  [async]
+        │     └── Worker pool picks up task from "connectors" queue
+        │           └── _run_sync(run_id, connector_id)
+        │                 ├── fetch issues via jira_connector.iter_issues()
+        │                 ├── embed text → Pinecone upsert
+        │                 ├── update ConnectorRun (items_fetched, status, completed_at)
+        │                 └── update DataConnector.last_sync_status
+        │
+        └── Redis unavailable? → task_fn(run_id, connector_id)  [sync fallback]
+              (runs in the API process, blocks the response)
+
+Queues:
+  connectors  — sync_connector_task, populate_graph_task
+  agents      — run_agent_task
+  webhooks    — deliver_webhook_task
+  ingest      — document_ingest_task
+  celery      — default catchall
 ```
 
-### State flow
+---
+
+## Agent Multi-Turn Memory
 
 ```
-User clicks sidebar toggle
-  → useAppStore.toggleSidebar()
-  → Zustand updates sidebarCollapsed
-  → persist middleware writes to localStorage["qa-rag-ui"]
-  → motion.aside animates width: 64px ↔ 240px (spring ease)
-  → spacer motion.div mirrors the same width animation (layout shift prevention)
+POST /api/ai/{action}
+  body: { query: "...", session_id: "abc-123", team_id: "demo-team" }
+          │
+          ▼
+BaseAgent.run(task)
+  │
+  ├── _load_session_history("abc-123")
+  │     └── SELECT messages FROM agent_sessions WHERE session_id = "abc-123"
+  │           → JSON array of {"role": "user"|"assistant", "content": "..."}
+  │
+  ├── _gather_rag_context(task)   → Pinecone hybrid search
+  ├── _gather_graph_context(task) → Neo4j impact traversal
+  │
+  ├── call_llm(system_prompt, user_msg, history=history[-20:])
+  │     messages = [system] + history[-20:] + [user]
+  │     → Groq API → response text
+  │
+  └── _save_session_history("abc-123", user_msg, response, team_id)
+        → UPSERT agent_sessions (append turn, UPDATE updated_at)
 
-User presses ⌘K
-  → global keydown handler in CommandPalette.tsx
-  → useAppStore.setCommandOpen(true)
-  → AnimatePresence mounts: backdrop (opacity 0→1) + modal (scale 0.96→1, y -8→0)
-  → cmdk filters items as user types, router.push on select
+Session cap: last 20 messages (10 turns) to stay within context window
+Storage: SQLite agent_sessions table (persistent across restarts)
+```
+
+---
+
+## Knowledge Graph Architecture
+
+```
+Ingest pipeline
+  │
+  ├── POST /api/ingest/upload
+  │     → embed chunks → Pinecone
+  │     → store metadata → SQLite documents table
+  │
+  └── POST /api/graph/populate/jira  (or connector sync)
+        → JiraClient.iter_issues(project_keys)
+        → GraphBuilder.upsert_story()
+        → GraphBuilder.upsert_requirement()
+        → GraphBuilder.upsert_test_case()
+        → GraphBuilder.upsert_bug()
+        → GraphBuilder.create_relationship()
+
+POST /api/graph/populate/api-endpoints
+  → inspect FastAPI app.routes
+  → GraphBuilder.upsert_api_endpoint(path, method, module)
+  → 128 APIEndpoint nodes, path-prefix → module classification
+
+GET /api/graph/impact/{story_id}
+  → neo4j_client.run_query(MATCH (s:Story {id: $id})-[*1..3]-(n) RETURN n)
+  → returns: affected_test_cases, linked_bugs, risk_score, coverage_pct
+  → consumed by RCA agent + Release Summary agent
+```
+
+Node labels and their key properties:
+
+| Label | Key Properties |
+|---|---|
+| `APIEndpoint` | `path`, `method`, `module_name`, `team_id` |
+| `Module` | `name`, `description` |
+| `Story` | `id`, `summary`, `status`, `priority` |
+| `Requirement` | `id`, `title`, `module` |
+| `TestCase` | `id`, `title`, `status`, `automation_status` |
+| `Bug` | `id`, `summary`, `severity`, `status` |
+| `Release` | `version`, `status`, `date` |
+
+---
+
+## RAG Pipeline
+
+```
+POST /api/search/ask  { query: "What is our STLC process?", team_id: (from JWT) }
+           │
+           ▼
+hybrid_search.search(query_text, top_k=10, pinecone_filter={"team_id": ...})
+  │
+  ├── BM25 retrieval (TF-IDF over stored chunks)
+  │     └── top-k BM25 hits
+  │
+  ├── Dense retrieval
+  │     ├── MistralEmbeddingClient.embed(query)  → 1024-dim vector
+  │     └── PineconeClient.query(vector, filter)  → top-k cosine hits
+  │
+  └── Cohere reranker (if COHERE_API_KEY set)
+        └── rerank(query, bm25_hits + dense_hits, top_n=5)
+
+           ▼
+LLM call  (Groq llama-3.3-70b)
+  prompt = system_prompt + "\n\nContext:\n" + "\n---\n".join(chunks) + "\n\nQ: " + query
+           │
+           ▼
+Response with citations (chunk_id, filename, score, excerpt)
+```
+
+Retrieval confidence: best observed 0.97 on 8-document corpus (STLC, API testing, test strategy, automation, defect management, performance, mobile/a11y, Playwright).
+
+---
+
+## Prompt Versioning
+
+```
+POST /api/prompts
+  { name: "rag_system_v3", content: "You are...", tags: ["rag","v3"] }
+           │
+           └── PromptVersion(id=uuid, name, content, hash=sha256, created_at)
+                 stored in SQLite prompt_versions table
+                 immutable — no UPDATE/DELETE allowed after creation
+
+GET /api/prompts/{name}/diff?v1=1&v2=2
+  → unified diff of content fields
+
+Agents reference prompt by name + version; pinning prevents silent regressions.
+```
+
+---
+
+## Data Flow — Jira Sync
+
+```
+POST /api/connectors/{id}/sync
+  │
+  ├── Create ConnectorRun(status="running") in SQLite
+  ├── dispatch(sync_connector_task, run_id, connector_id)  → Redis queue
+  └── Return {"run_id": "...", "status": "started", "queue": "celery"}
+
+Celery worker:
+  sync_connector_task(self, run_id, connector_id)
+    → _run_sync(run_id, connector_id)
+          │
+          ├── Decode api_token from base64
+          ├── JiraClient(base_url, email, api_token)
+          ├── JiraClient.iter_issues(project_keys)
+          │     GET /rest/api/3/search/jql
+          │       jql = "project in (KAN, SAM1) ORDER BY updated DESC"
+          │       paginated, 50 issues/page
+          │
+          ├── For each issue:
+          │     text = f"{issue.key}: {issue.summary}\n{issue.description}"
+          │     embed(text) → Pinecone upsert(metadata={team_id, doc_type:"jira"})
+          │
+          └── Update ConnectorRun:
+                status="done", items_fetched=N, items_ingested=N, completed_at=now
+                Update DataConnector: last_sync_status="done", last_sync_at=now
+
+GET /api/connectors/runs/{run_id}
+  → live status polling (status: "running" → "done"|"failed")
+```
+
+---
+
+## Staging vs Production
+
+| Concern | Dev | Staging | Production |
+|---|---|---|---|
+| ENVIRONMENT | (not set) | `staging` | `production` |
+| ABAC bypass | yes (no API_KEY) | no | no |
+| Pinecone namespace | default | `staging` | default |
+| SAML strict | false | true | true |
+| Vault | dev server (-dev) | dev server | persistent cluster |
+| Redis | local :6379 | container :6379 | Render managed |
+| DB | SQLite | SQLite (volume) | PostgreSQL |
+| Compose file | `docker-compose.yml` | `docker-compose.staging.yml` | `render.yaml` |
+| Render Blueprint | — | `render-staging.yaml` | `render.yaml` |
+
+---
+
+## Deployment — Render Blueprint
+
+```yaml
+# render-staging.yaml registers 4 services in one Blueprint:
+#
+#   qa-rag-platform-api-staging    (web, starter plan)
+#   qa-rag-platform-celery-staging (worker, starter plan)
+#   qa-rag-platform-redis-staging  (redis, free plan)
+#   qa-rag-platform-frontend-staging (web, starter plan)
+#
+# fromService bindings wire Redis connection string automatically.
+# autoDeploy: false — promotion from branch is manual.
 ```
 
 ---
@@ -278,38 +369,45 @@ User presses ⌘K
 
 ```
 tests/
-├── conftest.py              — JUnit XML / Playwright JSON / mock LLM fixtures
-├── test_api.py              — 28 integration tests (FastAPI TestClient, LLM mocked)
+├── conftest.py              — fixtures (JUnit XML, Playwright JSON, mock LLM)
+├── test_api.py              — integration tests (FastAPI TestClient)
 │   ├── TestListActions      — GET /api/ai/actions
-│   ├── TestParseReport      — POST /api/ai/parse-report (XML, JSON, text, edge cases)
-│   ├── TestFlakyAnalyzer    — POST /api/ai/flaky_analyzer (full pipeline, LLM mocked)
-│   └── TestHealth           — GET /api/stats/health, GET /
-├── test_flaky_scoring.py    — 37 unit tests (pure Python, no mocks needed)
-│   ├── TestScoreFromHistory — all-pass, all-fail, mixed, edge cases
-│   ├── TestScoreFromPassRate— string parsing, invalid input, bounds
-│   ├── TestActionFromScore  — all 4 thresholds + boundary values
-│   └── TestEnrichTest       — full enrichment, history override, fallbacks
-└── test_parsers.py          — 31 unit tests
-    ├── TestJUnitXMLParser   — single/nested suite, pass/fail/skip/error
-    ├── TestPlaywrightJSONParser — pass/fail/retry/nested/stats
-    └── TestNormalizer       — format detection, build labels, multi-build merge
+│   ├── TestParseReport      — POST /api/ai/parse-report
+│   ├── TestFlakyAnalyzer    — full pipeline (LLM mocked)
+│   └── TestHealth           — GET /health
+├── test_flaky_scoring.py    — unit tests (pure Python)
+│   ├── TestScoreFromHistory
+│   ├── TestActionFromScore
+│   └── TestEnrichTest
+└── test_parsers.py          — unit tests
+    ├── TestJUnitXMLParser
+    ├── TestPlaywrightJSONParser
+    └── TestNormalizer
 ```
 
 Run: `.venv/bin/python3 -m pytest tests/ -v`
 
 ---
 
-## LLM Failure Classification — 10 Categories
+## Key Design Decisions
 
-| Category | Trigger |
-|---|---|
-| **Product Bug** | App defect — wrong API response, UI regression, broken feature |
-| **Automation Bug** | Test code defect — wrong selector, bad assertion, hardcoded value |
-| **Timing Issue** | Async race condition — spinner not awaited, animation incomplete |
-| **Test Data** | Stale/missing DB data, shared state, test ordering dependency |
-| **Infrastructure** | CI runner crash, OOM, Docker restart, disk full |
-| **Environment** | Missing env var, wrong config, port conflict, DB connection refused |
-| **Network** | External API timeout, DNS failure, rate-limited 3rd party |
-| **State Leakage** | Dirty state from previous test, missing beforeEach/afterAll |
-| **Flaky** | Non-deterministic — passes on immediate retry with zero changes |
-| **Unknown** | Insufficient evidence to classify |
+### 1. Python computes scores — LLM never does arithmetic
+`flaky_score` and `action` are computed deterministically in Python from `run_history` arrays. The LLM returns only raw pass/fail strings; Python applies `round((1 - passes/total) * 100)`.
+
+### 2. Module-level `os.getenv()` is dangerous
+Any service that calls `os.getenv()` at module import time gets an empty string unless `load_dotenv()` has already run. Pattern fix: always call inside functions, or use `get_settings()`. Applied to `vault_service.py` and `neo4j_client.py`. `load_dotenv()` runs at the top of `backend/main.py` before all other imports.
+
+### 3. Celery task registration requires explicit import
+`celery_app.autodiscover_tasks()` is unreliable when tasks use a custom `_task` decorator wrapper. Tasks are explicitly imported via `importlib.import_module()` at `celery_app` creation time, ensuring the worker process registers all task names before accepting messages.
+
+### 4. JWT-derived `team_id` — not caller-supplied (BUG-002)
+The previous `/ask` endpoint accepted `team_id` as a query parameter, allowing any authenticated user to query another team's documents. Fixed by deriving `team_id` exclusively from the JWT payload in `require_permission()`.
+
+### 5. Two-stage agent pipeline
+Stage 1 (classify) and Stage 2 (fix) use separate LLM calls. Python enriches the Stage 1 output (scores, actions) before Stage 2 runs, giving better quality than a monolithic prompt and keeping arithmetic out of the LLM.
+
+### 6. Vault env-var fallback
+`vault_service.get_secret(component, key, default="")` always falls back to `os.getenv(key.upper(), default)` when Vault is disabled or the key is absent. No caller needs to know whether secrets come from Vault or `.env`.
+
+### 7. Non-blocking RAG indexing
+After flaky analysis, failures are indexed into Pinecone in a background thread. The HTTP response returns immediately; future analyses receive historical context from past runs.

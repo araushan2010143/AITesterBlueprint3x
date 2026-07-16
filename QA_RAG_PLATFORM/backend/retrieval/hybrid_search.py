@@ -1,5 +1,10 @@
 """
-Hybrid search: Dense (Pinecone cosine) + Sparse (BM25).
+Hybrid search: Dense (Pinecone cosine) + Sparse (BM25 / OpenSearch).
+
+BM25 backend selection (automatic, in priority order):
+  1. OpenSearch  — when OPENSEARCH_URL env var is set (persistent, scalable)
+  2. In-memory rank_bm25  — fallback when OpenSearch is not configured
+
 score = dense_weight * dense_score + bm25_weight * bm25_score
 """
 import time
@@ -8,12 +13,13 @@ from rank_bm25 import BM25Okapi
 from sqlmodel import Session, select
 from backend.database.db import Chunk, engine
 from backend.embeddings.mistral_embedder import embed_query
-from backend.vectorstore import pinecone_store
+from backend.vectorstore import query as _vs_query
 from backend.config import get_settings
+from backend.retrieval.opensearch_client import os_search, os_enabled
 
 settings = get_settings()
 
-# In-memory BM25 index — rebuilt lazily when stale
+# In-memory BM25 index — rebuilt lazily when stale (used when OpenSearch not configured)
 _bm25: Optional[BM25Okapi] = None
 _bm25_corpus: List[Dict[str, Any]] = []   # [{chunk_id, doc_id, text}]
 _bm25_dirty = True
@@ -32,6 +38,30 @@ def _rebuild_bm25():
 def invalidate_bm25():
     global _bm25_dirty
     _bm25_dirty = True
+
+
+def _sparse_search(query_text: str, top_k: int, team_id: Optional[str] = None) -> Dict[str, float]:
+    """
+    Run the sparse (BM25) leg. Uses OpenSearch when configured, in-memory BM25 otherwise.
+    Returns {chunk_id: raw_score}.
+    """
+    global _bm25, _bm25_dirty
+
+    if os_enabled():
+        results = os_search(query_text, top_k=top_k * 2, team_id=team_id)
+        return {r["chunk_id"]: r["score"] for r in results}
+
+    # Fallback: in-memory rank_bm25
+    if _bm25_dirty:
+        _rebuild_bm25()
+    if not _bm25 or not _bm25_corpus:
+        return {}
+    raw = _bm25.get_scores(query_text.lower().split())
+    return {
+        _bm25_corpus[i]["chunk_id"]: float(score)
+        for i, score in enumerate(raw)
+        if i < len(_bm25_corpus)
+    }
 
 
 def _normalize(scores: List[float]) -> List[float]:
@@ -59,7 +89,7 @@ def search(
 
     # --- Dense search ---
     qvec = embed_query(query_text)
-    dense_results = pinecone_store.query(
+    dense_results = _vs_query(
         embedding=qvec,
         top_k=top_k * 2,
         namespace=namespace,
@@ -68,16 +98,15 @@ def search(
     dense_by_id = {r["chunk_id"]: r for r in dense_results}
     dense_scores = {r["chunk_id"]: r["score"] for r in dense_results}
 
-    # --- BM25 search ---
-    if _bm25_dirty:
-        _rebuild_bm25()
-
-    bm25_scores: Dict[str, float] = {}
-    if _bm25 and _bm25_corpus:
-        raw = _bm25.get_scores(query_text.lower().split())
-        for i, score in enumerate(raw):
-            if i < len(_bm25_corpus):
-                bm25_scores[_bm25_corpus[i]["chunk_id"]] = float(score)
+    # --- Sparse (BM25) search — OpenSearch or in-memory ---
+    team_id_for_sparse = None
+    if pinecone_filter and "$eq" in str(pinecone_filter):
+        # Extract team_id from Pinecone-style filter for OpenSearch scoping
+        try:
+            team_id_for_sparse = pinecone_filter.get("team_id", {}).get("$eq")
+        except AttributeError:
+            pass
+    bm25_scores: Dict[str, float] = _sparse_search(query_text, top_k, team_id=team_id_for_sparse)
 
     # --- Merge ---
     all_ids = set(dense_scores.keys()) | set(bm25_scores.keys())
