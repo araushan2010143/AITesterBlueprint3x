@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ background: "var(--bg)", margin: 0, minHeight: "100vh", display: "flex" }}>
         <QueryClientProvider client={qc}>
           <Sidebar />
-          <main style={{ flex: 1, minHeight: "100vh", overflow: "auto", background: "var(--bg)" }}>
+          <main style={{ flex: 1, minHeight: "100vh", overflow: "auto", background: "var(--bg)", maxWidth: "100vw" }}>
             {children}
           </main>
           <CommandPalette />

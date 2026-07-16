@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Upload, Search, Zap, FileText,
   ChevronLeft, ChevronRight, Clock, RefreshCw, ScanSearch, BarChart2,
@@ -129,7 +130,21 @@ export default function Sidebar() {
   const path = usePathname();
   const router = useRouter();
   const { sidebarCollapsed, toggleSidebar, setCommandOpen, recentAgents } = useAppStore();
-  const W = sidebarCollapsed ? 64 : 240;
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  // Close mobile sidebar on route change
+  useEffect(() => { setMobileOpen(false); }, [path]);
+
+  const W = isMobile ? 240 : (sidebarCollapsed ? 64 : 240);
+  const sidebarVisible = isMobile ? mobileOpen : true;
 
   const user = getUser();
   const loggedIn = isLoggedIn();
@@ -141,9 +156,39 @@ export default function Sidebar() {
 
   return (
     <>
+      {/* Mobile hamburger */}
+      {isMobile && (
+        <button
+          onClick={() => setMobileOpen(o => !o)}
+          style={{
+            position: "fixed", top: 12, left: 12, zIndex: 100,
+            background: "#0D1117", border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: 8, padding: "6px 8px", cursor: "pointer",
+            color: "#9CA3AF", display: "flex", alignItems: "center", gap: 5,
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ width: 16, height: 1.5, background: "#9CA3AF", borderRadius: 2 }} />
+            <div style={{ width: 16, height: 1.5, background: "#9CA3AF", borderRadius: 2 }} />
+            <div style={{ width: 16, height: 1.5, background: "#9CA3AF", borderRadius: 2 }} />
+          </div>
+        </button>
+      )}
+
+      {/* Mobile overlay */}
+      {isMobile && mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+            zIndex: 49, backdropFilter: "blur(2px)",
+          }}
+        />
+      )}
+
       {/* Sidebar */}
       <motion.aside
-        animate={{ width: W }}
+        animate={{ width: sidebarVisible ? W : 0, x: sidebarVisible ? 0 : -W }}
         transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
         style={{
           position: "fixed", left: 0, top: 0, height: "100vh", width: W,
@@ -348,8 +393,10 @@ export default function Sidebar() {
         )}
       </motion.aside>
 
-      {/* Spacer that matches sidebar width */}
-      <motion.div animate={{ width: W }} transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }} style={{ flexShrink: 0 }} />
+      {/* Spacer — zero on mobile so content takes full width */}
+      {!isMobile && (
+        <motion.div animate={{ width: W }} transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }} style={{ flexShrink: 0 }} />
+      )}
     </>
   );
 }
