@@ -18,6 +18,8 @@ services:
     healthCheckPath: /health
     autoDeploy: false
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
       - key: ENVIRONMENT
         value: staging
 

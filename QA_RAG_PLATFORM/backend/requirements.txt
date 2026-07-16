@@ -49,9 +49,9 @@ openai>=1.50.0    # used as the OpenAI-compat client for Groq, Mistral, Gemini, 
 # Reranker (optional)
 cohere>=5.0.0
 
-# V3 — AST parsing
+# V3 — AST parsing (requires Python <3.12; pinned for Render Python 3.11)
 tree-sitter>=0.21.0,<0.22.0
-tree-sitter-languages>=1.10.0
+tree-sitter-languages==1.10.2
 
 # Utils
 aiofiles>=24.1.0
