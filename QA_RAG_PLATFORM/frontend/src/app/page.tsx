@@ -188,7 +188,7 @@ function QuickLaunchWidget({ agentCount }: { agentCount: number }) {
         </Link>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+      <div className="agents-grid" style={{ gap: 8 }}>
         {QUICK_AGENTS.map(({ label, icon: Icon, desc, action }, i) => (
           <motion.div key={action}
             initial={{ opacity: 0, scale: 0.95 }}
@@ -319,13 +319,13 @@ export default function Dashboard() {
   );
 
   return (
-    <div style={{ padding: "28px 32px", maxWidth: 1200 }}>
+    <div className="dash-outer">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28 }}
+        className="dash-header"
       >
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-1)", margin: 0 }}>
@@ -335,27 +335,27 @@ export default function Dashboard() {
             Multi-format ingestion · Hybrid Dense+BM25 search · {agentCount} AI agents
           </p>
         </div>
-        <Link href="/upload" className="btn btn-primary" style={{ textDecoration: "none" }}>
-          + Upload Document
+        <Link href="/upload" className="btn btn-primary" style={{ textDecoration: "none", flexShrink: 0 }}>
+          + Upload
         </Link>
       </motion.div>
 
       {/* Stat Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14, marginBottom: 24 }}>
+      <div className="dash-stats-grid" style={{ marginBottom: 24 }}>
         {STAT_DEFS.map(({ key, label, icon, accent }, i) => (
           <StatCard key={key} label={label} value={(statValues as any)[key]} icon={icon} accent={accent} delay={0.05 * i} />
         ))}
       </div>
 
       {/* LLM Status + Quick Launch */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 16, marginBottom: 24 }}>
+      <div className="dash-two-col" style={{ marginBottom: 24 }}>
         <LLMStatusWidget />
         <QuickLaunchWidget agentCount={agentCount} />
       </div>
 
       {/* Charts Row */}
       {(typeData.length > 0 || moduleData.length > 0) && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 16, marginBottom: 24 }}>
+        <div className="dash-two-col" style={{ marginBottom: 24 }}>
           {typeData.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 12 }}
@@ -439,7 +439,26 @@ export default function Dashboard() {
         )}
       </motion.div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .dash-outer { padding: 28px 32px; max-width: 1200px; }
+        .dash-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 28px; gap: 12px; }
+        .dash-stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+        .dash-two-col { display: grid; grid-template-columns: 1fr 1.6fr; gap: 16px; }
+        .agents-grid { display: grid; grid-template-columns: 1fr 1fr; }
+        @media (max-width: 767px) {
+          .dash-outer { padding: 60px 14px 20px; }
+          .dash-header { flex-direction: column; align-items: flex-start; margin-bottom: 20px; }
+          .dash-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+          .dash-two-col { grid-template-columns: 1fr; }
+          .agents-grid { grid-template-columns: 1fr; }
+        }
+        @media (min-width: 768px) and (max-width: 1023px) {
+          .dash-outer { padding: 24px 20px; }
+          .dash-stats-grid { grid-template-columns: repeat(3, 1fr); }
+          .dash-two-col { grid-template-columns: 1fr 1fr; }
+        }
+      `}</style>
     </div>
   );
 }
