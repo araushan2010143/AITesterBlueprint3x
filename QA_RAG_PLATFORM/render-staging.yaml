@@ -1,11 +1,9 @@
-## Render.com — Staging Blueprint (FREE tier only)
+## Render.com — Staging Blueprint (FREE tier, minimal manual entry)
 ##
-## Deploy: Render Dashboard → New → Blueprint
-##         Repo: AITesterBlueprint3x
-##         File: QA_RAG_PLATFORM/render-staging.yaml
-##
-## All services on free plan — no payment required.
-## Celery runs as a background thread inside the API process (no separate worker needed).
+## Only 7 secrets need manual entry in the Blueprint form:
+##   GROQ_API_KEY, MISTRAL_API_KEY, COHERE_API_KEY, OPENAI_API_KEY,
+##   PINECONE_API_KEY, NEO4J_PASSWORD, JIRA_TOKEN, SAML_SP_KEY
+## Everything else is pre-filled below (non-sensitive values only).
 
 services:
 
@@ -22,7 +20,8 @@ services:
     envVars:
       - key: ENVIRONMENT
         value: staging
-      # ── LLM ───────────────────────────────────────────────────────────────
+
+      # ── Secrets — fill these 8 fields in the Render form ─────────────────
       - key: GROQ_API_KEY
         sync: false
       - key: MISTRAL_API_KEY
@@ -31,17 +30,38 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
-      # ── Vector DB ─────────────────────────────────────────────────────────
       - key: PINECONE_API_KEY
         sync: false
+      - key: NEO4J_PASSWORD
+        sync: false
+      - key: JIRA_TOKEN
+        sync: false
+      - key: SAML_SP_KEY
+        sync: false
+
+      # ── Pre-filled: Vector DB ────────────────────────────────────────────
       - key: PINECONE_INDEX_NAME
         value: qa-rag-platform
       - key: PINECONE_NAMESPACE
         value: staging
-      # ── Database (SQLite — no payment needed) ─────────────────────────────
+
+      # ── Pre-filled: Knowledge Graph ──────────────────────────────────────
+      - key: NEO4J_URI
+        value: neo4j+s://fbb4312c.databases.neo4j.io
+      - key: NEO4J_USER
+        value: fbb4312c
+
+      # ── Pre-filled: Connectors ───────────────────────────────────────────
+      - key: JIRA_EMAIL
+        value: araushan2010143@gmail.com
+      - key: JIRA_BASE_URL
+        value: https://araushan2010143.atlassian.net
+
+      # ── Pre-filled: Database ─────────────────────────────────────────────
       - key: DATABASE_URL
         value: sqlite:///./qa_rag_staging.db
-      # ── Redis (from managed Redis below) ──────────────────────────────────
+
+      # ── Pre-filled: Redis (from managed Redis below) ─────────────────────
       - key: REDIS_URL
         fromService:
           name: qa-rag-platform-redis-staging
@@ -57,45 +77,45 @@ services:
           name: qa-rag-platform-redis-staging
           type: redis
           property: connectionString
-      # ── Knowledge Graph ────────────────────────────────────────────────────
-      - key: NEO4J_URI
-        sync: false
-      - key: NEO4J_USER
-        sync: false
-      - key: NEO4J_PASSWORD
-        sync: false
-      # ── Auth ──────────────────────────────────────────────────────────────
+
+      # ── Pre-filled: Auth ─────────────────────────────────────────────────
       - key: JWT_SECRET
         generateValue: true
-      - key: API_KEY
-        sync: false
       - key: ALLOWED_ORIGINS
-        sync: false
-      # ── Connectors ────────────────────────────────────────────────────────
-      - key: JIRA_EMAIL
-        sync: false
-      - key: JIRA_TOKEN
-        sync: false
-      - key: JIRA_BASE_URL
-        sync: false
-      # ── SAML (set after first deploy once you have the staging URL) ────────
+        value: "*"
+
+      # ── Pre-filled: SAML (samltest.id public IdP) ────────────────────────
+      # SP URLs are predictable from the service name Render assigns.
+      # If Render assigns a different URL, update these two values in the service's
+      # Environment tab after first deploy.
       - key: SAML_SP_ENTITY_ID
-        sync: false
+        value: https://qa-rag-platform-api-staging.onrender.com/api/auth/saml/metadata
       - key: SAML_SP_CALLBACK_URL
-        sync: false
+        value: https://qa-rag-platform-api-staging.onrender.com/api/auth/saml/callback
       - key: SAML_IDP_ENTITY_ID
-        sync: false
+        value: https://samltest.id/saml/idp
       - key: SAML_IDP_SSO_URL
-        sync: false
+        value: https://samltest.id/idp/profile/SAML2/Redirect/SSO
+      - key: SAML_IDP_SLO_URL
+        value: https://samltest.id/idp/profile/SAML2/Redirect/SLO
+      # Public IdP cert and SP cert are safe to store here (not secrets).
+      # Copy SAML_IDP_CERT and SAML_SP_CERT from your .env file into these values.
       - key: SAML_IDP_CERT
         sync: false
       - key: SAML_SP_CERT
         sync: false
-      - key: SAML_SP_KEY
-        sync: false
       - key: SAML_STRICT
         value: "true"
-      # ── Observability ──────────────────────────────────────────────────────
+      - key: SAML_DEBUG
+        value: "false"
+
+      # ── Pre-filled: Vault ─────────────────────────────────────────────────
+      - key: VAULT_MOUNT
+        value: secret
+      - key: VAULT_PATH_PREFIX
+        value: qa-rag-platform
+
+      # ── Pre-filled: Observability ─────────────────────────────────────────
       - key: OTEL_SERVICE_NAME
         value: qa-rag-platform-api-staging
 
@@ -110,7 +130,7 @@ services:
     autoDeploy: false
     envVars:
       - key: NEXT_PUBLIC_API_URL
-        sync: false      # set to https://qa-rag-platform-api-staging.onrender.com
+        value: https://qa-rag-platform-api-staging.onrender.com
       - key: NEXT_PUBLIC_ENV
         value: staging
 
