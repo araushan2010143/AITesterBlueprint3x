@@ -1,54 +1,47 @@
-## Render.com — Staging Environment
+## Render.com — Staging Blueprint (FREE tier only)
 ##
-## Deploy:  render blueprint apply --file render-staging.yaml
-## Or:      link this file in your Render dashboard → Blueprints tab
+## Deploy: Render Dashboard → New → Blueprint
+##         Repo: AITesterBlueprint3x
+##         File: QA_RAG_PLATFORM/render-staging.yaml
 ##
-## This mirrors render.yaml (production) but:
-##   - Service names are suffixed with -staging
-##   - ENVIRONMENT=staging enables staging-only guards
-##   - Pinecone namespace isolated to "staging"
-##   - Redis managed by Render (free tier)
-##   - SAML strict mode ON
+## All services on free plan — no payment required.
+## Celery runs as a background thread inside the API process (no separate worker needed).
 
 services:
 
-  # ── Backend API ──────────────────────────────────────────────────────────────
+  # ── Backend API ────────────────────────────────────────────────────────────
   - type: web
     name: qa-rag-platform-api-staging
     runtime: python
     rootDir: QA_RAG_PLATFORM
     buildCommand: pip install -r backend/requirements.txt
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
-    plan: starter
+    plan: free
     healthCheckPath: /health
-    autoDeploy: false    # manual promotion from main → staging
+    autoDeploy: false
     envVars:
       - key: ENVIRONMENT
         value: staging
+      # ── LLM ───────────────────────────────────────────────────────────────
       - key: GROQ_API_KEY
         sync: false
       - key: MISTRAL_API_KEY
         sync: false
+      - key: COHERE_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      # ── Vector DB ─────────────────────────────────────────────────────────
       - key: PINECONE_API_KEY
         sync: false
       - key: PINECONE_INDEX_NAME
         value: qa-rag-platform
       - key: PINECONE_NAMESPACE
         value: staging
-      - key: COHERE_API_KEY
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: GEMINI_API_KEY
-        sync: false
-      # Neo4j — point at a separate staging Aura instance or reuse prod (read-only)
-      - key: NEO4J_URI
-        sync: false
-      - key: NEO4J_USER
-        sync: false
-      - key: NEO4J_PASSWORD
-        sync: false
-      # Redis (from managed Redis service below)
+      # ── Database (SQLite — no payment needed) ─────────────────────────────
+      - key: DATABASE_URL
+        value: sqlite:///./qa_rag_staging.db
+      # ── Redis (from managed Redis below) ──────────────────────────────────
       - key: REDIS_URL
         fromService:
           name: qa-rag-platform-redis-staging
@@ -64,20 +57,32 @@ services:
           name: qa-rag-platform-redis-staging
           type: redis
           property: connectionString
-      # Vault — connect to a staging Vault instance or HCP Vault Secrets
-      - key: VAULT_ADDR
+      # ── Knowledge Graph ────────────────────────────────────────────────────
+      - key: NEO4J_URI
         sync: false
-      - key: VAULT_TOKEN
+      - key: NEO4J_USER
         sync: false
-      - key: VAULT_MOUNT
-        value: secret
-      - key: VAULT_PATH_PREFIX
-        value: qa-rag-platform
-      # SAML SSO
+      - key: NEO4J_PASSWORD
+        sync: false
+      # ── Auth ──────────────────────────────────────────────────────────────
+      - key: JWT_SECRET
+        generateValue: true
+      - key: API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      # ── Connectors ────────────────────────────────────────────────────────
+      - key: JIRA_EMAIL
+        sync: false
+      - key: JIRA_TOKEN
+        sync: false
+      - key: JIRA_BASE_URL
+        sync: false
+      # ── SAML (set after first deploy once you have the staging URL) ────────
       - key: SAML_SP_ENTITY_ID
-        sync: false      # set to https://<staging-domain>/api/auth/saml/metadata
+        sync: false
       - key: SAML_SP_CALLBACK_URL
-        sync: false      # set to https://<staging-domain>/api/auth/saml/callback
+        sync: false
       - key: SAML_IDP_ENTITY_ID
         sync: false
       - key: SAML_IDP_SSO_URL
@@ -90,75 +95,28 @@ services:
         sync: false
       - key: SAML_STRICT
         value: "true"
-      # Auth
-      - key: API_KEY
-        sync: false
-      - key: JWT_SECRET
-        sync: false
-      # Allowed origins (staging frontend URL)
-      - key: ALLOWED_ORIGINS
-        sync: false
+      # ── Observability ──────────────────────────────────────────────────────
+      - key: OTEL_SERVICE_NAME
+        value: qa-rag-platform-api-staging
 
-  # ── Celery Worker ────────────────────────────────────────────────────────────
-  - type: worker
-    name: qa-rag-platform-celery-staging
-    runtime: python
-    rootDir: QA_RAG_PLATFORM
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: >
-      celery -A backend.celery_app:celery_app worker
-      --loglevel=info
-      --concurrency=2
-      --queues=default,ingestion,agents
-    plan: starter
-    autoDeploy: false
-    envVars:
-      - key: ENVIRONMENT
-        value: staging
-      - key: GROQ_API_KEY
-        sync: false
-      - key: MISTRAL_API_KEY
-        sync: false
-      - key: PINECONE_API_KEY
-        sync: false
-      - key: PINECONE_INDEX_NAME
-        value: qa-rag-platform
-      - key: PINECONE_NAMESPACE
-        value: staging
-      - key: REDIS_URL
-        fromService:
-          name: qa-rag-platform-redis-staging
-          type: redis
-          property: connectionString
-      - key: CELERY_BROKER_URL
-        fromService:
-          name: qa-rag-platform-redis-staging
-          type: redis
-          property: connectionString
-      - key: CELERY_RESULT_BACKEND
-        fromService:
-          name: qa-rag-platform-redis-staging
-          type: redis
-          property: connectionString
-
-  # ── Redis ─────────────────────────────────────────────────────────────────────
-  - type: redis
-    name: qa-rag-platform-redis-staging
-    plan: free
-    maxmemoryPolicy: allkeys-lru
-    ipAllowList: []    # Render internal network only
-
-  # ── Frontend ──────────────────────────────────────────────────────────────────
+  # ── Frontend ───────────────────────────────────────────────────────────────
   - type: web
     name: qa-rag-platform-frontend-staging
     runtime: node
     rootDir: QA_RAG_PLATFORM/frontend
     buildCommand: npm ci && npm run build
     startCommand: npm start
-    plan: starter
+    plan: free
     autoDeploy: false
     envVars:
       - key: NEXT_PUBLIC_API_URL
-        sync: false    # set to https://<staging-api-domain>
+        sync: false      # set to https://qa-rag-platform-api-staging.onrender.com
       - key: NEXT_PUBLIC_ENV
         value: staging
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  - type: redis
+    name: qa-rag-platform-redis-staging
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
