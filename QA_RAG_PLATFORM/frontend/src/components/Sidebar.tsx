@@ -214,7 +214,7 @@ export default function Sidebar() {
             <div style={{ width: 30, height: 30, borderRadius: 9, background: "linear-gradient(135deg, #7C3AED, #A78BFA)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "white" }}>QA</div>
           )}
           {!sidebarCollapsed && (
-            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={toggleSidebar} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, padding: "4px 6px", cursor: "pointer", color: "#6B7280", display: "flex" }}>
+            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={isMobile ? () => setMobileOpen(false) : toggleSidebar} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, padding: "4px 6px", cursor: "pointer", color: "#6B7280", display: "flex" }}>
               <ChevronLeft size={13} />
             </motion.button>
           )}
@@ -293,7 +293,7 @@ export default function Sidebar() {
         {/* Collapse toggle at bottom when collapsed */}
         {sidebarCollapsed && (
           <div style={{ padding: "10px 0", display: "flex", justifyContent: "center", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={toggleSidebar} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, padding: "5px 7px", cursor: "pointer", color: "#6B7280", display: "flex" }}>
+            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={isMobile ? () => setMobileOpen(false) : toggleSidebar} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, padding: "5px 7px", cursor: "pointer", color: "#6B7280", display: "flex" }}>
               <ChevronRight size={13} />
             </motion.button>
           </div>
