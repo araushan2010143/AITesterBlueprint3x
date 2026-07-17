@@ -76,8 +76,8 @@ function ServiceCard({ name, icon: Icon, color, status, details, version, latenc
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ padding: "5px 10px", borderRadius: 6, background: sc.color + "15", border: `1px solid ${sc.color}30`, display: "flex", alignItems: "center", gap: 5 }}>
+        <div className="service-card-right">
+          <div className="service-badge" style={{ background: sc.color + "15", border: `1px solid ${sc.color}30` }}>
             <SIcon size={11} color={sc.color} />
             <span style={{ fontSize: 11, fontWeight: 700, color: sc.color }}>{sc.label}</span>
           </div>
@@ -198,7 +198,7 @@ export default function SettingsPage() {
   ];
 
   const ENV_VARS = [
-    { name: "MISTRAL_API_KEY",    set: !!(h.env?.MISTRAL_API_KEY),  required: true  },
+    { name: "MISTRAL_API_KEY",    set: !!(h.env?.MISTRAL_API_KEY),  required: true  },  // embeddings provider — needed for ingestion + search
     { name: "GROQ_API_KEY",       set: !!(h.env?.GROQ_API_KEY),     required: false },
     { name: "OPENAI_API_KEY",     set: !!(h.env?.OPENAI_API_KEY),   required: false },
     { name: "PINECONE_API_KEY",   set: !!(h.env?.PINECONE_API_KEY), required: false },
@@ -214,14 +214,28 @@ export default function SettingsPage() {
   const overallOk = healthyCount >= 2;
 
   return (
-    <div style={{ padding: "28px 32px", maxWidth: 1000 }}>
+    <div className="settings-outer">
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+        .settings-outer { padding: 28px 32px; max-width: 1000px; }
+        .settings-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; gap: 12px; }
+        .services-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .build-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .service-card-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .service-badge { padding: 5px 10px; border-radius: 6px; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+        @media (max-width: 767px) {
+          .settings-outer { padding: 60px 14px 20px; }
+          .settings-header { flex-direction: column; align-items: flex-start; }
+          .services-grid { grid-template-columns: 1fr; }
+          .build-grid { grid-template-columns: 1fr 1fr; }
+          .service-card-right { flex-shrink: 0; }
+          .service-badge span { display: none; }
+        }
       `}</style>
 
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-        style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+        className="settings-header">
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-1)", margin: 0, display: "flex", alignItems: "center", gap: 10 }}>
             <Settings size={20} color="#7c3aed" /> Platform Settings
@@ -272,7 +286,7 @@ export default function SettingsPage() {
             <span style={{ fontSize: 13 }}>Checking services…</span>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div className="services-grid">
             {services.map((s, i) => (
               <ServiceCard key={s.name} {...s} delay={i * 0.04} />
             ))}
@@ -309,7 +323,7 @@ export default function SettingsPage() {
       {h.build && (
         <div style={{ marginBottom: 24 }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>Build Info</p>
-          <div style={{ border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", background: "var(--surface-1)", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+          <div className="build-grid" style={{ border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", background: "var(--surface-1)" }}>
             {Object.entries(h.build).map(([k, v]) => (
               <div key={k} style={{ padding: "8px 12px", borderRadius: 8, background: "var(--surface-2)", border: "1px solid var(--border)" }}>
                 <p style={{ fontSize: 9, fontWeight: 700, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 3px" }}>{k.replace(/_/g, " ")}</p>
