@@ -133,15 +133,16 @@ def health():
     # --- LLM Router ---
     llm_status: dict = {"available_count": 0, "total_count": 0, "providers": []}
     try:
-        from backend.services.llm_router import LLMRouter
-        router = LLMRouter()
-        providers = []
-        for name, client in router.clients.items():
-            providers.append({"name": name, "available": client is not None})
-        available = sum(1 for p in providers if p["available"])
-        llm_status = {"available_count": available, "total_count": len(providers), "providers": providers}
-    except Exception:
-        pass
+        from backend.llm.router import get_router
+        r = get_router()
+        providers = r.status()
+        llm_status = {
+            "available_count": r.available_count(),
+            "total_count": len(providers),
+            "providers": providers,
+        }
+    except Exception as e:
+        llm_status = {"available_count": 0, "total_count": 0, "providers": [], "error": str(e)[:120]}
 
     # --- Redis ---
     redis_status: dict = {"status": "unknown"}
