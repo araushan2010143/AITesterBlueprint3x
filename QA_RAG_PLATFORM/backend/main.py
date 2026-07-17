@@ -113,17 +113,92 @@ def root():
 
 @app.get("/health")
 def health():
+    import time
     from backend.services.vault_service import health as vault_health
     from backend.graph.neo4j_client import health as graph_health
     from backend.retrieval.opensearch_client import os_health, os_enabled
     from backend.telemetry import _setup_done as otel_active
+
+    # --- Database ---
+    db_status: dict = {"status": "unknown"}
+    try:
+        from backend.database.db import engine
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_status = {"status": "healthy", "ok": True}
+    except Exception as e:
+        db_status = {"status": "down", "ok": False, "error": str(e)[:120]}
+
+    # --- LLM Router ---
+    llm_status: dict = {"available_count": 0, "total_count": 0, "providers": []}
+    try:
+        from backend.services.llm_router import LLMRouter
+        router = LLMRouter()
+        providers = []
+        for name, client in router.clients.items():
+            providers.append({"name": name, "available": client is not None})
+        available = sum(1 for p in providers if p["available"])
+        llm_status = {"available_count": available, "total_count": len(providers), "providers": providers}
+    except Exception:
+        pass
+
+    # --- Redis ---
+    redis_status: dict = {"status": "unknown"}
+    try:
+        redis_url = os.getenv("REDIS_URL") or os.getenv("CELERY_BROKER_URL")
+        if redis_url:
+            import redis as redis_lib
+            r = redis_lib.from_url(redis_url, socket_connect_timeout=2)
+            t0 = time.time()
+            r.ping()
+            redis_status = {"status": "healthy", "ok": True, "latency_ms": round((time.time() - t0) * 1000)}
+        else:
+            redis_status = {"status": "unknown", "ok": False, "error": "REDIS_URL not set"}
+    except Exception as e:
+        redis_status = {"status": "down", "ok": False, "error": str(e)[:80]}
+
+    # --- Vector Store (Pinecone) ---
+    vector_status: dict = {"status": "unknown", "backend": "pinecone"}
+    try:
+        from pinecone import Pinecone
+        api_key = os.getenv("PINECONE_API_KEY")
+        if api_key:
+            t0 = time.time()
+            pc = Pinecone(api_key=api_key)
+            idx_name = os.getenv("PINECONE_INDEX_NAME", "qa-rag-platform")
+            idx = pc.Index(idx_name)
+            stats = idx.describe_index_stats()
+            vector_status = {
+                "status": "healthy", "ok": True, "backend": "pinecone",
+                "latency_ms": round((time.time() - t0) * 1000),
+                "stats": {"vectors": str(stats.total_vector_count or 0)},
+            }
+        else:
+            vector_status = {"status": "unknown", "ok": False, "backend": "pinecone", "error": "PINECONE_API_KEY not set"}
+    except Exception as e:
+        vector_status = {"status": "down", "ok": False, "backend": "pinecone", "error": str(e)[:80]}
+
+    # --- Env var presence (boolean only — never expose values) ---
+    env_keys = [
+        "MISTRAL_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY",
+        "PINECONE_API_KEY", "NEO4J_URI", "REDIS_URL",
+        "VAULT_ADDR", "OPENSEARCH_URL", "CELERY_BROKER_URL", "DATABASE_URL",
+    ]
+    env_status = {k: bool(os.getenv(k)) for k in env_keys}
+
     return {
-        "status":      "ok",
-        "version":     "7.0.0",
-        "vault":       vault_health(),
-        "graph":       graph_health(),
-        "opensearch":  os_health(),
-        "telemetry":   {"enabled": otel_active},
+        "status":       "ok",
+        "version":      "7.0.0",
+        "database":     db_status,
+        "llm":          llm_status,
+        "redis":        redis_status,
+        "vector_store": vector_status,
+        "vault":        vault_health(),
+        "graph":        graph_health(),
+        "opensearch":   os_health(),
+        "telemetry":    {"enabled": otel_active},
+        "env":          env_status,
     }
 
 
