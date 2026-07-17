@@ -45,7 +45,8 @@ api.interceptors.response.use(
 
 export const statsApi = {
   get: () => api.get("/stats").then(r => r.data),
-  health: () => api.get("/stats/health").then(r => r.data),
+  // Root /health has full service + env data; /api/stats/health is a legacy stub
+  health: () => fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ""}/health`).then(r => r.json()),
 };
 
 export const documentsApi = {
