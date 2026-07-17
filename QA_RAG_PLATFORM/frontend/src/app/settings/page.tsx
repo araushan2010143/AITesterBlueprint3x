@@ -341,9 +341,9 @@ export default function SettingsPage() {
         <span style={{ fontSize: 11, color: "var(--text-3)", fontFamily: "monospace" }}>v{h.version ?? "6.0.0"}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
           {[
-            { label: "API Docs",    path: "/docs"    },
-            { label: "ReDoc",       path: "/redoc"   },
-            { label: "Health",      path: "/health"  },
+            { label: "API Docs",    path: `${process.env.NEXT_PUBLIC_API_URL ?? ""}/docs`    },
+            { label: "ReDoc",       path: `${process.env.NEXT_PUBLIC_API_URL ?? ""}/redoc`   },
+            { label: "Health",      path: `${process.env.NEXT_PUBLIC_API_URL ?? ""}/health`  },
           ].map(({ label, path }) => (
             <a key={label} href={path} target="_blank" rel="noopener noreferrer"
               style={{ fontSize: 12, color: "#a78bfa", textDecoration: "none", padding: "4px 10px", borderRadius: 6, border: "1px solid rgba(124,58,237,0.25)", background: "rgba(124,58,237,0.06)", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
