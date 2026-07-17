@@ -5,8 +5,9 @@
 [![Python](https://img.shields.io/badge/python-3.9%2B-3572a5)](./backend)
 [![Next.js](https://img.shields.io/badge/next.js-15.3-black)](./frontend)
 [![FastAPI](https://img.shields.io/badge/fastapi-0.115-009688)](./backend)
-[![Score](https://img.shields.io/badge/AI%20readiness-97%2F100-22c55e)]()
-[![Version](https://img.shields.io/badge/version-6.0.0-7c3aed)]()
+[![Tests](https://img.shields.io/badge/tests-280%2B%20passing-22c55e)]()
+[![Coverage](https://img.shields.io/badge/coverage-unit%20%2B%20integration-7c3aed)]()
+[![Version](https://img.shields.io/badge/version-7.0.0-7c3aed)]()
 
 ---
 
@@ -112,8 +113,20 @@ App: http://localhost:3001
 ### 5. Run tests
 
 ```bash
-.venv/bin/python3 -m pytest tests/ -v
+# All tests (280+ cases)
+RATE_LIMIT_DISABLED=true .venv/bin/python3 -m pytest tests/ -v
+
+# Unit tests only (fast, no I/O)
+RATE_LIMIT_DISABLED=true .venv/bin/python3 -m pytest tests/test_unit_*.py -v
+
+# Integration tests only
+RATE_LIMIT_DISABLED=true .venv/bin/python3 -m pytest tests/test_integration_*.py -v
+
+# Single test module
+RATE_LIMIT_DISABLED=true .venv/bin/python3 -m pytest tests/test_unit_pii_scanner.py -v
 ```
+
+Set `RATE_LIMIT_DISABLED=true` to avoid IP-based rate-limit interference during test runs.
 
 ---
 
@@ -349,10 +362,18 @@ QA_RAG_PLATFORM/
 │   ├── components/          # Sidebar, CommandPalette, shared UI
 │   └── lib/                 # api.ts, store.ts, export.ts
 ├── tests/
-│   ├── test_api.py          # Integration tests
-│   ├── test_flaky_scoring.py
-│   ├── test_parsers.py
-│   └── conftest.py
+│   ├── conftest.py                      # Shared fixtures (JUnit XML, Playwright JSON, mock LLM)
+│   ├── test_unit_chunker.py             # Chunking strategies (recursive/semantic/fixed)
+│   ├── test_unit_pii_scanner.py         # PII + secret detection and redaction
+│   ├── test_unit_abac.py                # ABAC engine (roles, conditions, wildcards)
+│   ├── test_unit_llm_router.py          # LLM router fallback, muting, token capping
+│   ├── test_flaky_scoring.py            # Flaky score deterministic functions
+│   ├── test_parsers.py                  # JUnit XML + Playwright JSON parsers
+│   ├── test_api.py                      # AI agent + parse-report integration
+│   ├── test_integration_auth.py         # Register, login, refresh, logout, sessions
+│   ├── test_integration_middleware.py   # API key auth + rate limit middleware
+│   ├── test_integration_documents.py    # Documents list/get/upload/delete
+│   └── test_integration_health.py      # Health, root, stats, LLM status, OpenAPI
 ├── vscode-extension/        # VS Code extension (right-click migrate)
 ├── k8s/                     # Kubernetes manifests
 ├── sample_data/             # Sample JUnit XML + Playwright JSON reports

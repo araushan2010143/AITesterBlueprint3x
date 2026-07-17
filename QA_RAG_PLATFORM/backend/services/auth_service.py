@@ -14,15 +14,34 @@ _EXPIRE_MINUTES        = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))       # 1 h 
 _REFRESH_EXPIRE_DAYS   = int(os.getenv("JWT_REFRESH_EXPIRE_DAYS", "30"))  # 30 d refresh tokens
 _MAX_SESSIONS_PER_USER = int(os.getenv("JWT_MAX_SESSIONS", "5"))          # concurrent sessions
 
+try:
+    import bcrypt as _bcrypt_lib
+    _USE_BCRYPT_DIRECT = hasattr(_bcrypt_lib, "hashpw")
+except ImportError:
+    _USE_BCRYPT_DIRECT = False
+
 _pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:
-    return _pwd.hash(password)
+    if _USE_BCRYPT_DIRECT:
+        import bcrypt as _b
+        pw_bytes = password.encode("utf-8")[:72]
+        return _b.hashpw(pw_bytes, _b.gensalt()).decode("utf-8")
+    return _pwd.hash(password[:72])
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd.verify(plain, hashed)
+    if _USE_BCRYPT_DIRECT:
+        import bcrypt as _b
+        try:
+            return _b.checkpw(plain.encode("utf-8")[:72], hashed.encode("utf-8"))
+        except Exception:
+            return False
+    try:
+        return _pwd.verify(plain[:72], hashed)
+    except Exception:
+        return False
 
 
 def create_access_token(

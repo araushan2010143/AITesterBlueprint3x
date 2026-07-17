@@ -1,4 +1,4 @@
-# Architecture — QA RAG Platform v6.0.0
+# Architecture — QA RAG Platform v7.0.0
 
 ## System Overview
 
@@ -367,25 +367,115 @@ GET /api/connectors/runs/{run_id}
 
 ## Test Architecture
 
+280+ tests across 11 modules covering every critical layer.
+
 ```
 tests/
-├── conftest.py              — fixtures (JUnit XML, Playwright JSON, mock LLM)
-├── test_api.py              — integration tests (FastAPI TestClient)
-│   ├── TestListActions      — GET /api/ai/actions
-│   ├── TestParseReport      — POST /api/ai/parse-report
-│   ├── TestFlakyAnalyzer    — full pipeline (LLM mocked)
-│   └── TestHealth           — GET /health
-├── test_flaky_scoring.py    — unit tests (pure Python)
-│   ├── TestScoreFromHistory
-│   ├── TestActionFromScore
-│   └── TestEnrichTest
-└── test_parsers.py          — unit tests
-    ├── TestJUnitXMLParser
-    ├── TestPlaywrightJSONParser
-    └── TestNormalizer
+├── conftest.py                    — shared fixtures (JUnit XML, Playwright JSON, mock LLM responses)
+│
+├── ── Unit tests (pure Python, no I/O) ──────────────────────────────────────────────
+│
+├── test_unit_chunker.py           — chunker.py: recursive / semantic / fixed + chunk_pages
+│   ├── TestRecursiveChunk         — split on double-newline, overlap, size limit, empty input
+│   ├── TestSemanticChunk          — sentence boundary splits, exclamation/question marks
+│   ├── TestFixedChunk             — exact-size split, overlap slide, zero overlap
+│   └── TestChunkPages             — UUID uniqueness, sequential index, metadata propagation
+│
+├── test_unit_pii_scanner.py       — pii_scanner.py: detection + redaction + entropy
+│   ├── TestShannonEntropy         — 0 for single char, 1 for 2-char, high for random keys
+│   ├── TestIsHighEntropySecret    — length bounds, low-entropy rejects, charset check
+│   ├── TestEmailDetection         — single/multiple, redact flag, not-redacted-by-default
+│   ├── TestSecretDetection        — AWS key, GitHub token, JWT, private key, DB conn, Stripe
+│   ├── TestCreditCardDetection    — Visa and AmEx patterns
+│   ├── TestSSNDetection           — dashed SSN format
+│   ├── TestScanResult             — has_secrets/has_pii properties, summary dict, type safety
+│   ├── TestScanFilename           — password/secret/key/cert/env filenames flagged
+│   └── TestFindingsToLog          — obfuscated preview, no raw values in log entries
+│
+├── test_unit_abac.py              — abac/engine.py: role + condition evaluation
+│   ├── TestAdminRole              — wildcard permits (read, write, delete, admin, export, sync)
+│   ├── TestUserRole               — team-scoped R/W, cross-team denied, no delete, no audit
+│   ├── TestViewerRole             — read-only same-team, write/delete/sync denied
+│   ├── TestUnknownRole            — unknown role denied everywhere
+│   ├── TestTeamIdMatchCondition   — no resource team passes, user no-team passes (dev mode)
+│   ├── TestOwnResourceCondition   — owner allowed, non-owner denied, no created_by passes
+│   ├── TestActiveOnlyCondition    — is_active=True passes, False denied
+│   ├── TestCheckOrRaise           — HTTPException(403) on deny, detail includes role+action
+│   ├── TestAddPolicy              — runtime policy, engine isolation between instances
+│   └── TestWildcardMatching       — "*" on role, resource, action
+│
+├── test_unit_llm_router.py        — llm/router.py: fallback, muting, token cap
+│   ├── TestIsQuotaOrRate          — 429/503 codes, keyword matching, auth errors NOT quota
+│   ├── TestIsTransient            — json_validate, bad_request, auth NOT transient
+│   ├── TestLLMProvider            — available(), mute(), resets_in(), to_dict()
+│   ├── TestLLMRouterChat          — first provider, fallback, muting, transient skip,
+│   │                                auth error propagates, all-muted RuntimeError,
+│   │                                max_tokens capped to provider limit
+│   └── TestLLMRouterStatus        — status() list, available_count() with muted providers
+│
+├── test_flaky_scoring.py          — flaky_agent.py: deterministic score functions
+│   ├── TestScoreFromHistory       — 100/0/50 boundaries, case-insensitive, int type
+│   ├── TestScoreFromPassRate      — 0%→100, 100%→0, invalid→0, None→0
+│   ├── TestActionFromScore        — Fix Now/Quarantine/Monitor/Stable boundaries
+│   └── TestEnrichTest             — overwrites LLM score with Python truth
+│
+├── test_parsers.py                — parsers: JUnit XML, Playwright JSON, normalizer
+│   ├── TestJUnitXMLParser         — single/nested suite, error tag, multi-build labels
+│   ├── TestPlaywrightJSONParser   — pass/fail/retry, nested suites, stats line
+│   └── TestNormalizer             — format detection, plain-text passthrough, empty raises
+│
+├── ── Integration tests (FastAPI TestClient, real SQLite, mocked external calls) ────
+│
+├── test_api.py                    — AI agent pipeline integration
+│   ├── TestListActions            — 12 actions, required fields
+│   ├── TestParseReport            — JUnit/Playwright/plain-text/422 on missing file
+│   ├── TestFlakyAnalyzer          — LLM mocked; scores, release gate, code fixes
+│   └── TestHealth                 — /api/stats/health, /root
+│
+├── test_integration_auth.py       — auth endpoints
+│   ├── TestRegister               — 201, tokens, user object, duplicate→400, weak pw→422
+│   ├── TestLogin                  — 200+tokens, wrong pw→401, unknown email→401, 422s
+│   ├── TestRefresh                — valid token→200, invalid→401
+│   ├── TestLogout                 — idempotent (invalid token still 200)
+│   └── TestSessions               — no auth→401, valid JWT→200
+│
+├── test_integration_middleware.py — security middleware
+│   ├── TestAPIKeyMiddleware        — /health public, protected→401, correct key passes,
+│   │                                 wrong key→401, OPTIONS passes, empty key→401
+│   ├── TestAPIKeyMiddlewareDevMode — all paths open when API_KEY unset
+│   └── TestRateLimitMiddleware     — single request ok, saturated LLM bucket→429,
+│                                     OPTIONS bypass, RATE_LIMIT_DISABLED bypass
+│
+├── test_integration_documents.py  — documents + ingest
+│   ├── TestListDocuments          — 200, list type, status/type/module filters
+│   ├── TestGetDocument            — nonexistent→404
+│   ├── TestFilterValues           — expected keys, priorities non-empty, list types
+│   ├── TestIngestUpload           — markdown/txt 200, doc_id returned, 422 on missing file,
+│   │                                 semantic strategy, doc appears in list (stores mocked)
+│   └── TestDeleteDocument         — nonexistent→404, delete existing→200, 404 after delete
+│
+└── test_integration_health.py     — health + observability
+    ├── TestRoot                   — 200, name/docs/features/version fields
+    ├── TestHealth                 — 200, status=ok, all 8 service keys present,
+    │                                env values are booleans (never raw strings)
+    ├── TestStats                  — total_documents, total_chunks
+    ├── TestLegacyStatsHealth      — /api/stats/health backward compat
+    ├── TestLLMStatus              — providers list, available_count, name+available per entry
+    └── TestOpenAPI                — /api/docs, /openapi.json paths+title, /api/redoc
 ```
 
-Run: `.venv/bin/python3 -m pytest tests/ -v`
+Run commands:
+
+```bash
+# All tests
+RATE_LIMIT_DISABLED=true .venv/bin/python3 -m pytest tests/ -v
+
+# Unit tests only (fast, ~5s)
+RATE_LIMIT_DISABLED=true .venv/bin/python3 -m pytest tests/test_unit_*.py -v
+
+# Integration tests only
+RATE_LIMIT_DISABLED=true .venv/bin/python3 -m pytest tests/test_integration_*.py -v
+```
 
 ---
 

@@ -40,9 +40,9 @@ class TestListActions:
             assert "label" in action
             assert "description" in action
 
-    def test_get_actions_has_11_entries(self):
+    def test_get_actions_has_12_entries(self):
         r = client.get("/api/ai/actions")
-        assert len(r.json()["actions"]) == 11
+        assert len(r.json()["actions"]) == 12
 
 
 # ── /api/ai/parse-report ──────────────────────────────────────────────────────
