@@ -65,6 +65,7 @@ export default function CommandPalette() {
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             onClick={close}
+            onPointerDown={close}
             style={{
               position: "fixed", inset: 0, zIndex: 200,
               background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)",
@@ -97,12 +98,15 @@ export default function CommandPalette() {
                   }}
                 />
                 <button
+                  type="button"
                   onClick={close}
+                  onPointerDown={(e) => { e.stopPropagation(); close(); }}
                   style={{
                     background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)",
                     borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: "#9CA3AF",
-                    fontSize: 13, fontWeight: 600, lineHeight: 1, minWidth: 36, minHeight: 36,
+                    fontSize: 13, fontWeight: 600, lineHeight: 1, minWidth: 44, minHeight: 44,
                     display: "flex", alignItems: "center", justifyContent: "center",
+                    touchAction: "manipulation", WebkitTapHighlightColor: "transparent",
                   }}
                   aria-label="Close"
                 >
