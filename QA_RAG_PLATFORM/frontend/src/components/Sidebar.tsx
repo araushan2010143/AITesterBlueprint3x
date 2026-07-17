@@ -202,16 +202,18 @@ export default function Sidebar() {
         {/* Logo + collapse */}
         <div style={{ padding: sidebarCollapsed ? "16px 0" : "16px 14px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "space-between" }}>
           {!sidebarCollapsed && (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 30, height: 30, borderRadius: 9, background: "linear-gradient(135deg, #7C3AED, #A78BFA)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "white", flexShrink: 0 }}>QA</div>
               <div>
                 <p style={{ fontSize: 12, fontWeight: 700, color: "#F9FAFB", margin: 0, whiteSpace: "nowrap" }}>QA RAG Platform</p>
                 <p style={{ fontSize: 10, color: "#4B5563", margin: 0, whiteSpace: "nowrap" }}>Enterprise AI</p>
               </div>
-            </div>
+            </Link>
           )}
           {sidebarCollapsed && (
-            <div style={{ width: 30, height: 30, borderRadius: 9, background: "linear-gradient(135deg, #7C3AED, #A78BFA)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "white" }}>QA</div>
+            <Link href="/" title="Dashboard" style={{ textDecoration: "none" }}>
+              <div style={{ width: 30, height: 30, borderRadius: 9, background: "linear-gradient(135deg, #7C3AED, #A78BFA)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "white", cursor: "pointer" }}>QA</div>
+            </Link>
           )}
           {!sidebarCollapsed && (
             <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={isMobile ? () => setMobileOpen(false) : toggleSidebar} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, padding: "4px 6px", cursor: "pointer", color: "#6B7280", display: "flex" }}>
