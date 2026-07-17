@@ -314,7 +314,12 @@ export default function SettingsPage() {
             </div>
           </div>
           <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
-            {ENV_VARS.map(e => <EnvVarRow key={e.name} {...e} />)}
+            {isLoading
+              ? Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} style={{ height: 32, borderRadius: 7, background: "var(--surface-2)", animation: "pulse 1.5s ease infinite", opacity: 0.6 }} />
+                ))
+              : ENV_VARS.map(e => <EnvVarRow key={e.name} {...e} />)
+            }
           </div>
         </div>
       </div>
@@ -341,9 +346,9 @@ export default function SettingsPage() {
         <span style={{ fontSize: 11, color: "var(--text-3)", fontFamily: "monospace" }}>v{h.version ?? "6.0.0"}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
           {[
-            { label: "API Docs",    path: `${process.env.NEXT_PUBLIC_API_URL ?? ""}/docs`    },
-            { label: "ReDoc",       path: `${process.env.NEXT_PUBLIC_API_URL ?? ""}/redoc`   },
-            { label: "Health",      path: `${process.env.NEXT_PUBLIC_API_URL ?? ""}/health`  },
+            { label: "API Docs",    path: `${process.env.NEXT_PUBLIC_API_URL ?? ""}/api/docs`    },
+            { label: "ReDoc",       path: `${process.env.NEXT_PUBLIC_API_URL ?? ""}/api/redoc`   },
+            { label: "Health",      path: `${process.env.NEXT_PUBLIC_API_URL ?? ""}/health`      },
           ].map(({ label, path }) => (
             <a key={label} href={path} target="_blank" rel="noopener noreferrer"
               style={{ fontSize: 12, color: "#a78bfa", textDecoration: "none", padding: "4px 10px", borderRadius: 6, border: "1px solid rgba(124,58,237,0.25)", background: "rgba(124,58,237,0.06)", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
