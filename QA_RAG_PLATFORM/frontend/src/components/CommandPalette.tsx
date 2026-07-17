@@ -71,19 +71,26 @@ export default function CommandPalette() {
               background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)",
             }}
           />
+          {/* Centering wrapper — flexbox avoids transform conflict with framer-motion */}
+          <div style={{
+            position: "fixed", inset: 0, zIndex: 201,
+            display: "flex", justifyContent: "center", alignItems: "flex-start",
+            paddingTop: "15vh", paddingLeft: 16, paddingRight: 16,
+            pointerEvents: "none",
+          }}>
           <motion.div
             initial={{ opacity: 0, scale: 0.96, y: -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -8 }}
             transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
             style={{
-              position: "fixed", top: "20vh", left: "50%", transform: "translateX(-50%)",
-              width: "min(560px, 90vw)", zIndex: 201,
+              width: "100%", maxWidth: 560,
               background: "#111827",
               border: "1px solid rgba(124,58,237,0.3)",
               borderRadius: 16,
               boxShadow: "0 25px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(124,58,237,0.1)",
               overflow: "hidden",
+              pointerEvents: "all",
             }}
           >
             <Command label="Command Menu">
@@ -160,6 +167,7 @@ export default function CommandPalette() {
               </div>
             </Command>
           </motion.div>
+          </div>{/* /centering wrapper */}
 
           <style>{`
             [cmdk-group-heading] {
