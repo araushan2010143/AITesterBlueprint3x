@@ -1,0 +1,485 @@
+<title>QA Intelligence Platform — System Architecture</title>
+<style>
+  :root {
+    --bg:      #080C14;
+    --surface: #0F1520;
+    --border:  #1E2A40;
+    --muted:   #3D4F6B;
+    --text:    #CDD6E8;
+    --bright:  #EEF2FA;
+    --red:     #C2391B;
+    --blue:    #3B82F6;
+    --green:   #22C55E;
+    --amber:   #F59E0B;
+    --purple:  #8B5CF6;
+    --teal:    #14B8A6;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Courier New", monospace;
+    min-height: 100vh;
+    padding: 40px 24px 60px;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  .logo {
+    display: inline-block;
+    font-size: 36px;
+    color: var(--red);
+    margin-bottom: 12px;
+    line-height: 1;
+  }
+  .header h1 {
+    font-family: Georgia, serif;
+    font-size: clamp(22px, 4vw, 36px);
+    font-weight: 700;
+    color: var(--bright);
+    letter-spacing: -0.03em;
+    margin-bottom: 6px;
+  }
+  .header p {
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ── Diagram canvas ── */
+  .canvas {
+    max-width: 920px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  /* ── Layers ── */
+  .layer { margin-bottom: 0; }
+
+  .node {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    background: var(--surface);
+    position: relative;
+  }
+  .node-title {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  .node-name {
+    font-size: 15px;
+    font-weight: bold;
+    color: var(--bright);
+    font-family: Georgia, serif;
+    letter-spacing: -0.01em;
+  }
+  .node-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+  .node-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 8px;
+  }
+  .tag {
+    font-size: 9px;
+    padding: 2px 7px;
+    border-radius: 99px;
+    border: 1px solid;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* Layer 1 — Frontend */
+  .l1 { border-color: rgba(59,130,246,0.5); }
+  .l1 .node-title { color: rgba(59,130,246,0.7); }
+  .l1 .node-name  { color: #93C5FD; }
+  .l1 .tag { border-color: rgba(59,130,246,0.4); color: #93C5FD; }
+
+  /* Layer 2 — API */
+  .l2 { border-color: rgba(20,184,166,0.5); }
+  .l2 .node-title { color: rgba(20,184,166,0.7); }
+  .l2 .node-name  { color: #5EEAD4; }
+  .l2 .tag { border-color: rgba(20,184,166,0.4); color: #5EEAD4; }
+
+  /* Knowledge subpanel */
+  .kl-wrap {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: rgba(255,255,255,0.02);
+    padding: 16px;
+  }
+  .kl-label {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 14px;
+  }
+  .kl-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  /* Retrieval */
+  .l3r { border-color: rgba(139,92,246,0.5); }
+  .l3r .node-title { color: rgba(139,92,246,0.7); }
+  .l3r .node-name  { color: #C4B5FD; }
+  .l3r .tag { border-color: rgba(139,92,246,0.4); color: #C4B5FD; }
+
+  /* Agents */
+  .l3a { border-color: rgba(249,115,22,0.5); }
+  .l3a .node-title { color: rgba(249,115,22,0.7); }
+  .l3a .node-name  { color: #FDBA74; }
+
+  .agent-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .agent-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text);
+  }
+  .agent-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Qdrant */
+  .l4q { border-color: rgba(34,197,94,0.5); }
+  .l4q .node-title { color: rgba(34,197,94,0.7); }
+  .l4q .node-name  { color: #86EFAC; }
+  .l4q .tag { border-color: rgba(34,197,94,0.4); color: #86EFAC; }
+
+  /* LLM */
+  .l4l { border-color: rgba(194,57,27,0.5); }
+  .l4l .node-title { color: rgba(194,57,27,0.7); }
+  .l4l .node-name  { color: #FCA5A5; }
+
+  /* Pipeline */
+  .l4p { border-color: rgba(245,158,11,0.5); }
+  .l4p .node-title { color: rgba(245,158,11,0.7); }
+  .l4p .node-name  { color: #FCD34D; }
+  .l4p .tag { border-color: rgba(245,158,11,0.4); color: #FCD34D; }
+
+  /* ── Connectors ── */
+  .arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+  .arrow-line {
+    flex: 1;
+    max-width: 60px;
+    height: 1px;
+    background: var(--border);
+  }
+  .arrow-vert {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 4px 0;
+    gap: 2px;
+  }
+  .arrow-vert .shaft {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+  }
+  .arrow-vert .head {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1;
+  }
+  .arrow-vert .label {
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    margin-top: 2px;
+    text-align: center;
+  }
+
+  .row { display: grid; gap: 14px; }
+  .row-2 { grid-template-columns: 1fr 1fr; }
+  .row-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  /* Collections grid */
+  .coll-grid {
+    display: grid;
+    grid-template-columns: repeat(3,1fr);
+    gap: 5px;
+    margin-top: 8px;
+  }
+  .coll-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: var(--text);
+  }
+  .coll-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Pipeline steps inside retrieval */
+  .pipeline-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .p-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+    color: var(--text);
+    padding: 5px 8px;
+    border-radius: 6px;
+    border-left: 2px solid var(--border);
+  }
+  .p-step.active { border-left-color: rgba(139,92,246,0.6); background: rgba(139,92,246,0.07); }
+  .p-num { color: var(--muted); font-size: 9px; width: 14px; flex-shrink: 0; }
+  .p-arrow { color: var(--muted); font-size: 9px; text-align: center; padding: 1px 0 1px 8px; }
+
+  /* ── Tech stack footer ── */
+  .stack {
+    max-width: 920px;
+    margin: 32px auto 0;
+    border-top: 1px solid var(--border);
+    padding-top: 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+  .stack-item {
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 99px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Live URL badge ── */
+  .live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(34,197,94,0.1);
+    border: 1px solid rgba(34,197,94,0.3);
+    border-radius: 99px;
+    padding: 5px 14px;
+    font-size: 11px;
+    color: #86EFAC;
+    margin-bottom: 28px;
+  }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #22C55E; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{ opacity:1; } 50%{ opacity:0.4; } }
+</style>
+
+<!-- Header -->
+<div class="header">
+  <div class="logo">✳</div>
+  <h1>QA Intelligence Platform</h1>
+  <p>System Architecture · v8.0</p>
+  <br>
+  <div class="live-badge">
+    <span class="live-dot"></span>
+    Live at frontend-one-lake-yq5x0i2wmn.vercel.app
+  </div>
+</div>
+
+<!-- Diagram -->
+<div class="canvas">
+
+  <!-- Layer 1: Frontend -->
+  <div class="node l1">
+    <div class="node-title">Presentation Layer</div>
+    <div class="node-name">Next.js 15 App Router · Deployed on Vercel</div>
+    <div class="node-sub">8 routes · Tailwind CSS · TypeScript · react-markdown · AppShell shared sidebar · Cmd+K palette</div>
+    <div class="node-tags">
+      <span class="tag">/ dashboard</span>
+      <span class="tag">/chat</span>
+      <span class="tag">/search</span>
+      <span class="tag">/rca</span>
+      <span class="tag">/agents</span>
+      <span class="tag">/knowledge</span>
+      <span class="tag">/ingest</span>
+      <span class="tag">localStorage history</span>
+    </div>
+  </div>
+
+  <div class="arrow-vert">
+    <div class="shaft"></div>
+    <div class="head">↓</div>
+    <div class="label">REST API · JSON · CORS</div>
+    <div class="shaft"></div>
+  </div>
+
+  <!-- Layer 2: FastAPI -->
+  <div class="node l2">
+    <div class="node-title">API Gateway</div>
+    <div class="node-name">FastAPI 0.115 · Python 3.12 · Uvicorn · :8000</div>
+    <div class="node-sub">OpenAPI auto-docs · Rate limiting middleware · load_dotenv at boot · APScheduler async lifecycle</div>
+    <div class="node-tags">
+      <span class="tag">/api/chat</span>
+      <span class="tag">/api/search</span>
+      <span class="tag">/api/agents/:id/run</span>
+      <span class="tag">/api/ingest/file</span>
+      <span class="tag">/api/collections</span>
+      <span class="tag">/api/admin/ingest/trigger</span>
+    </div>
+  </div>
+
+  <div class="arrow-vert">
+    <div class="shaft"></div>
+    <div class="head">↓</div>
+    <div class="label">shared knowledge layer</div>
+    <div class="shaft"></div>
+  </div>
+
+  <!-- Layer 3: Knowledge Layer -->
+  <div class="kl-wrap">
+    <div class="kl-label">Knowledge Layer — central · reused by every feature</div>
+    <div class="kl-cols">
+
+      <!-- Retrieval Engine -->
+      <div class="node l3r">
+        <div class="node-title">Retrieval Engine</div>
+        <div class="node-name">Hybrid Search Pipeline</div>
+        <div class="pipeline-steps">
+          <div class="p-step active"><span class="p-num">01</span>Intent Detection — 6 categories</div>
+          <div class="p-arrow">↓ parallel</div>
+          <div class="p-step active"><span class="p-num">02</span>Dense Vector — BAAI/bge-m3 (1024-dim)</div>
+          <div class="p-step active"><span class="p-num">02</span>BM25 Sparse — exact keyword match</div>
+          <div class="p-arrow">↓ merge</div>
+          <div class="p-step active"><span class="p-num">03</span>RRF Fusion + Metadata Filter</div>
+          <div class="p-arrow">↓ reorder</div>
+          <div class="p-step active"><span class="p-num">04</span>Cross-Encoder Rerank (bge-reranker-large)</div>
+          <div class="p-arrow">↓ top-6 chunks</div>
+          <div class="p-step active"><span class="p-num">05</span>Context Compression → LLM prompt</div>
+        </div>
+      </div>
+
+      <!-- Agent Engine -->
+      <div class="node l3a">
+        <div class="node-title">Agent Engine</div>
+        <div class="node-name">5 Specialised AI Agents</div>
+        <div class="node-sub" style="margin-bottom:4px">All share the same Knowledge Layer and Retrieval Engine</div>
+        <div class="agent-grid">
+          <div class="agent-pill"><span class="agent-dot" style="background:#3B82F6"></span>QA Assistant — general QA knowledge</div>
+          <div class="agent-pill"><span class="agent-dot" style="background:#EF4444"></span>RCA Agent — logs · commits · JIRA</div>
+          <div class="agent-pill"><span class="agent-dot" style="background:#F59E0B"></span>Flaky Test Agent — retry pattern analysis</div>
+          <div class="agent-pill"><span class="agent-dot" style="background:#10B981"></span>RTM Builder — requirements → test coverage</div>
+          <div class="agent-pill"><span class="agent-dot" style="background:#8B5CF6"></span>Coverage Analyzer — gap report + priorities</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-vert">
+    <div class="shaft"></div>
+    <div class="head">↓</div>
+    <div class="label">vector queries + upserts</div>
+    <div class="shaft"></div>
+  </div>
+
+  <!-- Layer 4: Storage + LLM + Pipeline -->
+  <div class="row row-3">
+
+    <!-- Qdrant -->
+    <div class="node l4q" style="grid-column: span 1">
+      <div class="node-title">Vector Store</div>
+      <div class="node-name">Qdrant · 9 Collections</div>
+      <div class="node-sub">BAAI/bge-m3 embeddings · Dense + Sparse · SHA256 dedup</div>
+      <div class="coll-grid">
+        <div class="coll-item"><span class="coll-dot" style="background:#4F86C6"></span>selenium</div>
+        <div class="coll-item"><span class="coll-dot" style="background:#E8763A"></span>playwright</div>
+        <div class="coll-item"><span class="coll-dot" style="background:#0052CC"></span>jira</div>
+        <div class="coll-item"><span class="coll-dot" style="background:#10B981"></span>testcases</div>
+        <div class="coll-item"><span class="coll-dot" style="background:#8B5CF6"></span>prd</div>
+        <div class="coll-item"><span class="coll-dot" style="background:#EF4444"></span>logs</div>
+        <div class="coll-item"><span class="coll-dot" style="background:#F59E0B"></span>meeting</div>
+        <div class="coll-item"><span class="coll-dot" style="background:#14B8A6"></span>lucid</div>
+        <div class="coll-item"><span class="coll-dot" style="background:#6366F1"></span>docs</div>
+      </div>
+    </div>
+
+    <!-- LLM -->
+    <div class="node l4l">
+      <div class="node-title">Language Model</div>
+      <div class="node-name">Groq · llama-3.3-70b</div>
+      <div class="node-sub">Answers strictly from retrieved chunks · citation validation · every claim linked to [n] source</div>
+      <div class="node-tags" style="margin-top:10px">
+        <span class="tag" style="border-color:rgba(194,57,27,0.4);color:#FCA5A5">cited answers</span>
+        <span class="tag" style="border-color:rgba(194,57,27,0.4);color:#FCA5A5">intent-aware prompts</span>
+        <span class="tag" style="border-color:rgba(194,57,27,0.4);color:#FCA5A5">~3s latency</span>
+      </div>
+    </div>
+
+    <!-- Pipeline -->
+    <div class="node l4p">
+      <div class="node-title">Document Pipeline</div>
+      <div class="node-name">Auto-Ingest · APScheduler</div>
+      <div class="node-sub">Hourly scan of data/ folder · SHA256 content dedup · source-aware semantic chunking · per-collection metadata schemas</div>
+      <div class="node-tags" style="margin-top:8px">
+        <span class="tag">code → function/class</span>
+        <span class="tag">JIRA → one issue</span>
+        <span class="tag">meetings → speaker block</span>
+        <span class="tag">PDF → section</span>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- Tech stack footer -->
+<div class="stack">
+  <span class="stack-item">Next.js 15</span>
+  <span class="stack-item">FastAPI 0.115</span>
+  <span class="stack-item">Python 3.12</span>
+  <span class="stack-item">Qdrant</span>
+  <span class="stack-item">BAAI/bge-m3</span>
+  <span class="stack-item">bge-reranker-large</span>
+  <span class="stack-item">Groq llama-3.3-70b</span>
+  <span class="stack-item">APScheduler</span>
+  <span class="stack-item">TypeScript 5.7</span>
+  <span class="stack-item">Tailwind CSS 3.4</span>
+  <span class="stack-item">react-markdown</span>
+  <span class="stack-item">Vercel</span>
+  <span class="stack-item">BM25 Hybrid</span>
+  <span class="stack-item">RRF Fusion</span>
+  <span class="stack-item">SHA256 Dedup</span>
+</div>

@@ -1,0 +1,662 @@
+<title>QA Intelligence Platform — Technical Documentation</title>
+<style>
+/* ── Tokens ── */
+:root {
+  --bg:#080C18; --surface:#0D1426; --card:#111827; --elevated:#1A2332;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.13);
+  --blue:#3B82F6; --purple:#8B5CF6; --cyan:#22D3EE;
+  --green:#10B981; --amber:#F59E0B; --rose:#F43F5E;
+  --text:#F1F5F9; --sub:#CBD5E1; --muted:#94A3B8; --dim:#475569;
+  --grad:linear-gradient(135deg,#3B82F6,#8B5CF6);
+  --code-bg:#04080F; --code-border:rgba(59,130,246,0.15);
+}
+@media(prefers-color-scheme:light){
+  :root{--bg:#F8FAFC;--surface:#FFFFFF;--card:#F1F5F9;--elevated:#E2E8F0;
+  --border:rgba(0,0,0,0.07);--border2:rgba(0,0,0,0.13);
+  --text:#0F172A;--sub:#334155;--muted:#64748B;--dim:#94A3B8;
+  --code-bg:#0D1426;--code-border:rgba(59,130,246,0.2);}
+}
+:root[data-theme="light"]{--bg:#F8FAFC;--surface:#FFFFFF;--card:#F1F5F9;--elevated:#E2E8F0;--border:rgba(0,0,0,0.07);--border2:rgba(0,0,0,0.13);--text:#0F172A;--sub:#334155;--muted:#64748B;--dim:#94A3B8;--code-bg:#0D1426;--code-border:rgba(59,130,246,0.2);}
+:root[data-theme="dark"]{--bg:#080C18;--surface:#0D1426;--card:#111827;--elevated:#1A2332;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#F1F5F9;--sub:#CBD5E1;--muted:#94A3B8;--dim:#475569;--code-bg:#04080F;--code-border:rgba(59,130,246,0.15);}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased;display:flex;min-height:100vh}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+/* ── Layout ── */
+.sidebar{width:240px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);padding:28px 0;position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column}
+.main{flex:1;min-width:0;padding:0 48px 80px;max-width:900px}
+@media(max-width:768px){.sidebar{display:none}.main{padding:0 20px 60px}}
+
+/* ── Sidebar ── */
+.sidebar-brand{padding:0 20px 20px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.sidebar-logo{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.logo-mark{width:28px;height:28px;border-radius:7px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff}
+.logo-name{font-size:13px;font-weight:700;color:var(--text)}
+.sidebar-version{font-size:11px;color:var(--dim);padding:2px 7px;border:1px solid var(--border2);border-radius:8px;display:inline-block}
+.nav-section-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);padding:12px 20px 4px}
+.nav-link{display:block;padding:6px 20px;font-size:13px;color:var(--muted);text-decoration:none;border-left:2px solid transparent;transition:all .15s}
+.nav-link:hover,.nav-link.active{color:var(--blue);border-left-color:var(--blue);background:rgba(59,130,246,.06)}
+.sidebar-footer{margin-top:auto;padding:16px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--dim)}
+
+/* ── Top bar ── */
+.topbar{padding:32px 0 32px;border-bottom:1px solid var(--border);margin-bottom:48px}
+.topbar-eyebrow{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);margin-bottom:8px}
+.topbar h1{font-size:clamp(24px,3vw,38px);font-weight:800;letter-spacing:-.03em;line-height:1.1;margin-bottom:10px}
+.topbar h1 .grad{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.topbar-sub{font-size:15px;color:var(--muted);line-height:1.6;max-width:640px;margin-bottom:16px}
+.badge-row{display:flex;gap:8px;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:12px;border:1px solid var(--border2);font-size:11px;font-weight:600;color:var(--muted)}
+.badge .dot{width:6px;height:6px;border-radius:50%}
+.badge-green .dot{background:var(--green)}
+.badge-blue .dot{background:var(--blue)}
+.badge-purple .dot{background:var(--purple)}
+.badge-amber .dot{background:var(--amber)}
+
+/* ── Sections ── */
+.section{margin-bottom:56px;scroll-margin-top:24px}
+h2{font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px;color:var(--text)}
+h2::before{content:'';display:block;height:1px;background:var(--border);margin-bottom:20px}
+h3{font-size:16px;font-weight:700;margin:28px 0 10px;color:var(--text)}
+h4{font-size:12px;font-weight:700;margin:20px 0 8px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em}
+p{color:var(--sub);margin-bottom:12px}
+ul,ol{color:var(--sub);padding-left:20px}
+li{margin-bottom:5px}
+strong{color:var(--text);font-weight:600}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ── Code ── */
+pre{background:var(--code-bg);border:1px solid var(--code-border);border-radius:10px;padding:16px 18px;overflow-x:auto;margin:16px 0}
+code{font-family:'SF Mono','Cascadia Code','Fira Code',monospace;font-size:13px;line-height:1.6;color:#E2E8F0}
+:not(pre)>code{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.15);border-radius:4px;padding:1px 5px;font-size:12px;color:var(--blue)}
+.code-label{font-size:10px;font-weight:700;letter-spacing:.07em;color:var(--dim);text-transform:uppercase;margin-bottom:-8px;padding:10px 18px 0;display:flex;justify-content:space-between}
+.code-file{font-size:10px;color:var(--blue);font-family:monospace}
+
+/* ── Callouts ── */
+.callout{border-radius:10px;padding:14px 16px;margin:16px 0;border-left:3px solid;font-size:14px;line-height:1.55}
+.callout-info{background:rgba(59,130,246,.07);border-color:var(--blue);color:var(--sub)}
+.callout-warn{background:rgba(245,158,11,.07);border-color:var(--amber);color:var(--sub)}
+.callout-green{background:rgba(16,185,129,.07);border-color:var(--green);color:var(--sub)}
+.callout-purple{background:rgba(139,92,246,.07);border-color:var(--purple);color:var(--sub)}
+.callout strong{font-weight:700}
+.callout-info strong{color:var(--blue)}
+.callout-warn strong{color:var(--amber)}
+.callout-green strong{color:var(--green)}
+.callout-purple strong{color:var(--purple)}
+
+/* ── Cards ── */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:16px 0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;transition:border-color .2s}
+.card:hover{border-color:var(--border2)}
+.card-icon{font-size:22px;margin-bottom:8px}
+.card-title{font-size:14px;font-weight:700;margin-bottom:4px;color:var(--text)}
+.card-desc{font-size:12px;color:var(--muted);line-height:1.45}
+.card-tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;border:1px solid var(--border2);color:var(--dim);margin-top:8px;display:inline-block}
+
+/* ── Pipeline steps ── */
+.pipeline{display:flex;flex-direction:column;gap:0;margin:16px 0}
+.pipe-step{display:flex;align-items:flex-start;gap:16px;padding:12px 0;border-bottom:1px solid var(--border)}
+.pipe-step:last-child{border-bottom:none}
+.pipe-num{width:26px;height:26px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0;margin-top:1px}
+.pipe-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px}
+.pipe-desc{font-size:13px;color:var(--muted);line-height:1.45}
+.pipe-detail{font-size:12px;color:var(--dim);margin-top:4px;font-family:monospace}
+
+/* ── Tech tables ── */
+.tech-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px}
+.tech-table th{text-align:left;padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--border2)}
+.tech-table td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--sub);vertical-align:top}
+.tech-table tr:last-child td{border-bottom:none}
+.tech-table td:first-child{font-weight:600;color:var(--text);white-space:nowrap}
+.tech-table a{color:var(--blue)}
+.status-pill{font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;display:inline-block}
+.status-done{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.2)}
+.status-phase2{background:rgba(139,92,246,.15);color:var(--purple);border:1px solid rgba(139,92,246,.2)}
+.status-planned{background:rgba(245,158,11,.12);color:var(--amber);border:1px solid rgba(245,158,11,.2)}
+
+/* ── Coverage comparison ── */
+.coverage-compare{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+@media(max-width:600px){.coverage-compare{grid-template-columns:1fr}}
+.cov-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center}
+.cov-title{font-size:12px;font-weight:700;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em}
+.cov-pct{font-size:42px;font-weight:900;letter-spacing:-.03em;line-height:1}
+.cov-pct.low{color:var(--amber)}
+.cov-pct.high{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.cov-label{font-size:12px;color:var(--muted);margin-top:6px}
+.cov-stack{font-size:11px;color:var(--dim);margin-top:8px;line-height:1.5}
+
+/* ── Source list ── */
+.source-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin:16px 0}
+.source-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;gap:12px;align-items:flex-start}
+.source-icon{font-size:20px;flex-shrink:0;margin-top:1px}
+.source-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px}
+.source-desc{font-size:11px;color:var(--muted);line-height:1.45}
+.source-status{font-size:10px;font-weight:700;margin-top:5px}
+
+/* ── Collection table ── */
+.coll-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0}
+@media(max-width:600px){.coll-grid{grid-template-columns:1fr}}
+.coll-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.coll-name{font-size:12px;font-weight:700;color:var(--blue);font-family:monospace;margin-bottom:4px}
+.coll-desc{font-size:12px;color:var(--muted);line-height:1.4}
+
+/* ── API list ── */
+.api-list{display:flex;flex-direction:column;gap:8px;margin:16px 0}
+.api-item{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+.method{font-size:11px;font-weight:800;padding:3px 7px;border-radius:6px;font-family:monospace;white-space:nowrap;flex-shrink:0;margin-top:1px}
+.method.post{background:rgba(59,130,246,.15);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+.method.get{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.2)}
+.api-path{font-size:13px;font-weight:700;color:var(--text);font-family:monospace;margin-bottom:3px}
+.api-desc{font-size:12px;color:var(--muted)}
+
+/* ── Decision block ── */
+.decision{display:flex;gap:12px;align-items:flex-start;padding:14px;background:var(--card);border-radius:10px;border:1px solid var(--border);margin:10px 0}
+.decision-icon{font-size:18px;flex-shrink:0}
+.decision-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px}
+.decision-text{font-size:12px;color:var(--muted);line-height:1.5}
+
+/* ── Provider chain ── */
+.provider-chain{display:flex;align-items:center;gap:0;flex-wrap:wrap;margin:12px 0}
+.prov-item{display:flex;flex-direction:column;align-items:center;font-size:11px}
+.prov-badge{padding:4px 10px;border-radius:16px;font-weight:700;border:1px solid var(--border2);background:var(--surface);color:var(--text);white-space:nowrap}
+.prov-badge.primary{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:var(--green)}
+.prov-sub{color:var(--dim);margin-top:3px;white-space:nowrap}
+.prov-arrow{color:var(--dim);padding:0 6px;margin-bottom:16px;font-size:13px}
+
+/* ── Syntax colouring (static) ── */
+.kw{color:#C084FC}.fn{color:#60A5FA}.str{color:#34D399}.cm{color:#475569}.cls{color:#FBBF24}.num{color:#FB923C}
+</style>
+
+<div class="sidebar">
+  <div class="sidebar-brand">
+    <div class="sidebar-logo">
+      <div class="logo-mark">QA</div>
+      <div class="logo-name">Intelligence Platform</div>
+    </div>
+    <span class="sidebar-version">v1.0.0</span>
+  </div>
+
+  <span class="nav-section-label">Platform</span>
+  <a class="nav-link active" href="#overview">What is this?</a>
+  <a class="nav-link" href="#use-cases">Use Cases</a>
+  <a class="nav-link" href="#coverage-impact">Coverage Impact</a>
+
+  <span class="nav-section-label">Knowledge Sources</span>
+  <a class="nav-link" href="#sources">10 Data Sources</a>
+  <a class="nav-link" href="#collections">10 Vector Collections</a>
+
+  <span class="nav-section-label">Architecture</span>
+  <a class="nav-link" href="#layers">System Layers</a>
+  <a class="nav-link" href="#knowledge-layer">Knowledge Layer</a>
+  <a class="nav-link" href="#document-pipeline">Document Pipeline</a>
+
+  <span class="nav-section-label">Backend</span>
+  <a class="nav-link" href="#fastapi">FastAPI Gateway</a>
+  <a class="nav-link" href="#retrieval">Retrieval Pipeline</a>
+  <a class="nav-link" href="#llm-router">LLM Router</a>
+  <a class="nav-link" href="#agents">5 AI Agents</a>
+
+  <span class="nav-section-label">Reference</span>
+  <a class="nav-link" href="#api">API Reference</a>
+  <a class="nav-link" href="#tech-stack">Tech Stack</a>
+  <a class="nav-link" href="#decisions">Engineering Decisions</a>
+  <a class="nav-link" href="#roadmap">Phase 2 Roadmap</a>
+
+  <div class="sidebar-footer">FastAPI · Qdrant · Next.js 15<br>BAAI/bge-m3 · 6 LLM Providers</div>
+</div>
+
+<div class="main">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="topbar-eyebrow">Technical Documentation</div>
+    <h1>QA <span class="grad">Intelligence Platform</span></h1>
+    <div class="topbar-sub">
+      Multi-source Retrieval-Augmented Generation for QA engineers.
+      Ask one question — get a cited answer grounded in your Selenium framework, your Playwright framework,
+      your VWO test case repository, your PRDs, and your JIRA bug history.
+    </div>
+    <div class="badge-row">
+      <div class="badge badge-green"><span class="dot"></span>Production ready</div>
+      <div class="badge badge-blue"><span class="dot"></span>10 knowledge sources</div>
+      <div class="badge badge-purple"><span class="dot"></span>5 AI agents</div>
+      <div class="badge badge-amber"><span class="dot"></span>6 LLM providers</div>
+    </div>
+  </div>
+
+  <!-- ══ OVERVIEW ═══════════════════════════════════════════════════ -->
+  <div class="section" id="overview">
+    <h2>What is this?</h2>
+    <p>
+      QA Intelligence Platform is a <strong>knowledge-first AI system</strong> built for QA engineering
+      teams. It is not a chatbot bolted onto a code repo.
+      It models the entire QA knowledge graph — frameworks, test cases, bug histories,
+      PRDs, CI logs, meeting decisions — as first-class indexed objects across
+      10 purpose-built vector collections.
+    </p>
+    <p>
+      The platform's design principle: <strong>Chat is one interface. The Knowledge Layer is the product.</strong>
+      Every feature (chat, RCA, RTM, coverage analysis, flaky-test detection) routes through the same
+      retrieval pipeline and shares the same citation trail.
+    </p>
+
+    <div class="callout callout-info">
+      <strong>Design principle enforced in code:</strong> No route handler is allowed to call Qdrant or an LLM SDK directly.
+      All intelligence flows through <code>RetrievalEngine.retrieve()</code>. This is documented in CLAUDE.md and enforced at review.
+    </div>
+  </div>
+
+  <!-- ══ USE CASES ══════════════════════════════════════════════════ -->
+  <div class="section" id="use-cases">
+    <h2>Use Cases</h2>
+
+    <div class="card-grid">
+      <div class="card"><div class="card-icon">🆕</div><div class="card-title">New QA Onboarding</div><div class="card-desc">New team members get instant answers about the framework, patterns, and processes — without reading 200 Confluence pages.</div></div>
+      <div class="card"><div class="card-icon">🧠</div><div class="card-title">KB Brain with Code Repos</div><div class="card-desc">Selenium and Playwright repos are fully indexed at function/class level. "How does DriverFactory work?" returns the exact method with file and line.</div></div>
+      <div class="card"><div class="card-icon">🔗</div><div class="card-title">One-Stop Resource</div><div class="card-desc">Framework code + test cases + JIRA bugs + PRDs + meeting notes all searchable in one query. No tab-switching.</div></div>
+      <div class="card"><div class="card-icon">⏰</div><div class="card-title">24×7, Low Token Cost</div><div class="card-desc">Groq-first LLM routing with 5-provider fallback. Sub-second responses. Incremental indexing keeps re-ingest cost near zero.</div></div>
+      <div class="card"><div class="card-icon">🕵️</div><div class="card-title">Test Failure Analysis</div><div class="card-desc">RCA Agent cross-references the failing log, the linked JIRA bug, the test step, and the most recent code change to give a ranked root-cause list.</div></div>
+      <div class="card"><div class="card-icon">📋</div><div class="card-title">Test Case Discovery</div><div class="card-desc">Find existing test cases, identify missing ones against a PRD section, auto-generate drafts grounded in the framework's actual code patterns.</div></div>
+      <div class="card"><div class="card-icon">📊</div><div class="card-title">RTM Generation</div><div class="card-desc">RTM Builder agent links every requirement in a PRD to the test cases and JIRA IDs that cover it. Highlights gaps automatically.</div></div>
+      <div class="card"><div class="card-icon">🌀</div><div class="card-title">Flaky Test Detection</div><div class="card-desc">Flaky Test Agent finds tests with intermittent pass/fail patterns in CI logs, suggests locator fixes, and flags timing-dependent steps.</div></div>
+      <div class="card"><div class="card-icon">🐛</div><div class="card-title">Bug Triage</div><div class="card-desc">Retrieve similar past bugs, identify duplicates, auto-link to impacted test cases and the PRD requirement that governs the feature.</div></div>
+      <div class="card"><div class="card-icon">💡</div><div class="card-title">Framework Coding Guide</div><div class="card-desc">Best practices, script examples, and doubt-buster Q&A grounded in your own framework's actual code — not generic Stack Overflow advice.</div></div>
+    </div>
+  </div>
+
+  <!-- ══ COVERAGE IMPACT ════════════════════════════════════════════ -->
+  <div class="section" id="coverage-impact">
+    <h2>Test Coverage Impact</h2>
+    <p>Grounding code generation in the live knowledge base dramatically increases test coverage yield per JIRA ticket:</p>
+
+    <div class="coverage-compare">
+      <div class="cov-card">
+        <div class="cov-title">GitHub Copilot alone</div>
+        <div class="cov-pct low">30–40%</div>
+        <div class="cov-label">test coverage per JIRA ID</div>
+        <div class="cov-stack">GHCP → TC → JIRA ID (MCP)<br>Generic code patterns, no PRD context</div>
+      </div>
+      <div class="cov-card">
+        <div class="cov-title">Copilot + QA Intelligence RAG</div>
+        <div class="cov-pct high">70–80%</div>
+        <div class="cov-label">test coverage per JIRA ID</div>
+        <div class="cov-stack">GHCP + RAG (LLM) + JIRA ID<br>PRD context · existing TCs · framework patterns</div>
+      </div>
+    </div>
+
+    <div class="callout callout-green">
+      <strong>Why the lift?</strong> The RAG context supplies the LLM with the exact acceptance criteria from the PRD, existing test cases that already cover adjacent scenarios, and the framework's own utility methods — eliminating hallucinated test steps and missing edge cases.
+    </div>
+  </div>
+
+  <!-- ══ DATA SOURCES ═══════════════════════════════════════════════ -->
+  <div class="section" id="sources">
+    <h2>10 Knowledge Sources</h2>
+    <p>Every source below is ingested, chunked with a source-specific strategy, embedded with BAAI/bge-m3, and stored in a dedicated Qdrant collection.</p>
+
+    <div class="source-grid">
+      <div class="source-item">
+        <div class="source-icon">☕</div>
+        <div>
+          <div class="source-title">Selenium Java Framework</div>
+          <div class="source-desc">
+            <a href="https://github.com/PramodDutta/ATB13xSeleniumAdvanceFramework" target="_blank">ATB13xSeleniumAdvanceFramework</a><br>
+            Java, TestNG, Page Object Model. Chunked at function/class boundary.
+          </div>
+          <div class="source-status" style="color:var(--green)">✓ Indexed</div>
+        </div>
+      </div>
+      <div class="source-item">
+        <div class="source-icon">🔷</div>
+        <div>
+          <div class="source-title">Playwright TypeScript Framework</div>
+          <div class="source-desc">
+            <a href="https://github.com/PramodDutta/Advance-Playwright-Framework" target="_blank">Advance-Playwright-Framework</a><br>
+            TypeScript, BDD, API testing. Fixtures, step defs, specs chunked at function level.
+          </div>
+          <div class="source-status" style="color:var(--green)">✓ Indexed</div>
+        </div>
+      </div>
+      <div class="source-item">
+        <div class="source-icon">📊</div>
+        <div>
+          <div class="source-title">Test Cases (5,000 TCs)</div>
+          <div class="source-desc">CSV / XLSX test case repository (testdata.csv). One row per chunk: TC-ID, title, preconditions, steps, expected result.</div>
+          <div class="source-status" style="color:var(--amber)">→ Ingest via /api/ingest/file</div>
+        </div>
+      </div>
+      <div class="source-item">
+        <div class="source-icon">🎫</div>
+        <div>
+          <div class="source-title">JIRA Tickets</div>
+          <div class="source-desc">Bug reports, stories, epics exported as CSV/JSON. Metadata: priority, severity, sprint, assignee, labels, links.</div>
+          <div class="source-status" style="color:var(--amber)">→ Ingest via /api/ingest/file</div>
+        </div>
+      </div>
+      <div class="source-item">
+        <div class="source-icon">📄</div>
+        <div>
+          <div class="source-title">Company PDFs &amp; Markdown</div>
+          <div class="source-desc">PRD, SRS, BRD, FRD documents. Section-level chunks with PyMuPDF (PDF) and heading-based splits (MD).</div>
+          <div class="source-status" style="color:var(--amber)">→ Ingest via /api/ingest/file</div>
+        </div>
+      </div>
+      <div class="source-item">
+        <div class="source-icon">🎨</div>
+        <div>
+          <div class="source-title">Figma Designs</div>
+          <div class="source-desc">ER Diagrams, User Guides, Wireframes. Exported to annotated text/JSON and indexed for UI-test alignment queries.</div>
+          <div class="source-status" style="color:var(--purple)">Phase 2</div>
+        </div>
+      </div>
+      <div class="source-item">
+        <div class="source-icon">📝</div>
+        <div>
+          <div class="source-title">Meeting Notes &amp; Recordings</div>
+          <div class="source-desc">Sprint planning, retros, design reviews — transcribed and chunked per speaker turn for decision traceability.</div>
+          <div class="source-status" style="color:var(--amber)">→ Ingest via /api/ingest/file</div>
+        </div>
+      </div>
+      <div class="source-item">
+        <div class="source-icon">🗂️</div>
+        <div>
+          <div class="source-title">LucidChart Diagrams</div>
+          <div class="source-desc">Architecture / flow diagrams exported to text. Components and relationships indexed as graph-structured chunks.</div>
+          <div class="source-status" style="color:var(--amber)">→ Export to text → ingest</div>
+        </div>
+      </div>
+      <div class="source-item">
+        <div class="source-icon">📋</div>
+        <div>
+          <div class="source-title">Jenkins Logs &amp; Results</div>
+          <div class="source-desc">Build logs, stage results, test reports. Fixed 100–150-line windows; metadata: branch, job, build no., result.</div>
+          <div class="source-status" style="color:var(--amber)">→ Ingest via /api/ingest/file</div>
+        </div>
+      </div>
+      <div class="source-item">
+        <div class="source-icon">🏢</div>
+        <div>
+          <div class="source-title">Company Knowledge</div>
+          <div class="source-desc">QA runbooks, onboarding guides, SLAs, process docs. Heading-section chunks with department and doc-type metadata.</div>
+          <div class="source-status" style="color:var(--amber)">→ Ingest via /api/ingest/file</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 10 COLLECTIONS ═════════════════════════════════════════════ -->
+  <div class="section" id="collections">
+    <h2>10 Qdrant Collections</h2>
+    <p>Each collection maps to one source type and has its own chunking strategy, metadata schema, and index. All use BAAI/bge-m3 (1024-dim, cosine distance).</p>
+
+    <div class="coll-grid">
+      <div class="coll-item"><div class="coll-name">selenium</div><div class="coll-desc">Java/TestNG framework code — POM classes, base classes, utilities. Chunked at function/class boundary by regex.</div></div>
+      <div class="coll-item"><div class="coll-name">playwright</div><div class="coll-desc">TypeScript/BDD framework — fixtures, step definitions, page objects, specs. Function-level chunks.</div></div>
+      <div class="coll-item"><div class="coll-name">jira</div><div class="coll-desc">JIRA issues. One issue per chunk. Metadata: project, type, sprint, severity, owner, labels, linked issues.</div></div>
+      <div class="coll-item"><div class="coll-name">testcases</div><div class="coll-desc">5,000-TC repository. One row per chunk: TC-ID, title, preconditions, steps, expected result, automation status.</div></div>
+      <div class="coll-item"><div class="coll-name">prd</div><div class="coll-desc">PRD, SRS, BRD, FRD documents. Section-level chunks; metadata: doc title, section heading, version, feature module.</div></div>
+      <div class="coll-item"><div class="coll-name">logs</div><div class="coll-desc">Application and CI run logs. Fixed 100–150-line windows; metadata: service, environment, timestamp range, severity.</div></div>
+      <div class="coll-item"><div class="coll-name">meeting_notes</div><div class="coll-desc">Sprint ceremonies, retrospectives, design decisions. Speaker-turn chunks; metadata: meeting type, date, attendees, action items.</div></div>
+      <div class="coll-item"><div class="coll-name">lucid</div><div class="coll-desc">LucidChart architecture and flow diagrams exported to text. Components and relationships as structured chunks.</div></div>
+      <div class="coll-item"><div class="coll-name">company_docs</div><div class="coll-desc">QA runbooks, onboarding docs, SLAs, process guides. Heading-section chunks with department and doc-type tags.</div></div>
+      <div class="coll-item"><div class="coll-name">jenkins</div><div class="coll-desc">CI pipeline definitions, build history, stage results. Job/stage as chunk; metadata: branch, trigger, duration, result.</div></div>
+    </div>
+  </div>
+
+  <!-- ══ SYSTEM LAYERS ══════════════════════════════════════════════ -->
+  <div class="section" id="layers">
+    <h2>System Layers</h2>
+
+    <div class="pipeline">
+      <div class="pipe-step"><div class="pipe-num">1</div><div><div class="pipe-title">External Knowledge Sources</div><div class="pipe-desc">GitHub repos, PDFs, Excel TCs, JIRA exports, CI logs, meeting transcripts, LucidCharts, company docs.</div><div class="pipe-detail">Selenium: github.com/PramodDutta/ATB13xSeleniumAdvanceFramework · Playwright: github.com/PramodDutta/Advance-Playwright-Framework</div></div></div>
+      <div class="pipe-step"><div class="pipe-num">2</div><div><div class="pipe-title">Document Pipeline</div><div class="pipe-desc">Source-aware parse → semantic chunk → 20-field metadata enrichment → bge-m3 embed → SHA-256 dedup → Qdrant upsert.</div></div></div>
+      <div class="pipe-step"><div class="pipe-num">3</div><div><div class="pipe-title">FastAPI Gateway (:8000)</div><div class="pipe-desc">HTTP boundary: auth middleware, Pydantic request validation, rate limiting, CORS. Routes delegate to the Knowledge Layer only.</div></div></div>
+      <div class="pipe-step"><div class="pipe-num">4</div><div><div class="pipe-title">Knowledge Layer — The Core</div><div class="pipe-desc">Intent classification → query expansion → hybrid dense+BM25 search → metadata filter → cross-encoder rerank → compress → LLM → citation extraction.</div></div></div>
+      <div class="pipe-step"><div class="pipe-num">5</div><div><div class="pipe-title">Agent Engine</div><div class="pipe-desc">5 specialized agents (QA Assistant, RCA, Flaky Test, RTM Builder, Coverage Analyzer) — each a thin wrapper over RetrievalEngine with a specialized system prompt.</div></div></div>
+      <div class="pipe-step"><div class="pipe-num">6</div><div><div class="pipe-title">Storage</div><div class="pipe-desc">Qdrant (10 collections, 1024-dim) · Neo4j Aura (Phase 2 graph) · SQLite (index registry, sessions) · Redis (cache, job queue).</div></div></div>
+      <div class="pipe-step"><div class="pipe-num">7</div><div><div class="pipe-title">Next.js 15 Frontend (:3000)</div><div class="pipe-desc">Chat page, search, RCA, agent playground, ingest uploader, collection dashboard. Tailwind v3, TypeScript, App Router.</div></div></div>
+    </div>
+  </div>
+
+  <!-- ══ KNOWLEDGE LAYER ════════════════════════════════════════════ -->
+  <div class="section" id="knowledge-layer">
+    <h2>Knowledge Layer</h2>
+    <p>All intelligence flows through <code>backend/knowledge/retrieval_engine.py</code>. This is the single callsite every feature uses — chat, search, RCA, RTM, coverage.</p>
+
+    <div class="code-label"><span class="code-lang" style="font-size:10px;font-weight:700;color:var(--dim);letter-spacing:.07em;text-transform:uppercase">Python</span><span class="code-file">backend/knowledge/retrieval_engine.py</span></div>
+    <pre><code><span class="kw">class</span> <span class="cls">RetrievalEngine</span>:
+    <span class="kw">def</span> <span class="fn">retrieve</span>(self, query: str, metadata_filters=<span class="kw">None</span>, top_k=<span class="kw">None</span>) -> <span class="cls">RetrievalResult</span>:
+        <span class="cm"># 1. Route query to correct collection(s)</span>
+        classification = self._classifier.classify(query)
+        <span class="cm"># 2. Expand abbreviations + domain synonyms</span>
+        expanded_query   = self._expander.expand(query)
+        <span class="cm"># 3. Dense vector + BM25 sparse → RRF fusion</span>
+        raw_chunks       = self._searcher.search(
+            expanded_query, classification.collections, top_k, metadata_filters
+        )
+        <span class="cm"># 4. Cross-encoder rerank (bge-reranker-large)</span>
+        reranked         = self._reranker.rerank(query, raw_chunks, self.rerank_top_k)
+        <span class="cm"># 5. Trim to 6,000-token budget</span>
+        compressed       = self._compressor.compress(reranked)
+        <span class="kw">return</span> <span class="cls">RetrievalResult</span>(
+            chunks=compressed,
+            intent=classification.intent,
+            collections=classification.collections
+        )</code></pre>
+
+    <h3>Intent → Collection Routing</h3>
+    <p>The intent classifier routes each query to 1–3 collections, eliminating cross-collection noise:</p>
+
+    <div class="coll-grid">
+      <div class="coll-item"><div class="coll-name">CODE</div><div class="coll-desc">→ selenium, playwright — TestNG, POM, fixture, locator, XPath, BDD</div></div>
+      <div class="coll-item"><div class="coll-name">BUG</div><div class="coll-desc">→ jira — defect, blocker, P1, regression, severity, re-open</div></div>
+      <div class="coll-item"><div class="coll-name">TEST</div><div class="coll-desc">→ testcases — TC-ID, scenario, step, expected result, test data</div></div>
+      <div class="coll-item"><div class="coll-name">PRD</div><div class="coll-desc">→ prd — requirement, acceptance criteria, user story, epic, BRD</div></div>
+      <div class="coll-item"><div class="coll-name">CI</div><div class="coll-desc">→ jenkins, logs — pipeline, build, deploy, stage, trigger, artifact</div></div>
+      <div class="coll-item"><div class="coll-name">LOGS</div><div class="coll-desc">→ logs — stack trace, exception, NullPointer, timeout, crash</div></div>
+      <div class="coll-item"><div class="coll-name">MEETING</div><div class="coll-desc">→ meeting_notes — action item, decision, retro, sprint planning</div></div>
+      <div class="coll-item"><div class="coll-name">GENERAL</div><div class="coll-desc">→ all 10 collections — broadest scope; highest-confidence chunks win at reranking</div></div>
+    </div>
+  </div>
+
+  <!-- ══ DOCUMENT PIPELINE ══════════════════════════════════════════ -->
+  <div class="section" id="document-pipeline">
+    <h2>Document Pipeline</h2>
+
+    <h3>Source-Specific Chunking</h3>
+    <div style="overflow-x:auto">
+    <table class="tech-table">
+      <thead><tr><th>Source</th><th>Chunk Boundary</th><th>Size / Strategy</th></tr></thead>
+      <tbody>
+        <tr><td>Java / TypeScript code</td><td>Function or class definition</td><td>Full function body + signature; regex on <code>def/class/function/describe</code></td></tr>
+        <tr><td>PDF (PRD, SRS, BRD)</td><td>Natural paragraph breaks</td><td>400–600 tokens, 50-token overlap; PyMuPDF layout extraction</td></tr>
+        <tr><td>Markdown docs</td><td>Heading boundaries (h1–h3)</td><td>Full section content under each heading</td></tr>
+        <tr><td>Application / CI logs</td><td>Fixed line window</td><td>100–150 lines per chunk</td></tr>
+        <tr><td>Meeting notes / transcripts</td><td>Speaker turn (regex on speaker prefix)</td><td>One speaker turn = one chunk; preserves decision attribution</td></tr>
+        <tr><td>JIRA export</td><td>One issue per chunk</td><td>ID + summary + description + all comments concatenated</td></tr>
+        <tr><td>Excel / CSV (5,000 TCs)</td><td>One data row per chunk</td><td>Column headers + row values as key:value pairs</td></tr>
+        <tr><td>BDD .feature files</td><td>One Scenario block</td><td>Feature context + Given/When/Then steps</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>SHA-256 Incremental Indexing</h3>
+    <p>Each chunk is hashed before embedding. The <code>index_registry</code> SQLite table stores <code>(collection, sha256)</code> pairs. Re-indexing a changed file only re-embeds the modified chunks — a 5,000-TC CSV re-ingest after adding 10 rows embeds 10 chunks, not 5,000.</p>
+
+    <h3>Embedding — BAAI/bge-m3</h3>
+    <p>570MB multilingual model producing dense (1024-dim) + sparse + multi-vector from one forward pass. Dense vectors go to Qdrant; the BM25-equivalent sparse representation combines with them in hybrid search via Reciprocal Rank Fusion.</p>
+  </div>
+
+  <!-- ══ FASTAPI ════════════════════════════════════════════════════ -->
+  <div class="section" id="fastapi">
+    <h2>FastAPI Gateway</h2>
+    <p>Thin HTTP boundary: validate inputs (Pydantic), authenticate, rate-limit, delegate to Knowledge Layer. Zero business logic in routes.</p>
+
+    <div class="callout callout-warn">
+      <strong>Environment loading order matters:</strong> <code>load_dotenv()</code> must execute at the top of <code>main.py</code> before any import that reads config. A module reading an env var at import time sees an empty string if dotenv hasn't run yet — this caused silent LLM auth failures during early development.
+    </div>
+
+    <h3>On startup</h3>
+    <ul>
+      <li><code>init_db()</code> — creates SQLite tables (users, sessions, index_registry)</li>
+      <li><code>ensure_collections()</code> — creates any missing Qdrant collections with correct vector params</li>
+      <li><code>get_embedder()</code> — pre-loads bge-m3 into memory (singleton via <code>@lru_cache</code>)</li>
+    </ul>
+  </div>
+
+  <!-- ══ RETRIEVAL PIPELINE ═════════════════════════════════════════ -->
+  <div class="section" id="retrieval">
+    <h2>Retrieval Pipeline</h2>
+
+    <h3>Hybrid Search with RRF</h3>
+    <p>Dense Qdrant search and BM25 sparse search run in parallel for each target collection. Reciprocal Rank Fusion merges the ranked lists: <code>score = Σ 1 / (60 + rank_i)</code>. Dense embeddings give semantic recall; BM25 preserves exact keyword matches critical for JIRA IDs, function names, and TC codes.</p>
+
+    <h3>Cross-Encoder Reranking</h3>
+    <p>The top 10 chunks from hybrid search pass through <code>BAAI/bge-reranker-large</code> — a joint encoder that scores each (query, chunk) pair together, far more accurate than bi-encoder similarity for precision ranking. Top 5 survive for context assembly.</p>
+
+    <div class="callout callout-green">
+      <strong>Why two-stage retrieval?</strong> Bi-encoder embeddings optimize for recall — they efficiently retrieve 10 plausible candidates from 100,000 vectors. Cross-encoders optimize for precision — they pick the best 5 from 10 candidates. Using both gives sub-100ms total latency with accuracy close to a pure cross-encoder sweep.
+    </div>
+  </div>
+
+  <!-- ══ LLM ROUTER ════════════════════════════════════════════════ -->
+  <div class="section" id="llm-router">
+    <h2>LLM Router</h2>
+    <p>Sequential fallback chain with automatic muting. On quota/rate errors (429/503), the provider is muted for 60 seconds and the next is tried. Auth errors propagate immediately (no retry).</p>
+
+    <div class="provider-chain">
+      <div class="prov-item"><div class="prov-badge primary">Groq</div><div class="prov-sub">llama-3.3-70b</div></div>
+      <div class="prov-arrow">→</div>
+      <div class="prov-item"><div class="prov-badge">OpenAI</div><div class="prov-sub">fallback 1</div></div>
+      <div class="prov-arrow">→</div>
+      <div class="prov-item"><div class="prov-badge">Mistral</div><div class="prov-sub">fallback 2</div></div>
+      <div class="prov-arrow">→</div>
+      <div class="prov-item"><div class="prov-badge">Anthropic</div><div class="prov-sub">fallback 3</div></div>
+      <div class="prov-arrow">→</div>
+      <div class="prov-item"><div class="prov-badge">Cohere</div><div class="prov-sub">fallback 4</div></div>
+      <div class="prov-arrow">→</div>
+      <div class="prov-item"><div class="prov-badge">Gemini</div><div class="prov-sub">fallback 5</div></div>
+    </div>
+
+    <div class="callout callout-info">
+      <strong>Model note:</strong> Groq uses <code>llama-3.3-70b-versatile</code>. The earlier <code>llama-3.1-70b-versatile</code> was decommissioned and returns a 404 that surfaces as a silent LLM failure — the reason the router now logs a warning before every provider fallback.
+    </div>
+  </div>
+
+  <!-- ══ AGENTS ═════════════════════════════════════════════════════ -->
+  <div class="section" id="agents">
+    <h2>5 AI Agents</h2>
+    <p>Every agent is a thin wrapper over <code>RetrievalEngine</code> with specialized system prompts and collection hints. Adding a new agent is ~40 lines — no new service, no new retrieval code.</p>
+
+    <div class="card-grid">
+      <div class="card"><div class="card-icon">💬</div><div class="card-title">QA Assistant</div><div class="card-desc">General-purpose QA knowledge. Intent classifier picks collections. Citations include file, line, or JIRA ID.</div><div class="card-tag">all collections</div></div>
+      <div class="card"><div class="card-icon">🕵️</div><div class="card-title">RCA Agent</div><div class="card-desc">Retrieves from logs + jira + code in parallel. Structured RCA output: timeline, 5 Whys, fix recommendation.</div><div class="card-tag">logs · jira · code</div></div>
+      <div class="card"><div class="card-icon">🌀</div><div class="card-title">Flaky Test Agent</div><div class="card-desc">Finds tests matching the query, retrieves run history patterns. Flags timing issues, shared state, external dependencies.</div><div class="card-tag">logs · testcases · jenkins</div></div>
+      <div class="card"><div class="card-icon">🔗</div><div class="card-title">RTM Builder</div><div class="card-desc">Links PRD requirements → test cases → JIRA issues. Returns structured matrix with coverage gaps highlighted.</div><div class="card-tag">prd · testcases · jira</div></div>
+      <div class="card"><div class="card-icon">📊</div><div class="card-title">Coverage Analyzer</div><div class="card-desc">Compares PRD feature list against test case collection. Outputs uncovered features and suggested test scenarios.</div><div class="card-tag">prd · testcases</div></div>
+    </div>
+  </div>
+
+  <!-- ══ API REFERENCE ══════════════════════════════════════════════ -->
+  <div class="section" id="api">
+    <h2>API Reference</h2>
+
+    <div class="api-list">
+      <div class="api-item"><span class="method post">POST</span><div><div class="api-path">/api/chat</div><div class="api-desc">Body: <code>{"query", "agent_id", "metadata_filters"}</code> → answer text + citations + intent + collections queried</div></div></div>
+      <div class="api-item"><span class="method post">POST</span><div><div class="api-path">/api/search</div><div class="api-desc">Body: <code>{"query", "top_k", "collections", "metadata_filters"}</code> → ranked chunks with score, source, metadata</div></div></div>
+      <div class="api-item"><span class="method post">POST</span><div><div class="api-path">/api/ingest/file</div><div class="api-desc">Multipart upload — detects file type, chunks, embeds, indexes. Returns indexed/skipped counts.</div></div></div>
+      <div class="api-item"><span class="method post">POST</span><div><div class="api-path">/api/ingest/directory</div><div class="api-desc">Body: <code>{"path", "collection", "framework"}</code> — server-side ingestion of a local directory (frameworks, log archives).</div></div></div>
+      <div class="api-item"><span class="method post">POST</span><div><div class="api-path">/api/agents/{agent_id}/run</div><div class="api-desc">Body: <code>{"query", "metadata_filters"}</code> → structured agent output (RCA report, RTM matrix, coverage gaps, etc.)</div></div></div>
+      <div class="api-item"><span class="method get">GET</span><div><div class="api-path">/api/agents</div><div class="api-desc">List all agents with ID, name, description, supported collections</div></div></div>
+      <div class="api-item"><span class="method get">GET</span><div><div class="api-path">/api/collections</div><div class="api-desc">Collection info: name, vector count, indexed document count</div></div></div>
+      <div class="api-item"><span class="method get">GET</span><div><div class="api-path">/api/health</div><div class="api-desc">Qdrant connectivity, LLM provider availability, DB status</div></div></div>
+    </div>
+  </div>
+
+  <!-- ══ TECH STACK ════════════════════════════════════════════════ -->
+  <div class="section" id="tech-stack">
+    <h2>Tech Stack</h2>
+
+    <h3>Current Build</h3>
+    <div style="overflow-x:auto">
+    <table class="tech-table">
+      <thead><tr><th>Concern</th><th>Tool</th><th>Version</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Vector DB</td><td>Qdrant (Docker)</td><td>1.13.6</td><td>10 collections, payload filters, hybrid dense/sparse</td></tr>
+        <tr><td>Embedder</td><td>BAAI/bge-m3 (FlagEmbedding)</td><td>—</td><td>1024-dim dense + sparse + multi-vector</td></tr>
+        <tr><td>Reranker</td><td>BAAI/bge-reranker-large</td><td>—</td><td>Cross-encoder, FP16 on GPU</td></tr>
+        <tr><td>LLM primary</td><td>Groq · llama-3.3-70b-versatile</td><td>—</td><td>Sub-second, low cost; 5-provider fallback chain</td></tr>
+        <tr><td>Backend</td><td>FastAPI 0.115 + SSE</td><td>0.115</td><td>Streaming chat responses via Server-Sent Events</td></tr>
+        <tr><td>Frontend</td><td>Next.js 15 App Router</td><td>15.x</td><td>TypeScript, Tailwind v3, SWR, Framer Motion</td></tr>
+        <tr><td>Code chunking</td><td>Regex on function/class boundaries</td><td>—</td><td>Upgrade path: tree-sitter-java, tree-sitter-typescript</td></tr>
+        <tr><td>Doc chunking</td><td>PyMuPDF (PDFs) · heading regex (MD)</td><td>—</td><td>Layout-aware PDF extraction</td></tr>
+        <tr><td>ORM</td><td>SQLModel</td><td>0.0.21</td><td>Pydantic models = SQLAlchemy tables</td></tr>
+        <tr><td>Cache / Queue</td><td>Redis 7 + Celery</td><td>alpine</td><td>Async ingestion jobs, response TTL cache</td></tr>
+        <tr><td>Python runtime</td><td>Python 3.11 (Homebrew)</td><td>3.11.15</td><td>3.9 has runpy crashes on this macOS setup</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="callout callout-purple">
+      <strong>Reference spec alignment:</strong> The reference architecture uses Qdrant embedded (no Docker), BGE-Reranker-v2-m3, Vite+React (instead of Next.js), and tree-sitter for code chunking. These are valid alternatives — tree-sitter in particular gives more accurate function boundaries than regex. The Phase 2 roadmap below covers the migration path.
+    </div>
+  </div>
+
+  <!-- ══ ENGINEERING DECISIONS ══════════════════════════════════════ -->
+  <div class="section" id="decisions">
+    <h2>Engineering Decisions</h2>
+
+    <div class="decision"><div class="decision-icon">🗂️</div><div><div class="decision-title">10 specialized collections instead of 1 general collection + metadata tags</div><div class="decision-text">A single collection forces every query to scan all vectors. 10 collections let the intent classifier direct retrieval to 1–3 relevant ones, reducing latency and noise. The tradeoff is higher setup complexity, managed by the <code>CollectionSchema</code> dataclass system.</div></div></div>
+
+    <div class="decision"><div class="decision-icon">📦</div><div><div class="decision-title">Renamed <code>collections/</code> → <code>collections_module/</code></div><div class="decision-text">A folder named <code>collections/</code> in the Python path shadows the built-in <code>collections</code> module, causing cryptic import failures deep in pandas and SQLAlchemy. Renaming resolved it without changing the public API.</div></div></div>
+
+    <div class="decision"><div class="decision-icon">⚙️</div><div><div class="decision-title">Python 3.11 over system Python 3.9</div><div class="decision-text">macOS system Python 3.9 crashes in <code>runpy</code> when creating venvs with certain Homebrew paths. Pinned to <code>/opt/homebrew/bin/python3.11</code>.</div></div></div>
+
+    <div class="decision"><div class="decision-icon">🎨</div><div><div class="decision-title">Tailwind config as <code>.js</code> not <code>.ts</code></div><div class="decision-text">Tailwind v3's PostCSS plugin reads the config via Node <code>require()</code>. A <code>.ts</code> file requires transpilation that doesn't happen automatically in Next.js 15's build pipeline, silently dropping all utility classes from the output CSS.</div></div></div>
+
+    <div class="decision"><div class="decision-icon">🔄</div><div><div class="decision-title">Qdrant Docker image version must match client</div><div class="decision-text">The Qdrant Python client 1.18.0 warns (and may error) when the server version differs by more than one minor version. Updated Docker image from v1.9.2 to v1.13.6 to match.</div></div></div>
+
+    <div class="decision"><div class="decision-icon">🤖</div><div><div class="decision-title">Groq model: llama-3.3-70b-versatile</div><div class="decision-text"><code>llama-3.1-70b-versatile</code> was decommissioned by Groq. The 404 error surfaced as a silent LLM failure — no stacktrace, no useful log. Now logs a warning on every provider fallback to make failures debuggable.</div></div></div>
+  </div>
+
+  <!-- ══ PHASE 2 ROADMAP ════════════════════════════════════════════ -->
+  <div class="section" id="roadmap">
+    <h2>Phase 2 Roadmap</h2>
+
+    <div style="overflow-x:auto">
+    <table class="tech-table">
+      <thead><tr><th>Feature</th><th>Status</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>Neo4j Aura Knowledge Graph</td><td><span class="status-pill status-phase2">Phase 2</span></td><td>TestCase → JIRA → PRD → Commit → Bug traversal for deep traceability queries</td></tr>
+        <tr><td>Figma Design Ingestion</td><td><span class="status-pill status-phase2">Phase 2</span></td><td>ER Diagrams, Wireframes, User Guides exported to annotated text and indexed for UI-test alignment</td></tr>
+        <tr><td>tree-sitter Code Chunking</td><td><span class="status-pill status-planned">Planned</span></td><td>Replace regex-based function/class splitter with tree-sitter-java + tree-sitter-typescript for accurate AST-level boundaries</td></tr>
+        <tr><td>BGE-Reranker-v2-m3</td><td><span class="status-pill status-planned">Planned</span></td><td>Upgrade from bge-reranker-large to bge-reranker-v2-m3 (smaller, faster, comparable quality)</td></tr>
+        <tr><td>Embedded Qdrant (no Docker)</td><td><span class="status-pill status-planned">Planned</span></td><td>Switch from Docker Qdrant to embedded <code>qdrant-client[fastembed]</code> mode for simpler local development</td></tr>
+        <tr><td>Vite + React Frontend Option</td><td><span class="status-pill status-planned">Planned</span></td><td>Lighter-weight Vite+React+TypeScript+react-router-dom alternative to Next.js for teams that don't need SSR</td></tr>
+        <tr><td>Jenkins Log Auto-Ingest</td><td><span class="status-pill status-planned">Planned</span></td><td>Webhook listener on build completion → auto-ingest new log chunks into <code>jenkins</code> and <code>logs</code> collections</td></tr>
+        <tr><td>Streaming Chat (SSE)</td><td><span class="status-pill status-planned">Planned</span></td><td>FastAPI Server-Sent Events for real-time streamed answer tokens instead of blocking JSON response</td></tr>
+        <tr><td>JIRA MCP Integration</td><td><span class="status-pill status-phase2">Phase 2</span></td><td>Live JIRA pull via MCP instead of CSV export — real-time bug and story retrieval</td></tr>
+        <tr><td>AutomationCoach Agent</td><td><span class="status-pill status-planned">Planned</span></td><td>Selenium → Playwright migration helper: maps Java POM patterns to TypeScript equivalents with code examples from both repos</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const links = document.querySelectorAll('.nav-link');
+const observer = new IntersectionObserver(
+  entries => entries.forEach(e => {
+    if(e.isIntersecting){
+      links.forEach(l => l.classList.remove('active'));
+      const a = document.querySelector(`.nav-link[href="#${e.target.id}"]`);
+      if(a) a.classList.add('active');
+    }
+  }),
+  {rootMargin:'-15% 0px -75% 0px'}
+);
+document.querySelectorAll('.section[id]').forEach(s => observer.observe(s));
+</script>
