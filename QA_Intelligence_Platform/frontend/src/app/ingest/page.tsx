@@ -26,6 +26,21 @@ function detectSourceType(filename: string): string {
   return "text";
 }
 
+// Suggest the best collection from filename keywords
+function suggestCollection(filename: string): string | null {
+  const f = filename.toLowerCase();
+  if (/test.?case|testcase|tc[-_]/.test(f))        return "testcases";
+  if (/selenium/.test(f))                            return "selenium";
+  if (/playwright/.test(f))                          return "playwright";
+  if (/jira|ticket|issue|kan[-_]/.test(f))           return "jira";
+  if (/meeting|standup|sprint.?plan|retro/.test(f))  return "meeting_notes";
+  if (/prd|brd|srs|frd|requirement/.test(f))         return "prd";
+  if (/jenkins|build|console|pipeline/.test(f))      return "logs";
+  if (/glossar|dictionary|terminology/.test(f))      return "glossary";
+  if (/company|policy|onboard|handbook/.test(f))     return "company_docs";
+  return null;
+}
+
 // ── Result log item ────────────────────────────────────────────────────────────
 interface LogItem {
   id: string;
@@ -39,10 +54,11 @@ interface LogItem {
 
 // ── Side-by-side upload form + log ────────────────────────────────────────────
 export default function IngestPage() {
-  const [files,       setFiles]       = useState<File[]>([]);
-  const [collection,  setCollection]  = useState("selenium");
-  const [sourceType,  setSourceType]  = useState("code");
-  const [autoDetect,  setAutoDetect]  = useState(true);
+  const [files,           setFiles]           = useState<File[]>([]);
+  const [collection,      setCollection]      = useState("selenium");
+  const [autoCollection,  setAutoCollection]  = useState(false);
+  const [sourceType,      setSourceType]      = useState("code");
+  const [autoDetect,      setAutoDetect]      = useState(true);
   const [repo,        setRepo]        = useState("");
   const [framework,   setFramework]   = useState("");
   const [module,      setModule]      = useState("");
@@ -59,6 +75,14 @@ export default function IngestPage() {
       const names = new Set(prev.map(f => f.name));
       return [...prev, ...arr.filter(f => !names.has(f.name))];
     });
+    // Auto-switch collection if filename gives a strong signal
+    if (arr.length === 1) {
+      const suggested = suggestCollection(arr[0].name);
+      if (suggested) { setCollection(suggested); setAutoCollection(true); }
+      else setAutoCollection(false);
+    } else {
+      setAutoCollection(false);
+    }
   }, []);
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -253,14 +277,22 @@ export default function IngestPage() {
             {/* Target collection */}
             <div className="bg-white border rounded-xl p-5 shadow-sm mb-4"
                  style={{ borderColor: "#D6D1C8" }}>
-              <p className="text-[10px] tracking-widest uppercase text-stone-400 mb-3"
-                 style={{ fontFamily: "Courier New, monospace" }}>
-                Target Collection
-              </p>
+              <div className="flex items-center gap-3 mb-3">
+                <p className="text-[10px] tracking-widest uppercase text-stone-400"
+                   style={{ fontFamily: "Courier New, monospace" }}>
+                  Target Collection
+                </p>
+                {autoCollection && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded border"
+                        style={{ fontFamily: "Courier New, monospace", color: "#16A34A", borderColor: "#BBF7D0", background: "#F0FDF4" }}>
+                    auto-detected from filename
+                  </span>
+                )}
+              </div>
               <div className="grid grid-cols-3 gap-2">
                 {KNOWLEDGE_BASE.map(kb => (
                   <button key={kb.name}
-                    onClick={() => setCollection(kb.name)}
+                    onClick={() => { setCollection(kb.name); setAutoCollection(false); }}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-[12px] text-left transition-all ${
                       collection === kb.name
                         ? "border-stone-600 bg-stone-800 text-white"
