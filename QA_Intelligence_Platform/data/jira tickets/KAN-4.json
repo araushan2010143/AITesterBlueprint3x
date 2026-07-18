@@ -1,0 +1,54 @@
+{
+  "key": "KAN-4",
+  "id": "10013",
+  "url": "https://araushan2010143.atlassian.net/browse/KAN-4",
+  "project": {
+    "key": "KAN",
+    "name": "My Software Team"
+  },
+  "issue_type": "Task",
+  "summary": "Create Test Cases as Jira Tasks",
+  "description": null,
+  "status": "To Do",
+  "status_category": "new",
+  "priority": "Medium",
+  "assignee": null,
+  "reporter": "Abhishek Raushan",
+  "created": "2026-06-07T03:46:44+0530",
+  "updated": "2026-06-07T03:46:44+0530",
+  "due_date": null,
+  "labels": [],
+  "components": [],
+  "fix_versions": [],
+  "story_points": null,
+  "sprint": null,
+  "environment": null,
+  "resolution": null,
+  "subtasks": [
+    {
+      "key": "KAN-5",
+      "summary": "Positive Login Test",
+      "status": "To Do",
+      "priority": "Medium",
+      "issue_type": "Subtask"
+    },
+    {
+      "key": "KAN-6",
+      "summary": "Negative Username Validation",
+      "status": "To Do",
+      "priority": "Medium",
+      "issue_type": "Subtask"
+    },
+    {
+      "key": "KAN-7",
+      "summary": "Negative Password Validation",
+      "status": "To Do",
+      "priority": "Medium",
+      "issue_type": "Subtask"
+    }
+  ],
+  "comments": [],
+  "issue_links": [],
+  "votes": 0,
+  "watchers": 1
+}
