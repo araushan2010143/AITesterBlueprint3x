@@ -64,14 +64,29 @@ function timeUntil(iso: string | null): string {
 export default function HomePage() {
   const [stats,      setStats]      = useState<CollectionStat[]>([]);
   const [loaded,     setLoaded]     = useState(false);
-  const [online,     setOnline]     = useState(false);
+  const [online,     setOnline]     = useState<"checking" | "waking" | "online" | "offline">("checking");
   const [ingest,     setIngest]     = useState<IngestState | null>(null);
   const [tick,       setTick]       = useState(0);
   const [heroQuery,  setHeroQuery]  = useState("");
   const router = useRouter();
 
   useEffect(() => {
-    api.health().then(() => setOnline(true)).catch(() => {});
+    // Health check with retry — Render free tier sleeps and takes ~30-60s to wake.
+    // Retry every 15s, up to 6 attempts (~90s total), showing "waking" after first failure.
+    let attempts = 0;
+    const MAX = 6;
+    const tryHealth = () => {
+      api.health()
+        .then(() => { setOnline("online"); })
+        .catch(() => {
+          attempts++;
+          if (attempts >= MAX) { setOnline("offline"); return; }
+          setOnline("waking");
+          setTimeout(tryHealth, 15_000);
+        });
+    };
+    tryHealth();
+
     api.listCollections().then(r => { setStats(r.collections); setLoaded(true); }).catch(() => setLoaded(true));
     fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/status`)
       .then(r => r.json()).then(setIngest).catch(() => {});
@@ -127,8 +142,23 @@ export default function HomePage() {
             </span>
           )}
           <span className="flex items-center gap-1.5 text-[11px]" style={{ fontFamily: "Courier New,monospace" }}>
-            <span className={`w-2 h-2 rounded-full ${online ? "bg-green-500 shadow-[0_0_6px_#22c55e]" : "bg-red-400"}`} />
-            <span className={online ? "text-green-700" : "text-red-500"}>{online ? "online" : "offline"}</span>
+            <span className={`w-2 h-2 rounded-full ${
+              online === "online"   ? "bg-green-500 shadow-[0_0_6px_#22c55e]" :
+              online === "waking"   ? "bg-amber-400 animate-pulse" :
+              online === "checking" ? "bg-stone-300 animate-pulse" :
+                                      "bg-red-400"
+            }`} />
+            <span className={
+              online === "online"   ? "text-green-700" :
+              online === "waking"   ? "text-amber-600" :
+              online === "checking" ? "text-stone-400" :
+                                      "text-red-500"
+            }>
+              {online === "online"   ? "online" :
+               online === "waking"   ? "waking up…" :
+               online === "checking" ? "checking…" :
+                                       "offline"}
+            </span>
           </span>
         </div>
       </header>
