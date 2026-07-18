@@ -51,8 +51,9 @@ def chunk_document(
         return _chunk_logs(text, meta, lines_per_chunk=100)
     elif source_type == "meeting_notes":
         return _chunk_meeting_notes(text, meta)
-    elif source_type in ("csv", "excel", "jira"):
-        # These are pre-chunked row-by-row by their parsers
+    elif source_type in ("csv", "excel"):
+        return _chunk_csv(text, meta)
+    elif source_type == "jira":
         return [Chunk(text=text, chunk_index=0, source_type=source_type, metadata=meta)]
     else:
         return _chunk_prose(text, meta, max_tokens=500, overlap_tokens=50)
@@ -173,3 +174,54 @@ def _chunk_meeting_notes(text: str, meta: dict) -> list[Chunk]:
             metadata={**meta, "chunk_type": "speaker_turn"},
         ))
     return chunks or [Chunk(text=text, chunk_index=0, source_type="meeting_notes", metadata=meta)]
+
+
+# ── CSV / Excel chunker (one row = one chunk) ─────────────────────────────────
+
+def _chunk_csv(text: str, meta: dict) -> list[Chunk]:
+    """
+    Parse CSV text into one chunk per row.
+    Each chunk is formatted as 'Column: value | Column: value …' so the
+    LLM can read it naturally. Key columns (module, feature, priority, etc.)
+    are also stored as metadata for filtered retrieval.
+    """
+    import csv, io
+
+    reader = csv.DictReader(io.StringIO(text))
+    chunks: list[Chunk] = []
+
+    # Column name aliases → metadata key
+    _META_COLS = {
+        "module": "module", "feature": "feature", "priority": "priority",
+        "test priority": "priority", "test type": "test_type",
+        "automation status": "automation_status", "severity": "severity",
+        "sprint": "sprint", "status": "status",
+        "test case id": "test_case_id", "test case": "test_case_id",
+        "id": "test_case_id",
+    }
+
+    for i, row in enumerate(reader):
+        if not any(v.strip() for v in row.values()):
+            continue  # skip blank rows
+
+        # Build human-readable chunk text
+        parts = [f"{k}: {v.strip()}" for k, v in row.items() if v and v.strip()]
+        chunk_text = " | ".join(parts)
+        if not chunk_text:
+            continue
+
+        # Extract structured metadata from well-known columns
+        row_meta: dict = {}
+        for col, val in row.items():
+            key = _META_COLS.get(col.strip().lower())
+            if key and val.strip():
+                row_meta[key] = val.strip()
+
+        chunks.append(Chunk(
+            text=chunk_text,
+            chunk_index=i,
+            source_type="csv",
+            metadata={**meta, **row_meta},
+        ))
+
+    return chunks or [Chunk(text=text, chunk_index=0, source_type="csv", metadata=meta)]

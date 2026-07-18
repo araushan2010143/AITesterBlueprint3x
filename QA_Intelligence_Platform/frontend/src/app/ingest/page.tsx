@@ -294,7 +294,7 @@ export default function IngestPage() {
                       </svg>
                     )}
                   </div>
-                  <span className="text-[13px] text-stone-700">Auto-detect from extension</span>
+                  <span className="text-[13px] text-stone-700">Auto-detect <span className="text-stone-400">source type</span> from extension</span>
                 </label>
               </div>
 
