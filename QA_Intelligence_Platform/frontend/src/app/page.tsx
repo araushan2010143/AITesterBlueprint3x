@@ -66,8 +66,9 @@ export default function HomePage() {
   const [loaded,     setLoaded]     = useState(false);
   const [online,     setOnline]     = useState<"checking" | "waking" | "online" | "offline">("checking");
   const [ingest,     setIngest]     = useState<IngestState | null>(null);
-  const [tick,       setTick]       = useState(0);
-  const [heroQuery,  setHeroQuery]  = useState("");
+  const [tick,          setTick]          = useState(0);
+  const [heroQuery,     setHeroQuery]     = useState("");
+  const [triggerState,  setTriggerState]  = useState<"idle" | "running" | "done" | "error">("idle");
   const router = useRouter();
 
   useEffect(() => {
@@ -113,11 +114,27 @@ export default function HomePage() {
   }
 
   async function triggerNow() {
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/trigger`, { method: "POST" });
-    setTimeout(() => {
-      fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/status`)
-        .then(r => r.json()).then(setIngest).catch(() => {});
-    }, 2000);
+    if (triggerState === "running" || online !== "online") return;
+    setTriggerState("running");
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/trigger`,
+        { method: "POST" }
+      );
+      if (!res.ok) throw new Error(`${res.status}`);
+      setTriggerState("done");
+      // Poll status a few times so the bar updates as the background job progresses
+      [2000, 5000, 10000, 20000].forEach(delay =>
+        setTimeout(() => {
+          fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/status`)
+            .then(r => r.json()).then(setIngest).catch(() => {});
+        }, delay)
+      );
+      setTimeout(() => setTriggerState("idle"), 8000);
+    } catch {
+      setTriggerState("error");
+      setTimeout(() => setTriggerState("idle"), 4000);
+    }
   }
 
   return (
@@ -249,9 +266,23 @@ export default function HomePage() {
         {/* ── Auto-ingest status bar ── */}
         <div className="flex items-center justify-between bg-stone-900 text-stone-100 rounded-xl px-5 py-3 mb-8 gap-4">
           <div className="flex items-center gap-3">
-            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${ingest?.running ? "bg-yellow-400 animate-pulse" : "bg-green-400"}`} />
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+              ingest?.running       ? "bg-yellow-400 animate-pulse" :
+              triggerState === "running" ? "bg-yellow-400 animate-pulse" :
+              triggerState === "done"    ? "bg-green-400" :
+              triggerState === "error"   ? "bg-red-400" :
+                                           "bg-green-400"
+            }`} />
             <div>
-              <p className="text-[12px] font-semibold">{ingest?.running ? "Auto-ingest running…" : "Auto-ingest"}</p>
+              <p className="text-[12px] font-semibold">
+                {ingest?.running || triggerState === "running"
+                  ? "Ingest running…"
+                  : triggerState === "done"
+                    ? "Ingest triggered ✓"
+                    : triggerState === "error"
+                      ? "Trigger failed — backend offline?"
+                      : "On-demand ingest"}
+              </p>
               <p className="text-[10px] text-stone-400" style={{ fontFamily: "Courier New,monospace" }}>
                 last run: {timeAgo(ingest?.last_run ?? null)}
                 {ingest?.last_result && ` · +${ingest.last_result.chunks_indexed} chunks · ${ingest.last_result.files_new} new · ${ingest.last_result.files_modified} modified`}
@@ -259,13 +290,25 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex items-center gap-4 flex-shrink-0">
-            <p className="text-[11px] text-stone-400" style={{ fontFamily: "Courier New,monospace" }}>
-              next: <span className="text-stone-200 font-bold">{timeUntil(ingest?.next_run ?? null)}</span>
-            </p>
-            <button onClick={triggerNow}
-                    className="text-[11px] px-3 py-1.5 rounded-lg bg-stone-700 hover:bg-stone-600 transition-colors font-medium"
-                    style={{ fontFamily: "Courier New,monospace" }}>
-              run now ↑
+            {online !== "online" && (
+              <p className="text-[10px] text-stone-500" style={{ fontFamily: "Courier New,monospace" }}>
+                backend offline
+              </p>
+            )}
+            <button
+              onClick={triggerNow}
+              disabled={triggerState === "running" || ingest?.running || online !== "online"}
+              title={online !== "online" ? "Backend is offline — wait for it to wake up" : ""}
+              className="text-[11px] px-3 py-1.5 rounded-lg font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{
+                fontFamily: "Courier New,monospace",
+                background: triggerState === "done" ? "#166534" :
+                            triggerState === "error" ? "#7f1d1d" : "#44403C",
+              }}>
+              {triggerState === "running" || ingest?.running ? "running…" :
+               triggerState === "done"                       ? "triggered ✓" :
+               triggerState === "error"                      ? "failed ✗" :
+                                                               "run now ↑"}
             </button>
           </div>
         </div>
