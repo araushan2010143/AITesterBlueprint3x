@@ -1,19 +1,28 @@
-name: Keep Render Backend Alive
+name: Keep Render Backends Alive
 
 on:
   schedule:
-    - cron: "*/10 * * * *"  # every 10 minutes
-  workflow_dispatch:         # allow manual trigger
+    - cron: "*/10 * * * *"  # every 10 minutes — Render sleeps after 15 min inactivity
+  workflow_dispatch:         # allow manual trigger from GitHub Actions tab
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
+      - name: Ping QA Intelligence Platform API
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+            https://qa-intelligence-api.onrender.com/health)
+          echo "QA Intelligence Platform: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "Warning: QA Intelligence API returned $STATUS (may be waking up)"
+          fi
+
       - name: Ping QA RAG Platform API
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
             https://qa-rag-platform-api.onrender.com/api/stats/health)
-          echo "Health check status: $STATUS"
+          echo "QA RAG Platform: $STATUS"
           if [ "$STATUS" != "200" ]; then
-            echo "Warning: backend returned $STATUS"
+            echo "Warning: QA RAG Platform returned $STATUS (may be waking up)"
           fi

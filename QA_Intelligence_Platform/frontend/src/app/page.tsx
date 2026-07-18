@@ -64,33 +64,53 @@ function timeUntil(iso: string | null): string {
 export default function HomePage() {
   const [stats,      setStats]      = useState<CollectionStat[]>([]);
   const [loaded,     setLoaded]     = useState(false);
-  const [online,     setOnline]     = useState<"checking" | "waking" | "online" | "offline">("checking");
-  const [ingest,     setIngest]     = useState<IngestState | null>(null);
+  const [online,        setOnline]        = useState<"checking" | "waking" | "online" | "offline">("checking");
+  const [wakeSeconds,   setWakeSeconds]   = useState(0);
+  const [ingest,        setIngest]        = useState<IngestState | null>(null);
   const [tick,          setTick]          = useState(0);
   const [heroQuery,     setHeroQuery]     = useState("");
   const [triggerState,  setTriggerState]  = useState<"idle" | "running" | "done" | "error">("idle");
   const router = useRouter();
 
   useEffect(() => {
-    // Health check with retry — Render free tier sleeps and takes ~30-60s to wake.
-    // Retry every 15s, up to 6 attempts (~90s total), showing "waking" after first failure.
+    // Retry schedule: fast (5s) for first 12 attempts (~60s), then slow (15s) up to 6 more.
+    // Total wait before giving up: ~60s fast + ~90s slow = ~2.5 min.
     let attempts = 0;
-    const MAX = 6;
+    let wakeTimer: ReturnType<typeof setInterval> | null = null;
+
     const tryHealth = () => {
       api.health()
-        .then(() => { setOnline("online"); })
+        .then(() => {
+          setOnline("online");
+          if (wakeTimer) clearInterval(wakeTimer);
+          // Once online, load collections and ingest status
+          api.listCollections()
+            .then(r => { setStats(r.collections); setLoaded(true); })
+            .catch(() => setLoaded(true));
+          fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/status`)
+            .then(r => r.json()).then(setIngest).catch(() => {});
+        })
         .catch(() => {
           attempts++;
-          if (attempts >= MAX) { setOnline("offline"); return; }
-          setOnline("waking");
-          setTimeout(tryHealth, 15_000);
+          const fast = attempts <= 12;       // first 12 fails → 5s retries
+          const delay = fast ? 5_000 : 15_000;
+          if (attempts === 1) {
+            setOnline("waking");
+            setWakeSeconds(0);
+            // elapsed counter so the banner shows live seconds
+            wakeTimer = setInterval(() => setWakeSeconds(s => s + 1), 1000);
+          }
+          if (attempts > 18) {               // ~2.5 min total → give up
+            setOnline("offline");
+            if (wakeTimer) clearInterval(wakeTimer);
+            return;
+          }
+          setTimeout(tryHealth, delay);
         });
     };
     tryHealth();
 
-    api.listCollections().then(r => { setStats(r.collections); setLoaded(true); }).catch(() => setLoaded(true));
-    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/status`)
-      .then(r => r.json()).then(setIngest).catch(() => {});
+    return () => { if (wakeTimer) clearInterval(wakeTimer); };
   }, []);
 
   // Refresh ingest status every 30s + tick for live countdown
@@ -172,13 +192,55 @@ export default function HomePage() {
                                       "text-red-500"
             }>
               {online === "online"   ? "online" :
-               online === "waking"   ? "waking up…" :
+               online === "waking"   ? `waking… ${wakeSeconds}s` :
                online === "checking" ? "checking…" :
                                        "offline"}
             </span>
           </span>
         </div>
       </header>
+
+      {/* ── Wake-up banner ── */}
+      {(online === "waking" || online === "offline") && (
+        <div className={`flex items-center justify-between px-8 py-3 text-[13px] border-b ${
+          online === "waking"
+            ? "bg-amber-50 border-amber-200 text-amber-800"
+            : "bg-red-50 border-red-200 text-red-800"
+        }`}>
+          <div className="flex items-center gap-3">
+            {online === "waking" ? (
+              <>
+                <svg className="w-4 h-4 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                <span>
+                  <strong>Backend is starting up</strong> — Render spins down after inactivity.
+                  Waking now… <span className="font-mono font-bold">{wakeSeconds}s</span>
+                  {wakeSeconds < 30 && " (usually ready in ~30s)"}
+                </span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span>
+                  <strong>Backend is offline</strong> — could not connect after 2.5 minutes.
+                  Check the Render dashboard or try refreshing.
+                </span>
+              </>
+            )}
+          </div>
+          {online === "offline" && (
+            <button
+              onClick={() => { setOnline("checking"); window.location.reload(); }}
+              className="flex-shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-red-300 bg-white text-red-700 hover:bg-red-50 transition-colors font-medium">
+              Retry
+            </button>
+          )}
+        </div>
+      )}
 
       <main className="max-w-6xl mx-auto px-6 py-10">
 
