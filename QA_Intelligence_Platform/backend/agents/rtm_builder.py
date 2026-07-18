@@ -21,10 +21,11 @@ Mark gaps clearly. Requirements with no test cases = COVERAGE GAP."""
         super().__init__()
         self._llm = LLMRouter()
 
-    def run(self, query: str, context: dict | None = None) -> AgentResponse:
-        prd_result  = self._retrieve(query, filters={"source": "prd"},       top_k=5)
-        test_result = self._retrieve(query, filters={"source": "testcases"}, top_k=5)
-        jira_result = self._retrieve(query, filters={"source": "jira"},      top_k=3)
+    def run(self, query: str, context: dict | None = None, collections: list[str] | None = None) -> AgentResponse:
+        col = collections or []
+        prd_result  = self._retrieve(query, top_k=5, collections=col or ["prd"])
+        test_result = self._retrieve(query, top_k=5, collections=col or ["testcases"])
+        jira_result = self._retrieve(query, top_k=3, collections=col or ["jira"])
 
         combined = "\n\n---\n\n".join([
             f"[REQUIREMENTS]\n{prd_result.context}",

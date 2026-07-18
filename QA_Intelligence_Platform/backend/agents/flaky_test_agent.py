@@ -19,12 +19,8 @@ Cite sources for every claim."""
         super().__init__()
         self._llm = LLMRouter()
 
-    def run(self, query: str, context: dict | None = None) -> AgentResponse:
-        result = self._retrieve(
-            query,
-            filters={"source": "logs"},
-            top_k=5,
-        )
+    def run(self, query: str, context: dict | None = None, collections: list[str] | None = None) -> AgentResponse:
+        result = self._retrieve(query, top_k=5, collections=collections)
 
         messages = [
             {"role": "system", "content": self._SYSTEM},

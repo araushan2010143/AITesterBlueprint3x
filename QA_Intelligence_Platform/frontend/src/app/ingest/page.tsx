@@ -1,8 +1,8 @@
 "use client";
 import { useState, useRef, useCallback } from "react";
-import Link from "next/link";
 import { api, type IngestResponse } from "@/lib/api";
 import { KNOWLEDGE_BASE } from "@/lib/collections";
+import { AppShell } from "@/components/AppShell";
 
 // ── Source types supported by backend ────────────────────────────────────────
 const SOURCE_TYPES = [
@@ -130,35 +130,8 @@ export default function IngestPage() {
   const totalIndexed = log.filter(l => l.status === "success").reduce((s, l) => s + l.indexed, 0);
   const totalSkipped = log.filter(l => l.status === "success").reduce((s, l) => s + l.skipped, 0);
 
-  return (
-    <div className="flex h-screen overflow-hidden"
-         style={{ background: "#F5F3EE", fontFamily: "system-ui, -apple-system, sans-serif" }}>
-
-      {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
-      <aside className="flex flex-col flex-shrink-0 border-r overflow-y-auto"
-             style={{ width: 264, background: "#EDEAE3", borderColor: "#D6D1C8" }}>
-        <div className="px-5 pt-6 pb-4">
-          <div className="flex items-center justify-between">
-            <Link href="/">
-              <h1 className="font-bold text-stone-900 text-lg cursor-pointer"
-                  style={{ fontFamily: "Georgia, 'Times New Roman', serif", letterSpacing: "-0.01em" }}>
-                QA Buddy
-              </h1>
-            </Link>
-            <span className="flex items-center gap-1.5 text-[10px] text-stone-500"
-                  style={{ fontFamily: "Courier New, monospace" }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              online
-            </span>
-          </div>
-          <p className="text-[10px] tracking-widest uppercase text-stone-400 mt-0.5"
-             style={{ fontFamily: "Courier New, monospace" }}>
-            QA Knowledge System
-          </p>
-        </div>
-
-        <div className="border-t" style={{ borderColor: "#D6D1C8" }} />
-
+  const ingestSidebar = (
+    <>
         {/* Supported formats */}
         <div className="px-5 py-5">
           <p className="text-[10px] tracking-widest uppercase text-stone-400 mb-3"
@@ -215,33 +188,16 @@ export default function IngestPage() {
           </>
         )}
 
-        {/* Nav */}
-        <div className="px-5 py-4 space-y-2">
-          {[
-            { href: "/chat",   label: "Chat",   icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" },
-            { href: "/search", label: "Search", icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" },
-            { href: "/rca",    label: "RCA",    icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
-            { href: "/agents", label: "Agents", icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
-          ].map(({ href, label, icon }) => (
-            <Link key={href} href={href}
-                  className="flex items-center gap-2 text-[12px] text-stone-500 hover:text-stone-800 transition-colors"
-                  style={{ fontFamily: "Courier New, monospace" }}>
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} />
-              </svg>
-              {label}
-            </Link>
-          ))}
-        </div>
-
-        <div className="mt-auto border-t" style={{ borderColor: "#D6D1C8" }} />
         <div className="px-5 py-3">
           <p className="text-[10px]" style={{ fontFamily: "Courier New, monospace", color: "#A8A29E" }}>
             <span style={{ color: "#78716C" }}>chunking</span> source-aware · incremental SHA256
           </p>
         </div>
-      </aside>
+    </>
+  );
 
+  return (
+    <AppShell sidebar={ingestSidebar}>
       {/* ── Main ─────────────────────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 h-full">
 
@@ -516,6 +472,6 @@ export default function IngestPage() {
           </div>
         </main>
       </div>
-    </div>
+    </AppShell>
   );
 }

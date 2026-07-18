@@ -27,11 +27,12 @@ Be concise and precise. Cite every source."""
         super().__init__()
         self._llm = LLMRouter()
 
-    def run(self, query: str, context: dict | None = None) -> AgentResponse:
+    def run(self, query: str, context: dict | None = None, collections: list[str] | None = None) -> AgentResponse:
         # RCA needs logs + JIRA + code
-        log_result  = self._retrieve(query, filters={"source": "logs"},   top_k=3)
-        jira_result = self._retrieve(query, filters={"source": "jira"},   top_k=3)
-        code_result = self._retrieve(query, top_k=2)
+        col = collections or []
+        log_result  = self._retrieve(query, top_k=3, collections=col or ["logs"])
+        jira_result = self._retrieve(query, top_k=3, collections=col or ["jira"])
+        code_result = self._retrieve(query, top_k=2, collections=col or ["selenium", "playwright"])
 
         combined_context = "\n\n---\n\n".join(filter(None, [
             f"[LOGS]\n{log_result.context}",

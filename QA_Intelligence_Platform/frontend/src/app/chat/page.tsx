@@ -1,8 +1,11 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
 import { api, type ChatResponse, type Citation } from "@/lib/api";
 import { KNOWLEDGE_BASE, MODES, STARTERS, type KBCollection } from "@/lib/collections";
+import { AppShell } from "@/components/AppShell";
+import { showToast } from "@/components/Toast";
 
 // ── Runtime state for a collection ────────────────────────────────────────────
 interface CollectionState extends KBCollection {
@@ -18,37 +21,146 @@ interface Message {
   citations?: Citation[];
   intent?: string;
   mode?: string;
+  elapsed?: number;
   timestamp: Date;
+}
+
+// ── Conversation history ──────────────────────────────────────────────────────
+interface ConvSession {
+  id: string;
+  title: string;
+  messages: (Omit<Message, "timestamp"> & { timestamp: string })[];
+  savedAt: string;
+}
+
+const CONV_KEY = "qa_buddy_conversations";
+const MAX_SESSIONS = 15;
+
+function loadConversations(): ConvSession[] {
+  try { return JSON.parse(localStorage.getItem(CONV_KEY) ?? "[]"); }
+  catch { return []; }
+}
+
+function persistConversation(sessionId: string, messages: Message[]): ConvSession[] {
+  if (!messages.length) return loadConversations();
+  const firstUser = messages.find(m => m.role === "user");
+  if (!firstUser) return loadConversations();
+  const session: ConvSession = {
+    id: sessionId,
+    title: firstUser.content.slice(0, 60),
+    messages: messages.map(m => ({ ...m, timestamp: m.timestamp.toISOString() })),
+    savedAt: new Date().toISOString(),
+  };
+  const existing = loadConversations().filter(s => s.id !== sessionId);
+  const updated = [session, ...existing].slice(0, MAX_SESSIONS);
+  localStorage.setItem(CONV_KEY, JSON.stringify(updated));
+  return updated;
+}
+
+function deserializeMessages(raw: ConvSession["messages"]): Message[] {
+  return raw.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
 }
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-// ── Citation row ───────────────────────────────────────────────────────────────
-function CitationRow({ citations }: { citations: Citation[] }) {
+// ── Citation cards ─────────────────────────────────────────────────────────────
+function CitationCards({ citations }: { citations: Citation[] }) {
   const rows = citations.filter(c => c.source || c.filename || c.path || c.jira);
   if (!rows.length) return null;
-  const label = (c: Citation) => c.jira || c.testcase || c.filename || c.path || c.source;
-  const color = (c: Citation) =>
-    KNOWLEDGE_BASE.find(k => k.name === c.source)?.color ?? "#C2391B";
+
   return (
-    <div className="mt-3 pt-3 border-t border-stone-200">
-      <p style={{ fontFamily: "Courier New, monospace" }}
-         className="text-[10px] tracking-widest uppercase text-stone-400 mb-1.5">
-        sources
+    <div className="mt-4 pt-4 border-t border-stone-100">
+      <p className="text-[9px] tracking-widest uppercase text-stone-400 mb-2"
+         style={{ fontFamily: "Courier New, monospace" }}>
+        Sources
       </p>
-      <div className="flex flex-wrap gap-1.5">
-        {rows.map((c, i) => (
-          <span key={i}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-stone-100 border border-stone-200 text-[11px] text-stone-500 font-mono">
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{ background: color(c) }} />
-            {label(c)}
-          </span>
-        ))}
+      <div className="space-y-1.5">
+        {rows.map((c, i) => {
+          const kb     = KNOWLEDGE_BASE.find(k => k.name === c.source);
+          const color  = kb?.color ?? "#C2391B";
+          const badge  = (kb?.label ?? c.source ?? "").toUpperCase();
+          const title  = c.jira || c.testcase || c.filename || c.path || c.source || "";
+          return (
+            <div key={i}
+                 className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-stone-50 border border-stone-100"
+                 style={{ borderLeftColor: color, borderLeftWidth: "3px" }}>
+              {/* Index */}
+              <span className="text-[10px] font-bold tabular-nums flex-shrink-0"
+                    style={{ fontFamily: "Courier New, monospace", color }}>
+                [{i + 1}]
+              </span>
+              {/* Collection badge */}
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 tracking-wide"
+                    style={{
+                      fontFamily: "Courier New, monospace",
+                      background: `${color}18`,
+                      color,
+                    }}>
+                {badge}
+              </span>
+              {/* Label */}
+              <span className="text-[11px] text-stone-600 truncate flex-1 min-w-0"
+                    style={{ fontFamily: "Courier New, monospace" }}>
+                {title}
+              </span>
+              {/* Score */}
+              {typeof c.score === "number" && (
+                <span className="text-[11px] font-bold tabular-nums flex-shrink-0 text-stone-400"
+                      style={{ fontFamily: "Courier New, monospace" }}>
+                  {c.score.toFixed(2)}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
+  );
+}
+
+// ── Markdown prose renderer ────────────────────────────────────────────────────
+function Prose({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      components={{
+        p:          ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+        strong:     ({ children }) => <strong className="font-semibold text-stone-900">{children}</strong>,
+        em:         ({ children }) => <em className="italic text-stone-600">{children}</em>,
+        ul:         ({ children }) => <ul className="my-2 space-y-1 pl-4 list-disc">{children}</ul>,
+        ol:         ({ children }) => <ol className="my-2 space-y-1 pl-4 list-decimal">{children}</ol>,
+        li:         ({ children }) => <li className="leading-relaxed">{children}</li>,
+        h1:         ({ children }) => <h1 className="text-base font-bold text-stone-900 mt-3 mb-1">{children}</h1>,
+        h2:         ({ children }) => <h2 className="text-sm font-bold text-stone-900 mt-3 mb-1">{children}</h2>,
+        h3:         ({ children }) => <h3 className="text-sm font-semibold text-stone-800 mt-2 mb-1">{children}</h3>,
+        hr:         () => <hr className="my-3 border-stone-200" />,
+        blockquote: ({ children }) => (
+          <blockquote className="pl-3 border-l-2 border-stone-300 text-stone-500 italic my-2">
+            {children}
+          </blockquote>
+        ),
+        code: ({ children, className }) => {
+          const isBlock = !!className;
+          if (isBlock) {
+            return (
+              <pre className="mt-2 mb-1 p-3 rounded-lg bg-stone-50 border border-stone-200 overflow-x-auto">
+                <code className="text-[12px] font-mono text-stone-700 leading-relaxed">
+                  {String(children).trim()}
+                </code>
+              </pre>
+            );
+          }
+          return (
+            <code className="px-1.5 py-0.5 rounded bg-stone-100 border border-stone-200 text-[12px] font-mono text-stone-700">
+              {children}
+            </code>
+          );
+        },
+      }}
+    >
+      {content}
+    </ReactMarkdown>
   );
 }
 
@@ -70,23 +182,73 @@ function UserBubble({ msg }: { msg: Message }) {
 }
 
 function AssistantBubble({ msg }: { msg: Message }) {
+  const [copied, setCopied] = useState(false);
+
+  function copy() {
+    navigator.clipboard.writeText(msg.content).then(() => {
+      setCopied(true);
+      showToast("Copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
   return (
-    <div className="flex gap-3">
+    <div className="flex gap-3 group">
       <div className="w-7 h-7 flex items-center justify-center text-[#C2391B] text-lg font-bold flex-shrink-0 mt-0.5 select-none">✳</div>
       <div className="max-w-[80%] flex-1">
-        <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-stone-700 leading-relaxed shadow-sm">
-          {msg.intent && msg.intent !== "general" && (
-            <span className="inline-block text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded bg-stone-100 text-stone-400 mb-2 mr-2"
+        <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-sm shadow-sm overflow-hidden">
+          {/* Response header */}
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-stone-100 bg-stone-50">
+            <span className="text-[9px] font-bold tracking-widest uppercase text-stone-400"
                   style={{ fontFamily: "Courier New, monospace" }}>
-              {msg.intent}
+              QABUDDY
             </span>
+            {msg.intent && msg.intent !== "general" && (
+              <>
+                <span className="text-stone-300">·</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded tracking-wide uppercase"
+                      style={{
+                        fontFamily: "Courier New, monospace",
+                        background: "#C2391B18",
+                        color: "#C2391B",
+                      }}>
+                  {msg.intent}
+                </span>
+              </>
+            )}
+            {msg.elapsed !== undefined && (
+              <span className="ml-auto text-[9px] text-stone-400"
+                    style={{ fontFamily: "Courier New, monospace" }}>
+                {(msg.elapsed / 1000).toFixed(2)}s
+              </span>
+            )}
+          </div>
+
+          {/* Markdown content */}
+          <div className="px-4 py-3 text-sm text-stone-700">
+            <Prose content={msg.content} />
+          </div>
+
+          {/* Citations */}
+          {msg.citations && msg.citations.length > 0 && (
+            <div className="px-4 pb-4">
+              <CitationCards citations={msg.citations} />
+            </div>
           )}
-          <p className="whitespace-pre-wrap">{msg.content}</p>
-          {msg.citations && <CitationRow citations={msg.citations} />}
         </div>
-        <p className="text-[10px] text-stone-400 mt-1">
-          {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-        </p>
+
+        {/* Footer: timestamp + copy */}
+        <div className="flex items-center justify-between mt-1 px-1">
+          <p className="text-[10px] text-stone-400">
+            {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </p>
+          <button
+            onClick={copy}
+            className="text-[10px] text-stone-300 hover:text-stone-500 transition-colors opacity-0 group-hover:opacity-100"
+            style={{ fontFamily: "Courier New, monospace" }}>
+            {copied ? "✓ copied" : "copy"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -105,15 +267,54 @@ function ErrorBubble({ msg }: { msg: Message }) {
   );
 }
 
+// Pipeline step loading indicator
+const PIPELINE_STEPS = [
+  { label: "hybrid search",    delay: 0    },
+  { label: "BM25 + reranking", delay: 700  },
+  { label: "generating answer", delay: 1400 },
+];
+
 function TypingIndicator() {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    const timers = PIPELINE_STEPS.slice(1).map(({ delay }, i) =>
+      setTimeout(() => setStep(i + 1), delay)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
   return (
     <div className="flex gap-3">
-      <div className="w-7 h-7 flex items-center justify-center text-[#C2391B] text-lg font-bold flex-shrink-0">✳</div>
+      <div className="w-7 h-7 flex items-center justify-center text-[#C2391B] text-lg font-bold flex-shrink-0 mt-0.5 select-none">✳</div>
       <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
-        <div className="flex gap-1.5 items-center h-4">
-          {[0, 150, 300].map(d => (
-            <div key={d} className="w-1.5 h-1.5 rounded-full bg-stone-400 animate-bounce"
-                 style={{ animationDelay: `${d}ms` }} />
+        <div className="space-y-2">
+          {PIPELINE_STEPS.map(({ label, delay }, i) => (
+            <div key={label}
+                 className="flex items-center gap-2.5"
+                 style={{
+                   opacity: 0,
+                   animation: `fadeSlideIn 0.25s ease forwards`,
+                   animationDelay: `${delay}ms`,
+                 }}>
+              {i < step ? (
+                <svg className="w-3 h-3 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 12 12" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M2 6l3 3 5-5" />
+                </svg>
+              ) : i === step ? (
+                <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse"
+                      style={{ background: "#C2391B" }} />
+              ) : (
+                <span className="w-2 h-2 rounded-full flex-shrink-0 bg-stone-200" />
+              )}
+              <span className="text-[12px]"
+                    style={{
+                      fontFamily: "Courier New, monospace",
+                      color: i < step ? "#16A34A" : i === step ? "#1C1917" : "#C8C3BA",
+                    }}>
+                {label}
+              </span>
+            </div>
           ))}
         </div>
       </div>
@@ -128,13 +329,30 @@ export default function ChatPage() {
   const [loading, setLoading]     = useState(false);
   const [modeValue, setModeValue] = useState("auto-detect");
 
+  // Conversation history
+  const [sessionId, setSessionId] = useState(() => uid());
+  const [sessions, setSessions]   = useState<ConvSession[]>([]);
+
   // All 9 collections pre-seeded from KNOWLEDGE_BASE; counts filled from API
   const [cols, setCols] = useState<CollectionState[]>(
     KNOWLEDGE_BASE.map(k => ({ ...k, points: 0, checked: true }))
   );
 
-  const bottomRef   = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const bottomRef    = useRef<HTMLDivElement>(null);
+  const textareaRef  = useRef<HTMLTextAreaElement>(null);
+  const urlParamSent = useRef(false);
+
+  // Load conversation history on mount
+  useEffect(() => {
+    setSessions(loadConversations());
+  }, []);
+
+  // Auto-save conversation whenever messages change
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const updated = persistConversation(sessionId, messages);
+    setSessions(updated);
+  }, [messages, sessionId]);
 
   // Overlay live chunk counts from /api/collections
   useEffect(() => {
@@ -160,11 +378,38 @@ export default function ChatPage() {
   const toggle   = (name: string) => setCols(p => p.map(c => c.name === name ? { ...c, checked: !c.checked } : c));
   const setAll   = (v: boolean)   => setCols(p => p.map(c => ({ ...c, checked: v })));
 
-  const currentMode    = MODES.find(m => m.value === modeValue) ?? MODES[0];
-  const totalChunks    = cols.reduce((s, c) => s + c.points, 0);
-  const checkedCols    = cols.filter(c => c.checked).map(c => c.name);
-  const allChecked     = cols.every(c => c.checked);
-  const noneChecked    = cols.every(c => !c.checked);
+  const currentMode = MODES.find(m => m.value === modeValue) ?? MODES[0];
+  const totalChunks = cols.reduce((s, c) => s + c.points, 0);
+  const checkedCols = cols.filter(c => c.checked).map(c => c.name);
+  const allChecked  = cols.every(c => c.checked);
+  const noneChecked = cols.every(c => !c.checked);
+
+  function newConversation() {
+    setMessages([]);
+    setSessionId(uid());
+    textareaRef.current?.focus();
+  }
+
+  function restoreSession(s: ConvSession) {
+    setMessages(deserializeMessages(s.messages));
+    setSessionId(s.id);
+  }
+
+  function exportConversation() {
+    const lines = messages.map(m => {
+      const role = m.role === "user" ? "**You**" : m.role === "assistant" ? "**QA Buddy**" : "**Error**";
+      return `${role}\n\n${m.content}`;
+    });
+    const md = `# QA Buddy — Conversation Export\n_${new Date().toLocaleString()}_\n\n---\n\n${lines.join("\n\n---\n\n")}`;
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `qa-buddy-${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("Conversation exported");
+  }
 
   const sendMessage = useCallback(async (text?: string) => {
     const query = (text ?? input).trim();
@@ -176,9 +421,8 @@ export default function ChatPage() {
       id: uid(), role: "user", content: query, timestamp: new Date(),
     }]);
 
+    const t0 = Date.now();
     try {
-      // Pass user-selected collections only when a subset is chosen.
-      // Empty array → backend auto-detects via IntentClassifier.
       const collectionsFilter = (!noneChecked && !allChecked) ? checkedCols : [];
       const res: ChatResponse = await api.chat(
         query,
@@ -186,11 +430,13 @@ export default function ChatPage() {
         undefined,
         collectionsFilter,
       );
+      const elapsed = res.elapsed_ms ?? (Date.now() - t0);
       setMessages(prev => [...prev, {
         id: uid(), role: "assistant",
         content:   res.answer,
         citations: res.citations,
         intent:    res.intent,
+        elapsed,
         mode:      currentMode.value,
         timestamp: new Date(),
       }]);
@@ -208,39 +454,64 @@ export default function ChatPage() {
     }
   }, [input, loading, checkedCols, noneChecked, allChecked, currentMode]);
 
+  // Auto-send ?q= param — ref-guarded so React 18 Strict Mode double-invoke is a no-op
+  useEffect(() => {
+    if (urlParamSent.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q");
+    if (q) {
+      urlParamSent.current = true;
+      window.history.replaceState({}, "", window.location.pathname);
+      sendMessage(q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
   const hasMessages = messages.length > 0;
 
-  return (
-    <div className="flex h-screen overflow-hidden"
-         style={{ background: "#F5F3EE", fontFamily: "system-ui, -apple-system, sans-serif" }}>
-
-      {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
-      <aside className="flex flex-col flex-shrink-0 border-r overflow-y-auto"
-             style={{ width: 264, background: "#EDEAE3", borderColor: "#D6D1C8" }}>
-
-        {/* Brand */}
-        <div className="px-5 pt-6 pb-4">
-          <div className="flex items-center justify-between">
-            <Link href="/">
-              <h1 className="font-bold text-stone-900 text-lg leading-tight cursor-pointer"
-                  style={{ fontFamily: "Georgia, 'Times New Roman', serif", letterSpacing: "-0.01em" }}>
-                QA Buddy
-              </h1>
-            </Link>
-            <span className="flex items-center gap-1.5 text-[10px] text-stone-500"
-                  style={{ fontFamily: "Courier New, monospace" }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              online
-            </span>
+  const chatSidebar = (
+    <>
+        {/* Conversations */}
+        <div className="px-5 pt-4 pb-3">
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-[10px] tracking-widest uppercase text-stone-400"
+               style={{ fontFamily: "Courier New, monospace" }}>
+              Conversations
+            </p>
+            <button
+              onClick={newConversation}
+              className="text-[10px] text-stone-400 hover:text-stone-700 px-2 py-0.5 rounded hover:bg-stone-200 transition-colors"
+              style={{ fontFamily: "Courier New, monospace" }}>
+              + new
+            </button>
           </div>
-          <p className="text-[10px] tracking-widest uppercase text-stone-400 mt-0.5"
-             style={{ fontFamily: "Courier New, monospace" }}>
-            QA Knowledge System
-          </p>
+          {sessions.length === 0 ? (
+            <p className="text-[11px] text-stone-300" style={{ fontFamily: "Courier New, monospace" }}>
+              no history yet
+            </p>
+          ) : (
+            <ul className="space-y-0.5">
+              {sessions.slice(0, 8).map(s => (
+                <li key={s.id}>
+                  <button
+                    onClick={() => restoreSession(s)}
+                    title={s.title}
+                    className={`w-full text-left px-2 py-1.5 rounded-lg text-[11px] truncate transition-colors ${
+                      s.id === sessionId
+                        ? "bg-stone-800 text-white"
+                        : "text-stone-500 hover:bg-stone-200 hover:text-stone-800"
+                    }`}
+                    style={{ fontFamily: "Courier New, monospace" }}>
+                    {s.title}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="border-t" style={{ borderColor: "#D6D1C8" }} />
@@ -258,11 +529,8 @@ export default function ChatPage() {
                 <li key={col.name}
                     className="flex items-center gap-2 cursor-pointer select-none"
                     onClick={() => toggle(col.name)}>
-                  {/* Checkbox */}
                   <div className={`w-4 h-4 rounded-sm border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                    col.checked
-                      ? "border-stone-600 bg-stone-700"
-                      : "border-stone-300 bg-transparent"
+                    col.checked ? "border-stone-600 bg-stone-700" : "border-stone-300 bg-transparent"
                   }`}>
                     {col.checked && (
                       <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 12 12" stroke="currentColor">
@@ -270,18 +538,13 @@ export default function ChatPage() {
                       </svg>
                     )}
                   </div>
-                  {/* Dot */}
                   <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 transition-opacity"
                         style={{ background: col.color, opacity: notIndexed ? 0.35 : 1 }} />
-                  {/* Label */}
                   <span className={`text-[13px] flex-1 transition-colors leading-tight ${
-                    col.checked
-                      ? notIndexed ? "text-stone-400" : "text-stone-800"
-                      : "text-stone-400"
+                    col.checked ? notIndexed ? "text-stone-400" : "text-stone-800" : "text-stone-400"
                   }`}>
                     {col.label}
                   </span>
-                  {/* Count */}
                   <span className={`text-[12px] tabular-nums font-medium flex-shrink-0 ${
                     notIndexed ? "text-stone-300" : "text-stone-500"
                   }`}>
@@ -292,7 +555,6 @@ export default function ChatPage() {
             })}
           </ul>
 
-          {/* Total + all/none */}
           <div className="mt-4">
             <p className="mb-2" style={{ fontFamily: "Courier New, monospace", fontSize: 11, color: "#78716C" }}>
               total chunks{" "}
@@ -305,9 +567,9 @@ export default function ChatPage() {
                   className="px-3 py-0.5 rounded-full border text-[11px] transition-colors"
                   style={{
                     fontFamily: "Courier New, monospace",
-                    background:   (val && allChecked) || (!val && noneChecked) ? "#1C1917" : "transparent",
-                    color:        (val && allChecked) || (!val && noneChecked) ? "#F5F5F4" : "#78716C",
-                    borderColor:  (val && allChecked) || (!val && noneChecked) ? "#1C1917" : "#C8C3BA",
+                    background:  (val && allChecked) || (!val && noneChecked) ? "#1C1917" : "transparent",
+                    color:       (val && allChecked) || (!val && noneChecked) ? "#F5F5F4" : "#78716C",
+                    borderColor: (val && allChecked) || (!val && noneChecked) ? "#1C1917" : "#C8C3BA",
                   }}>
                   {lbl}
                 </button>
@@ -339,7 +601,6 @@ export default function ChatPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </div>
-          {/* Mode description */}
           {currentMode.value !== "auto-detect" && (
             <p className="text-[10px] text-stone-400 mt-1.5 leading-snug">
               {currentMode.value === "answer"         && "direct Q&A from your knowledge base"}
@@ -367,8 +628,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Spacer + footer */}
-        <div className="mt-auto border-t" style={{ borderColor: "#D6D1C8" }} />
+        {/* Tech footer */}
         <div className="px-5 py-3 space-y-0.5">
           {[["llm", "groq llama-3.3-70b"], ["search", "BM25 hybrid"]].map(([k, v]) => (
             <p key={k} className="text-[10px]" style={{ fontFamily: "Courier New, monospace", color: "#A8A29E" }}>
@@ -376,7 +636,7 @@ export default function ChatPage() {
             </p>
           ))}
           <div className="flex gap-1 pt-1.5 flex-wrap">
-            {["intent-routing", "citations"].map(tag => (
+            {["intent-routing", "citations", "rerank"].map(tag => (
               <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded border"
                     style={{ fontFamily: "Courier New, monospace", color: "#A8A29E", borderColor: "#C8C3BA" }}>
                 {tag}
@@ -384,30 +644,39 @@ export default function ChatPage() {
             ))}
           </div>
         </div>
-      </aside>
+    </>
+  );
 
-      {/* ── Main ─────────────────────────────────────────────────────────────── */}
+  return (
+    <AppShell sidebar={chatSidebar}>
       <div className="flex flex-col flex-1 min-w-0 h-full">
 
         {/* Top bar */}
         <header className="flex items-center justify-between px-8 py-3 border-b flex-shrink-0"
                 style={{ background: "#F5F3EE", borderColor: "#D6D1C8" }}>
           <p className="text-xs text-stone-400" style={{ fontFamily: "Courier New, monospace" }}>
-            ask{" "}
-            <span className="mx-1" style={{ color: "#C8C3BA" }}>→</span>
-            hybrid search{" "}
-            <span className="mx-1" style={{ color: "#C8C3BA" }}>→</span>
-            rerank{" "}
-            <span className="mx-1" style={{ color: "#C8C3BA" }}>→</span>
+            ask
+            <span className="mx-1.5" style={{ color: "#C8C3BA" }}>→</span>
+            hybrid search
+            <span className="mx-1.5" style={{ color: "#C8C3BA" }}>→</span>
+            BM25 + rerank
+            <span className="mx-1.5" style={{ color: "#C8C3BA" }}>→</span>
             cited answer
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {hasMessages && (
-              <button onClick={() => setMessages([])}
-                      className="text-[11px] text-stone-400 hover:text-stone-600 transition-colors"
-                      style={{ fontFamily: "Courier New, monospace" }}>
-                clear
-              </button>
+              <>
+                <button onClick={exportConversation}
+                        className="text-[11px] text-stone-400 hover:text-stone-600 transition-colors"
+                        style={{ fontFamily: "Courier New, monospace" }}>
+                  export
+                </button>
+                <button onClick={newConversation}
+                        className="text-[11px] text-stone-400 hover:text-stone-600 transition-colors"
+                        style={{ fontFamily: "Courier New, monospace" }}>
+                  clear
+                </button>
+              </>
             )}
             <span className="flex items-center gap-1.5 text-[11px] text-stone-500"
                   style={{ fontFamily: "Courier New, monospace" }}>
@@ -420,7 +689,6 @@ export default function ChatPage() {
         {/* Scrollable body */}
         <main className="flex-1 overflow-y-auto">
           {!hasMessages ? (
-            /* ── Hero / empty state ─────────────────────────────────── */
             <div className="max-w-2xl mx-auto px-8 pt-14 pb-8">
               <div className="text-5xl mb-5 leading-none select-none" style={{ color: "#C2391B" }}>✳</div>
               <h2 className="text-[58px] font-bold mb-5 text-stone-900 leading-none"
@@ -435,29 +703,25 @@ export default function ChatPage() {
               </p>
 
               {/* Pipeline card */}
-              <div className="rounded-xl border p-5 mb-7 bg-white shadow-sm"
-                   style={{ borderColor: "#D6D1C8" }}>
+              <div className="rounded-xl border p-5 mb-7 bg-white shadow-sm" style={{ borderColor: "#D6D1C8" }}>
                 <p className="text-[10px] tracking-widest uppercase text-stone-400 mb-4"
                    style={{ fontFamily: "Courier New, monospace" }}>
-                  How your answer is fetched
+                  Pipeline on every query
                 </p>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-5">
+                <div className="space-y-3">
                   {[
-                    { n: 1, title: "Understand",    body: "your question is condensed and rewritten into search variants" },
-                    { n: 2, title: "Hybrid search",  body: "meaning (dense) + exact keywords (ids, exceptions, method names) across selected sources" },
-                    { n: 3, title: "Fuse & rerank",  body: "both result lists merge (RRF), a cross-encoder keeps the 6 most relevant chunks" },
-                    { n: 4, title: "Cited answer",   body: "GPT-4o-mini answers only from those chunks, citing [n] → file:line, ticket, or build" },
-                  ].map(({ n, title, body }) => (
-                    <div key={n} className="flex gap-3">
-                      <div className="w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 text-[12px] font-bold"
-                           style={{ borderColor: "#C2391B", color: "#C2391B" }}>
-                        {n}
-                      </div>
+                    { step: "01", title: "Intent detection",  body: "Classifies as framework / bug / testcase / code / review" },
+                    { step: "02", title: "Hybrid search",      body: "Dense vector + BM25 sparse over selected collections simultaneously" },
+                    { step: "03", title: "Rerank",             body: "Cross-encoder re-scores results, keeps top-6 most relevant chunks" },
+                    { step: "04", title: "Cited answer",       body: "LLM answers strictly from those chunks, every claim linked to [n] source" },
+                  ].map(({ step, title, body }) => (
+                    <div key={step} className="flex gap-3 items-start">
+                      <span className="text-[10px] font-bold flex-shrink-0 mt-0.5"
+                            style={{ fontFamily: "Courier New, monospace", color: "#C2391B" }}>
+                        {step}
+                      </span>
                       <div>
-                        <p className="text-[13px] font-semibold text-stone-800 mb-0.5 leading-snug"
-                           style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
-                          {title}
-                        </p>
+                        <p className="text-[13px] font-semibold text-stone-800 leading-snug">{title}</p>
                         <p className="text-[12px] text-stone-500 leading-relaxed">{body}</p>
                       </div>
                     </div>
@@ -478,7 +742,6 @@ export default function ChatPage() {
               </div>
             </div>
           ) : (
-            /* ── Message thread ───────────────────────────────────────── */
             <div className="max-w-2xl mx-auto px-8 py-6 space-y-6">
               {messages.map(msg =>
                 msg.role === "user"      ? <UserBubble      key={msg.id} msg={msg} /> :
@@ -491,7 +754,7 @@ export default function ChatPage() {
           )}
         </main>
 
-        {/* ── Input bar ─────────────────────────────────────────────────────── */}
+        {/* Input bar */}
         <footer className="flex-shrink-0 px-8 py-4 border-t"
                 style={{ background: "#F5F3EE", borderColor: "#D6D1C8" }}>
           <div className="max-w-2xl mx-auto">
@@ -531,6 +794,6 @@ export default function ChatPage() {
           </div>
         </footer>
       </div>
-    </div>
+    </AppShell>
   );
 }

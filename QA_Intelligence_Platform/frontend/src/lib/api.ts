@@ -12,6 +12,7 @@ export interface Citation {
   page: string;
   jira: string;
   testcase: string;
+  score?: number;
 }
 
 export interface ChatResponse {
@@ -19,6 +20,7 @@ export interface ChatResponse {
   citations: Citation[];
   agent_id: string;
   intent: string;
+  elapsed_ms?: number;
 }
 
 export interface SearchResult {

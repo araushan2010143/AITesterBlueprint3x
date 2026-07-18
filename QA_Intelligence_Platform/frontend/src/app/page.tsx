@@ -1,8 +1,16 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { KNOWLEDGE_BASE } from "@/lib/collections";
+
+const SUGGESTED_PROMPTS = [
+  "Explain the login test framework",
+  "Find flaky tests in the checkout flow",
+  "Generate a test plan for the A/B test feature",
+  "What JIRA tickets are open for authentication?",
+];
 
 interface CollectionStat { name: string; vectors: number; points: number; }
 interface IngestState {
@@ -54,11 +62,13 @@ function timeUntil(iso: string | null): string {
 }
 
 export default function HomePage() {
-  const [stats,   setStats]   = useState<CollectionStat[]>([]);
-  const [loaded,  setLoaded]  = useState(false);
-  const [online,  setOnline]  = useState(false);
-  const [ingest,  setIngest]  = useState<IngestState | null>(null);
-  const [tick,    setTick]    = useState(0);
+  const [stats,      setStats]      = useState<CollectionStat[]>([]);
+  const [loaded,     setLoaded]     = useState(false);
+  const [online,     setOnline]     = useState(false);
+  const [ingest,     setIngest]     = useState<IngestState | null>(null);
+  const [tick,       setTick]       = useState(0);
+  const [heroQuery,  setHeroQuery]  = useState("");
+  const router = useRouter();
 
   useEffect(() => {
     api.health().then(() => setOnline(true)).catch(() => {});
@@ -79,6 +89,13 @@ export default function HomePage() {
 
   const totalChunks   = stats.reduce((s, c) => s + (c.points ?? 0), 0);
   const indexedCount  = stats.filter(c => (c.points ?? 0) > 0).length;
+
+  function heroSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const q = heroQuery.trim();
+    if (!q) return;
+    router.push(`/chat?q=${encodeURIComponent(q)}`);
+  }
 
   async function triggerNow() {
     await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/trigger`, { method: "POST" });
@@ -137,6 +154,45 @@ export default function HomePage() {
               Hybrid retrieval over Selenium code, Playwright tests, JIRA tickets,
               Jenkins logs, PRDs, and meeting notes — with cited answers.
             </p>
+
+            {/* ── Hero AI input ── */}
+            <form onSubmit={heroSubmit} className="mt-6 max-w-xl">
+              <div className="flex items-center gap-2 bg-white border rounded-2xl px-4 py-3.5 shadow-sm focus-within:border-stone-400 transition-colors"
+                   style={{ borderColor: "#D6D1C8" }}>
+                <svg className="w-4 h-4 text-stone-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+                <input
+                  type="text"
+                  value={heroQuery}
+                  onChange={e => setHeroQuery(e.target.value)}
+                  placeholder="Ask anything about your QA knowledge…"
+                  className="flex-1 bg-transparent text-[14px] text-stone-800 placeholder-stone-300 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={!heroQuery.trim()}
+                  className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white disabled:opacity-30 hover:opacity-90 transition-opacity"
+                  style={{ background: "#1C1917" }}>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+              {/* Suggested prompts */}
+              <div className="flex flex-wrap gap-2 mt-3">
+                {SUGGESTED_PROMPTS.map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => router.push(`/chat?q=${encodeURIComponent(p)}`)}
+                    className="px-3 py-1.5 rounded-full border text-[12px] text-stone-500 hover:text-stone-800 hover:border-stone-400 transition-colors bg-white shadow-sm"
+                    style={{ borderColor: "#D6D1C8" }}>
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </form>
           </div>
         </div>
 
@@ -225,9 +281,16 @@ export default function HomePage() {
                style={{ fontFamily: "Courier New,monospace" }}>
               Knowledge Collections
             </p>
-            <span className="text-[11px] font-bold" style={{ fontFamily: "Courier New,monospace", color: "#C2391B" }}>
-              {loaded ? `${indexedCount} / ${KNOWLEDGE_BASE.length} live` : "…"}
-            </span>
+            <div className="flex items-center gap-4">
+              <span className="text-[11px] font-bold" style={{ fontFamily: "Courier New,monospace", color: "#C2391B" }}>
+                {loaded ? `${indexedCount} / ${KNOWLEDGE_BASE.length} live` : "…"}
+              </span>
+              <Link href="/knowledge"
+                    className="text-[11px] text-stone-400 hover:text-stone-700 transition-colors"
+                    style={{ fontFamily: "Courier New,monospace" }}>
+                hub →
+              </Link>
+            </div>
           </div>
           <div className="grid grid-cols-3">
             {KNOWLEDGE_BASE.map((kb, i) => {
@@ -251,7 +314,7 @@ export default function HomePage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex-shrink-0 ml-3 text-right">
+                  <div className="flex-shrink-0 ml-3 flex flex-col items-end gap-0.5">
                     {!loaded ? (
                       <span className="block w-8 h-3 bg-stone-100 rounded animate-pulse" />
                     ) : (
@@ -260,9 +323,13 @@ export default function HomePage() {
                               style={{ fontFamily: "Courier New,monospace", color: indexed ? "#1C1917" : "#C8C3BA" }}>
                           {count > 0 ? count.toLocaleString() : "—"}
                         </span>
-                        {indexed && (
-                          <span className="text-[9px] text-stone-400">chunks</span>
-                        )}
+                        <span className={`text-[9px] px-1.5 py-px rounded-full font-semibold ${
+                          indexed
+                            ? "bg-green-100 text-green-700"
+                            : "bg-stone-100 text-stone-400"
+                        }`} style={{ fontFamily: "Courier New,monospace" }}>
+                          {indexed ? "live" : "empty"}
+                        </span>
                       </>
                     )}
                   </div>

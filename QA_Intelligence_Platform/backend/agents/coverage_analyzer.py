@@ -19,9 +19,10 @@ Be precise. Cite requirement IDs and test case IDs."""
         super().__init__()
         self._llm = LLMRouter()
 
-    def run(self, query: str, context: dict | None = None) -> AgentResponse:
-        prd_result  = self._retrieve(query, filters={"source": "prd"},       top_k=8)
-        test_result = self._retrieve(query, filters={"source": "testcases"}, top_k=8)
+    def run(self, query: str, context: dict | None = None, collections: list[str] | None = None) -> AgentResponse:
+        col = collections or []
+        prd_result  = self._retrieve(query, top_k=8, collections=col or ["prd"])
+        test_result = self._retrieve(query, top_k=8, collections=col or ["testcases"])
 
         combined = "\n\n---\n\n".join([
             f"[REQUIREMENTS]\n{prd_result.context}",

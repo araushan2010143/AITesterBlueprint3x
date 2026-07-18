@@ -1,8 +1,8 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
-import Link from "next/link";
 import { api, type SearchResult } from "@/lib/api";
 import { KNOWLEDGE_BASE } from "@/lib/collections";
+import { AppShell } from "@/components/AppShell";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface CollectionState {
@@ -176,37 +176,8 @@ export default function SearchPage() {
   const clearFilter = (key: string) =>
     setFilters(prev => { const n = { ...prev }; delete n[key]; return n; });
 
-  return (
-    <div className="flex h-screen overflow-hidden"
-         style={{ background: "#F5F3EE", fontFamily: "system-ui, -apple-system, sans-serif" }}>
-
-      {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
-      <aside className="flex flex-col flex-shrink-0 border-r overflow-y-auto"
-             style={{ width: 264, background: "#EDEAE3", borderColor: "#D6D1C8" }}>
-
-        {/* Brand */}
-        <div className="px-5 pt-6 pb-4">
-          <div className="flex items-center justify-between">
-            <Link href="/">
-              <h1 className="font-bold text-stone-900 text-lg leading-tight cursor-pointer"
-                  style={{ fontFamily: "Georgia, 'Times New Roman', serif", letterSpacing: "-0.01em" }}>
-                QA Buddy
-              </h1>
-            </Link>
-            <span className="flex items-center gap-1.5 text-[10px] text-stone-500"
-                  style={{ fontFamily: "Courier New, monospace" }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              online
-            </span>
-          </div>
-          <p className="text-[10px] tracking-widest uppercase text-stone-400 mt-0.5"
-             style={{ fontFamily: "Courier New, monospace" }}>
-            QA Knowledge System
-          </p>
-        </div>
-
-        <div className="border-t" style={{ borderColor: "#D6D1C8" }} />
-
+  const searchSidebar = (
+    <>
         {/* Knowledge Base */}
         <div className="px-5 pt-4 pb-3">
           <p className="text-[10px] tracking-widest uppercase text-stone-400 mb-3"
@@ -294,20 +265,7 @@ export default function SearchPage() {
 
         <div className="border-t" style={{ borderColor: "#D6D1C8" }} />
 
-        {/* Nav */}
-        <div className="px-5 py-4">
-          <Link href="/chat"
-                className="flex items-center gap-2 text-[12px] text-stone-500 hover:text-stone-800 transition-colors"
-                style={{ fontFamily: "Courier New, monospace" }}>
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-            Switch to Chat
-          </Link>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-auto border-t" style={{ borderColor: "#D6D1C8" }} />
+        {/* Tech footer */}
         <div className="px-5 py-3 space-y-0.5">
           {[["llm", "groq llama-3.3-70b"], ["search", "BM25 hybrid"]].map(([k, v]) => (
             <p key={k} className="text-[10px]" style={{ fontFamily: "Courier New, monospace", color: "#A8A29E" }}>
@@ -315,8 +273,11 @@ export default function SearchPage() {
             </p>
           ))}
         </div>
-      </aside>
+    </>
+  );
 
+  return (
+    <AppShell sidebar={searchSidebar}>
       {/* ── Main ─────────────────────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 h-full">
 
@@ -564,6 +525,6 @@ export default function SearchPage() {
           </div>
         </main>
       </div>
-    </div>
+    </AppShell>
   );
 }

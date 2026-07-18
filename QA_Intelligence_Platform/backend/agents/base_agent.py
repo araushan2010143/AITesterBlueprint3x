@@ -24,7 +24,7 @@ class BaseAgent(ABC):
         self._retrieval = RetrievalEngine()
 
     @abstractmethod
-    def run(self, query: str, context: dict | None = None) -> AgentResponse:
+    def run(self, query: str, context: dict | None = None, collections: list[str] | None = None) -> AgentResponse:
         """Execute the agent for a given query."""
         ...
 

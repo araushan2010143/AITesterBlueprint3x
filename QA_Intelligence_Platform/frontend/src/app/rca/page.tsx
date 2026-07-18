@@ -1,14 +1,49 @@
 "use client";
-import { useState, useRef } from "react";
-import Link from "next/link";
+import { useState, useRef, useEffect } from "react";
 import { api, type Citation } from "@/lib/api";
 import { KNOWLEDGE_BASE } from "@/lib/collections";
+import { AppShell } from "@/components/AppShell";
+import { showToast } from "@/components/Toast";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface RCAResult {
   answer: string;
   citations: Citation[];
   intent: string;
+}
+
+interface RCAEntry {
+  id: string;
+  query: string;
+  answer: string;
+  citations: Citation[];
+  intent: string;
+  savedAt: string;
+}
+
+// ── Persistence ────────────────────────────────────────────────────────────────
+const RCA_KEY = "qa_buddy_rca_history";
+const MAX_RCA = 10;
+
+function uid() { return Math.random().toString(36).slice(2, 10); }
+
+function loadRCAHistory(): RCAEntry[] {
+  try { return JSON.parse(localStorage.getItem(RCA_KEY) ?? "[]"); }
+  catch { return []; }
+}
+
+function saveRCAEntry(query: string, result: RCAResult): RCAEntry[] {
+  const entry: RCAEntry = {
+    id: uid(),
+    query: query.slice(0, 80),
+    answer: result.answer,
+    citations: result.citations,
+    intent: result.intent,
+    savedAt: new Date().toISOString(),
+  };
+  const updated = [entry, ...loadRCAHistory()].slice(0, MAX_RCA);
+  localStorage.setItem(RCA_KEY, JSON.stringify(updated));
+  return updated;
 }
 
 // ── Citation row ───────────────────────────────────────────────────────────────
@@ -67,7 +102,13 @@ export default function RCAPage() {
   const [result,    setResult]    = useState<RCAResult | null>(null);
   const [loading,   setLoading]   = useState(false);
   const [error,     setError]     = useState("");
+  const [copied,    setCopied]    = useState(false);
+  const [history,   setHistory]   = useState<RCAEntry[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setHistory(loadRCAHistory());
+  }, []);
 
   const canRun = failure.trim().length > 10 && !loading;
 
@@ -77,7 +118,6 @@ export default function RCAPage() {
     setResult(null);
     setError("");
 
-    // Build a rich query from all context fields
     const parts = [failure.trim()];
     if (buildNo)   parts.push(`Jenkins build: ${buildNo}`);
     if (component) parts.push(`Component: ${component}`);
@@ -86,7 +126,9 @@ export default function RCAPage() {
 
     try {
       const res = await api.chat(query, "rca", undefined, []);
-      setResult({ answer: res.answer, citations: res.citations, intent: res.intent });
+      const newResult = { answer: res.answer, citations: res.citations, intent: res.intent };
+      setResult(newResult);
+      setHistory(saveRCAEntry(failure.trim(), newResult));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed. Check backend logs.");
     } finally {
@@ -94,35 +136,35 @@ export default function RCAPage() {
     }
   }
 
-  return (
-    <div className="flex h-screen overflow-hidden"
-         style={{ background: "#F5F3EE", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+  function copyResult() {
+    if (!result) return;
+    navigator.clipboard.writeText(result.answer).then(() => {
+      setCopied(true);
+      showToast("Copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
-      {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
-      <aside className="flex flex-col flex-shrink-0 border-r overflow-y-auto"
-             style={{ width: 264, background: "#EDEAE3", borderColor: "#D6D1C8" }}>
-        <div className="px-5 pt-6 pb-4">
-          <div className="flex items-center justify-between">
-            <Link href="/">
-              <h1 className="font-bold text-stone-900 text-lg leading-tight cursor-pointer"
-                  style={{ fontFamily: "Georgia, 'Times New Roman', serif", letterSpacing: "-0.01em" }}>
-                QA Buddy
-              </h1>
-            </Link>
-            <span className="flex items-center gap-1.5 text-[10px] text-stone-500"
-                  style={{ fontFamily: "Courier New, monospace" }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              online
-            </span>
-          </div>
-          <p className="text-[10px] tracking-widest uppercase text-stone-400 mt-0.5"
-             style={{ fontFamily: "Courier New, monospace" }}>
-            QA Knowledge System
-          </p>
-        </div>
+  function copyAsJira() {
+    if (!result) return;
+    const sources = result.citations
+      .filter(c => c.jira || c.filename || c.source)
+      .map(c => `• ${c.jira || c.filename || c.source}`)
+      .join("\n");
+    const jira = `*Root Cause Analysis*\n\n${result.answer}${sources ? `\n\n*Evidence:*\n${sources}` : ""}`;
+    navigator.clipboard.writeText(jira).then(() => {
+      showToast("Copied as JIRA comment format");
+    });
+  }
 
-        <div className="border-t" style={{ borderColor: "#D6D1C8" }} />
+  function restoreEntry(entry: RCAEntry) {
+    setFailure(entry.query);
+    setResult({ answer: entry.answer, citations: entry.citations, intent: entry.intent });
+    setError("");
+  }
 
+  const rcaSidebar = (
+    <>
         {/* Pipeline */}
         <div className="px-5 py-5">
           <p className="text-[10px] tracking-widest uppercase text-stone-400 mb-3"
@@ -170,26 +212,36 @@ export default function RCAPage() {
           })}
         </div>
 
-        {/* Nav */}
-        <div className="mt-auto border-t" style={{ borderColor: "#D6D1C8" }} />
-        <div className="px-5 py-4 space-y-2">
-          {[
-            { href: "/chat",    label: "Chat",   icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" },
-            { href: "/search",  label: "Search", icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" },
-            { href: "/agents",  label: "Agents", icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
-          ].map(({ href, label, icon }) => (
-            <Link key={href} href={href}
-                  className="flex items-center gap-2 text-[12px] text-stone-500 hover:text-stone-800 transition-colors"
-                  style={{ fontFamily: "Courier New, monospace" }}>
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} />
-              </svg>
-              {label}
-            </Link>
-          ))}
-        </div>
-      </aside>
+        {/* Recent Diagnoses */}
+        {history.length > 0 && (
+          <>
+            <div className="border-t" style={{ borderColor: "#D6D1C8" }} />
+            <div className="px-5 py-4">
+              <p className="text-[10px] tracking-widest uppercase text-stone-400 mb-2"
+                 style={{ fontFamily: "Courier New, monospace" }}>
+                Recent Diagnoses
+              </p>
+              <ul className="space-y-0.5">
+                {history.slice(0, 6).map(entry => (
+                  <li key={entry.id}>
+                    <button
+                      onClick={() => restoreEntry(entry)}
+                      title={entry.query}
+                      className="w-full text-left px-2 py-1.5 rounded-lg text-[11px] truncate text-stone-500 hover:bg-stone-200 hover:text-stone-800 transition-colors"
+                      style={{ fontFamily: "Courier New, monospace" }}>
+                      {entry.query}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
+        )}
+    </>
+  );
 
+  return (
+    <AppShell sidebar={rcaSidebar}>
       {/* ── Main ─────────────────────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 h-full">
 
@@ -314,9 +366,23 @@ export default function RCAPage() {
                   {result.answer}
                 </div>
                 <CitationRow citations={result.citations} />
-                <div className="mt-4 pt-4 border-t border-stone-100 flex justify-end">
+                <div className="mt-4 pt-4 border-t border-stone-100 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={copyResult}
+                      className="text-[11px] text-stone-400 hover:text-stone-600 transition-colors"
+                      style={{ fontFamily: "Courier New, monospace" }}>
+                      {copied ? "✓ copied" : "copy"}
+                    </button>
+                    <button
+                      onClick={copyAsJira}
+                      className="text-[11px] text-stone-400 hover:text-stone-600 transition-colors"
+                      style={{ fontFamily: "Courier New, monospace" }}>
+                      copy as JIRA
+                    </button>
+                  </div>
                   <button
-                    onClick={() => { setResult(null); setFailure(""); textareaRef.current?.focus(); }}
+                    onClick={() => { setResult(null); setFailure(""); setCopied(false); textareaRef.current?.focus(); }}
                     className="text-[11px] text-stone-400 hover:text-stone-600 transition-colors"
                     style={{ fontFamily: "Courier New, monospace" }}>
                     clear &amp; start over
@@ -328,6 +394,6 @@ export default function RCAPage() {
           </div>
         </main>
       </div>
-    </div>
+    </AppShell>
   );
 }
