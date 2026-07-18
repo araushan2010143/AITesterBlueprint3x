@@ -1,25 +1,41 @@
 services:
   - type: web
     name: qa-intelligence-api
-    env: python
-    plan: standard          # needs 2 GB RAM for bge-m3 + reranker models
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: standard          # 2 GB RAM — required for bge-m3 + bge-reranker-large
     region: oregon
-    buildCommand: pip install -e ".[dev]"
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    rootDir: backend
     healthCheckPath: /health
     envVars:
+      # ── LLM (at least GROQ_API_KEY required) ───────────────────────────────
       - key: GROQ_API_KEY
-        sync: false         # set in Render dashboard
-      - key: QDRANT_URL
-        sync: false         # set to Qdrant Cloud URL
-      - key: QDRANT_API_KEY
-        sync: false         # set in Render dashboard
+        sync: false
       - key: OPENAI_API_KEY
-        sync: false         # optional fallback LLM
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # ── Qdrant Cloud (sign up free at cloud.qdrant.io) ─────────────────────
+      # Leave QDRANT_LOCAL_PATH empty to use Qdrant Cloud
+      # OR set QDRANT_LOCAL_PATH=/data/qdrant to use embedded (data lost on restart)
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: QDRANT_LOCAL_PATH
+        value: ""
+
+      # ── App config ──────────────────────────────────────────────────────────
+      - key: JWT_SECRET
+        generateValue: true   # Render auto-generates a secure random value
       - key: UPLOAD_DIR
         value: /tmp/uploads
       - key: FILE_REGISTRY_DB
         value: /tmp/file_registry.db
+      - key: DATABASE_URL
+        value: sqlite:////tmp/qa_platform.db
       - key: RATE_LIMIT_DISABLED
         value: "false"
+      - key: EMBEDDING_DEVICE
+        value: cpu
