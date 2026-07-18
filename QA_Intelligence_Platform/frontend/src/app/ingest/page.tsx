@@ -26,19 +26,23 @@ function detectSourceType(filename: string): string {
   return "text";
 }
 
-// Suggest the best collection from filename keywords
-function suggestCollection(filename: string): string | null {
+// Suggest the best collection from filename keywords only — never from file content.
+// Returns a collection name + whether this was a strong signal or a sensible default.
+function suggestCollection(filename: string): { collection: string; strong: boolean } {
   const f = filename.toLowerCase();
-  if (/test.?case|testcase|tc[-_]/.test(f))        return "testcases";
-  if (/selenium/.test(f))                            return "selenium";
-  if (/playwright/.test(f))                          return "playwright";
-  if (/jira|ticket|issue|kan[-_]/.test(f))           return "jira";
-  if (/meeting|standup|sprint.?plan|retro/.test(f))  return "meeting_notes";
-  if (/prd|brd|srs|frd|requirement/.test(f))         return "prd";
-  if (/jenkins|build|console|pipeline/.test(f))      return "logs";
-  if (/glossar|dictionary|terminology/.test(f))      return "glossary";
-  if (/company|policy|onboard|handbook/.test(f))     return "company_docs";
-  return null;
+  const ext = f.split(".").pop() ?? "";
+  if (/test.?case|testcase|tc[-_]/.test(f))        return { collection: "testcases",    strong: true };
+  if (/\bselenium\b/.test(f))                       return { collection: "selenium",     strong: true };
+  if (/\bplaywright\b/.test(f))                     return { collection: "playwright",   strong: true };
+  if (/jira|ticket|issue|kan[-_]/.test(f))          return { collection: "jira",         strong: true };
+  if (/meeting|standup|sprint.?plan|retro/.test(f)) return { collection: "meeting_notes",strong: true };
+  if (/prd|brd|srs|frd|requirement/.test(f))        return { collection: "prd",          strong: true };
+  if (/jenkins|build|console|pipeline/.test(f))     return { collection: "logs",         strong: true };
+  if (/company|policy|onboard|handbook/.test(f))    return { collection: "company_docs", strong: true };
+  // Soft fallback by file type — PDFs and Markdown that don't match a specific pattern
+  // belong in company_docs, not in a framework-specific collection.
+  if (["pdf", "md", "mdx", "txt", "docx"].includes(ext)) return { collection: "company_docs", strong: false };
+  return { collection: "company_docs", strong: false };
 }
 
 // ── Result log item ────────────────────────────────────────────────────────────
@@ -55,8 +59,9 @@ interface LogItem {
 // ── Side-by-side upload form + log ────────────────────────────────────────────
 export default function IngestPage() {
   const [files,           setFiles]           = useState<File[]>([]);
-  const [collection,      setCollection]      = useState("selenium");
+  const [collection,      setCollection]      = useState("company_docs");
   const [autoCollection,  setAutoCollection]  = useState(false);
+  const [autoCollectionStrong, setAutoCollectionStrong] = useState(false);
   const [sourceType,      setSourceType]      = useState("code");
   const [autoDetect,      setAutoDetect]      = useState(true);
   const [repo,        setRepo]        = useState("");
@@ -75,13 +80,26 @@ export default function IngestPage() {
       const names = new Set(prev.map(f => f.name));
       return [...prev, ...arr.filter(f => !names.has(f.name))];
     });
-    // Auto-switch collection if filename gives a strong signal
+    // Auto-switch collection when a single file is added.
+    // Strong signals (filename keywords) override the current selection.
+    // Soft fallbacks (extension-based) only update when the user hasn't manually picked.
     if (arr.length === 1) {
-      const suggested = suggestCollection(arr[0].name);
-      if (suggested) { setCollection(suggested); setAutoCollection(true); }
-      else setAutoCollection(false);
+      const { collection: suggested, strong } = suggestCollection(arr[0].name);
+      if (strong) {
+        setCollection(suggested);
+        setAutoCollection(true);
+        setAutoCollectionStrong(true);
+      } else {
+        // Soft default: apply only if no manual pick has been made yet
+        if (!autoCollection) {
+          setCollection(suggested);
+          setAutoCollection(true);
+          setAutoCollectionStrong(false);
+        }
+      }
     } else {
       setAutoCollection(false);
+      setAutoCollectionStrong(false);
     }
   }, []);
 
@@ -240,15 +258,20 @@ export default function IngestPage() {
                 </p>
                 {autoCollection && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded border"
-                        style={{ fontFamily: "Courier New, monospace", color: "#16A34A", borderColor: "#BBF7D0", background: "#F0FDF4" }}>
-                    auto-detected from filename
+                        style={{
+                          fontFamily: "Courier New, monospace",
+                          color:       autoCollectionStrong ? "#16A34A" : "#B45309",
+                          borderColor: autoCollectionStrong ? "#BBF7D0" : "#FDE68A",
+                          background:  autoCollectionStrong ? "#F0FDF4" : "#FFFBEB",
+                        }}>
+                    {autoCollectionStrong ? "matched from filename" : "suggested default — please verify"}
                   </span>
                 )}
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {KNOWLEDGE_BASE.map(kb => (
                   <button key={kb.name}
-                    onClick={() => { setCollection(kb.name); setAutoCollection(false); }}
+                    onClick={() => { setCollection(kb.name); setAutoCollection(false); setAutoCollectionStrong(false); }}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-[12px] text-left transition-all ${
                       collection === kb.name
                         ? "border-stone-600 bg-stone-800 text-white"
