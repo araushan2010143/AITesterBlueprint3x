@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import get_settings
 from database.db import init_db
-from api.routes import chat, search, ingest, agents, health
+from api.routes import chat, search, ingest, agents, health, admin
 from api.routes import collections
 
 
@@ -26,7 +26,12 @@ async def lifespan(app: FastAPI):
     emb = get_embedder()
     emb.embed(["startup warmup"])  # trigger any lazy PyTorch init once
     print("✅ Embedder and Qdrant ready", flush=True)
+
+    # Start hourly auto-ingest scheduler
+    from services.scheduler import start_scheduler, stop_scheduler
+    start_scheduler(interval_hours=1)
     yield
+    stop_scheduler()
 
 
 def build_app() -> FastAPI:
@@ -59,6 +64,7 @@ def build_app() -> FastAPI:
     app.include_router(ingest.router,      prefix="/api/ingest",      tags=["Ingest"])
     app.include_router(agents.router,      prefix="/api/agents",      tags=["Agents"])
     app.include_router(collections.router, prefix="/api/collections",  tags=["Collections"])
+    app.include_router(admin.router,       prefix="/api/admin",         tags=["Admin"])
 
     return app
 
