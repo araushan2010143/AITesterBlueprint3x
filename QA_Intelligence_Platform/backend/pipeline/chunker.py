@@ -115,10 +115,10 @@ def _chunk_prose(
         if chunk_text:
             chunks.append(Chunk(text=chunk_text, chunk_index=ci, source_type="pdf", metadata=meta))
             ci += 1
+        if j >= len(words):
+            break  # consumed all words — stop to avoid infinite loop on last chunk
         overlap_words = max(1, overlap // 5)
-        i = j - overlap_words
-        if i >= j:
-            break
+        i = max(j - overlap_words, i + 1)  # always advance i to guarantee progress
     return chunks
 
 

@@ -12,8 +12,8 @@ class QAAssistant(BaseAgent):
         super().__init__()
         self._llm = LLMRouter()
 
-    def run(self, query: str, context: dict | None = None) -> AgentResponse:
-        result = self._retrieve(query, filters=context)
+    def run(self, query: str, context: dict | None = None, collections: list[str] | None = None) -> AgentResponse:
+        result = self._retrieve(query, filters=context, collections=collections)
 
         messages = [
             {"role": "system", "content": self._build_system_prompt()},

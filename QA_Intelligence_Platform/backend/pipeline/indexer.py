@@ -27,10 +27,8 @@ class Indexer:
 
     def _get_qdrant(self):
         if self._qdrant is None:
-            from qdrant_client import QdrantClient
-            from config import get_settings
-            s = get_settings()
-            self._qdrant = QdrantClient(url=s.qdrant_url, api_key=s.qdrant_api_key or None)
+            from database.qdrant_client import get_qdrant_client
+            self._qdrant = get_qdrant_client()
         return self._qdrant
 
     def _get_embedder(self):

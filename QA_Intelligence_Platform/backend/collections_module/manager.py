@@ -27,7 +27,7 @@ def get_collection_stats(client: "QdrantClient") -> list[dict]:
         info = client.get_collection(col.name)
         stats.append({
             "name":        col.name,
-            "vectors":     info.vectors_count or 0,
+            "vectors":     info.indexed_vectors_count or 0,
             "points":      info.points_count or 0,
         })
     return stats

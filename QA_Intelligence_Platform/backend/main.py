@@ -15,7 +15,17 @@ from api.routes import collections
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import os
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     init_db()
+    # Pre-warm embedder + Qdrant in startup (single-threaded) so concurrent
+    # requests never race on first initialization.
+    from pipeline.embedder import get_embedder
+    from database.qdrant_client import get_qdrant_client
+    get_qdrant_client()
+    emb = get_embedder()
+    emb.embed(["startup warmup"])  # trigger any lazy PyTorch init once
+    print("✅ Embedder and Qdrant ready", flush=True)
     yield
 
 

@@ -28,8 +28,8 @@ class BaseAgent(ABC):
         """Execute the agent for a given query."""
         ...
 
-    def _retrieve(self, query: str, filters: dict | None = None, top_k: int = 5):
-        return self._retrieval.retrieve(query, metadata_filters=filters, top_k=top_k)
+    def _retrieve(self, query: str, filters: dict | None = None, top_k: int = 5, collections: list[str] | None = None):
+        return self._retrieval.retrieve(query, metadata_filters=filters, top_k=top_k, collections_override=collections or [])
 
     def _build_system_prompt(self) -> str:
         return (

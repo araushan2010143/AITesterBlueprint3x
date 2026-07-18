@@ -7,13 +7,10 @@ router = APIRouter()
 @router.get("")
 def list_collections():
     """List all Qdrant collections with vector counts."""
-    from qdrant_client import QdrantClient
-    from config import get_settings
+    from database.qdrant_client import get_qdrant_client
     from collections_module.manager import get_collection_stats
 
-    s = get_settings()
-    client = QdrantClient(url=s.qdrant_url, api_key=s.qdrant_api_key or None)
-    return {"collections": get_collection_stats(client)}
+    return {"collections": get_collection_stats(get_qdrant_client())}
 
 
 @router.get("/schema")

@@ -84,6 +84,7 @@ class RetrievalEngine:
         query: str,
         metadata_filters: dict[str, Any] | None = None,
         top_k: int | None = None,
+        collections_override: list[str] | None = None,
     ) -> RetrievalResult:
         """
         Full retrieval pipeline.
@@ -101,10 +102,11 @@ class RetrievalEngine:
         # 2. Expand query (abbreviations, synonyms)
         expanded_query = self._expander.expand(query)
 
-        # 3. Hybrid search (vector dense + BM25 sparse → RRF fusion)
+        # 3. Hybrid search — use user-pinned collections if provided, else intent-classified ones
+        search_collections = collections_override if collections_override else classification.collections
         raw_chunks = self._searcher.search(
             query=expanded_query,
-            collections=classification.collections,
+            collections=search_collections,
             top_k=k,
             metadata_filters=metadata_filters or {},
         )

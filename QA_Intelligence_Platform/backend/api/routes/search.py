@@ -41,6 +41,7 @@ def search(req: SearchRequest):
         query=req.query,
         metadata_filters=req.filters,
         top_k=req.top_k,
+        collections_override=req.collections or [],
     )
     return SearchResponse(
         results=[

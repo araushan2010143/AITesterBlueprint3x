@@ -10,6 +10,7 @@ class ChatRequest(BaseModel):
     query: str
     filters: dict | None = None
     agent: str = "qa_assistant"
+    collections: list[str] = []
 
 
 class ChatResponse(BaseModel):
@@ -31,7 +32,7 @@ def chat(req: ChatRequest):
     from agents import AGENT_REGISTRY
     AgentClass = AGENT_REGISTRY.get(req.agent, AGENT_REGISTRY["qa_assistant"])
     agent = AgentClass()
-    result = agent.run(req.query, context=req.filters)
+    result = agent.run(req.query, context=req.filters, collections=req.collections or [])
     return ChatResponse(
         answer=result.answer,
         citations=result.citations,

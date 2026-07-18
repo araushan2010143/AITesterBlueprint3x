@@ -2,66 +2,49 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { api, type ChatResponse, type Citation } from "@/lib/api";
+import { KNOWLEDGE_BASE, MODES, STARTERS, type KBCollection } from "@/lib/collections";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// ── Runtime state for a collection ────────────────────────────────────────────
+interface CollectionState extends KBCollection {
+  points: number;
+  checked: boolean;
+}
+
+// ── Message ────────────────────────────────────────────────────────────────────
 interface Message {
   id: string;
   role: "user" | "assistant" | "error";
   content: string;
   citations?: Citation[];
-  agent?: string;
   intent?: string;
+  mode?: string;
   timestamp: Date;
 }
 
-const AGENTS = [
-  { id: "qa_assistant",     label: "QA Assistant",      desc: "General QA knowledge & framework help" },
-  { id: "rca",              label: "Root Cause Analysis", desc: "Diagnose failures from logs & history" },
-  { id: "flaky_test",       label: "Flaky Test Agent",   desc: "Retry patterns, locator stability" },
-  { id: "rtm_builder",      label: "RTM Builder",        desc: "Requirements → Test Case traceability" },
-  { id: "coverage_analyzer", label: "Coverage Analyzer", desc: "Find requirements with no tests" },
-];
-
-const FILTER_KEYS = ["sprint", "module", "framework", "severity"];
-
-const STARTERS = [
-  "Where is the login page implemented in our Playwright repo?",
-  "Show all High severity JIRA bugs from Sprint 17",
-  "Which requirements have no test coverage?",
-  "Why did the login test TC-456 fail in the last run?",
-  "How do I migrate from Selenium Page Objects to Playwright?",
-];
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
 function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-function cleanCitation(c: Citation): string {
-  if (c.jira) return c.jira;
-  if (c.testcase) return c.testcase;
-  if (c.filename) return c.line ? `${c.filename}:${c.line}` : c.filename;
-  if (c.path) return c.path;
-  return c.source;
-}
-
-// ── Sub-components ─────────────────────────────────────────────────────────────
-function CitationsPanel({ citations }: { citations: Citation[] }) {
-  const filtered = citations.filter(
-    (c) => c.source || c.filename || c.jira || c.testcase || c.path
-  );
-  if (!filtered.length) return null;
+// ── Citation row ───────────────────────────────────────────────────────────────
+function CitationRow({ citations }: { citations: Citation[] }) {
+  const rows = citations.filter(c => c.source || c.filename || c.path || c.jira);
+  if (!rows.length) return null;
+  const label = (c: Citation) => c.jira || c.testcase || c.filename || c.path || c.source;
+  const color = (c: Citation) =>
+    KNOWLEDGE_BASE.find(k => k.name === c.source)?.color ?? "#C2391B";
   return (
-    <div className="mt-3 pt-3 border-t border-white/[0.06]">
-      <p className="text-[10px] font-bold tracking-widest uppercase text-[#64748B] mb-2">Sources</p>
-      <div className="flex flex-wrap gap-2">
-        {filtered.map((c, i) => (
-          <span
-            key={i}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0D1426] border border-white/[0.08] text-[11px] text-[#94A3B8] font-mono"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#3B82F6] flex-shrink-0" />
-            {cleanCitation(c)}
+    <div className="mt-3 pt-3 border-t border-stone-200">
+      <p style={{ fontFamily: "Courier New, monospace" }}
+         className="text-[10px] tracking-widest uppercase text-stone-400 mb-1.5">
+        sources
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {rows.map((c, i) => (
+          <span key={i}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-stone-100 border border-stone-200 text-[11px] text-stone-500 font-mono">
+            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ background: color(c) }} />
+            {label(c)}
           </span>
         ))}
       </div>
@@ -69,65 +52,39 @@ function CitationsPanel({ citations }: { citations: Citation[] }) {
   );
 }
 
-function IntentBadge({ intent }: { intent: string }) {
-  const colors: Record<string, string> = {
-    code:      "bg-[#3B82F6]/10 text-[#3B82F6] border-[#3B82F6]/20",
-    bug:       "bg-red-500/10 text-red-400 border-red-500/20",
-    test:      "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
-    prd:       "bg-[#8B5CF6]/10 text-[#8B5CF6] border-[#8B5CF6]/20",
-    logs:      "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    general:   "bg-white/5 text-[#64748B] border-white/10",
-    rca:       "bg-red-500/10 text-red-400 border-red-500/20",
-    coverage:  "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
-    rtm:       "bg-[#22D3EE]/10 text-[#22D3EE] border-[#22D3EE]/20",
-    flaky_test:"bg-amber-500/10 text-amber-400 border-amber-500/20",
-  };
-  const cls = colors[intent] ?? colors.general;
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide uppercase border ${cls}`}>
-      {intent}
-    </span>
-  );
-}
-
+// ── Bubbles ────────────────────────────────────────────────────────────────────
 function UserBubble({ msg }: { msg: Message }) {
   return (
-    <div className="flex justify-end gap-3 group">
+    <div className="flex justify-end gap-3">
       <div className="max-w-[72%]">
-        <div className="bg-[#2563EB] text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed">
+        <div className="bg-stone-800 text-stone-50 rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed">
           {msg.content}
         </div>
-        <p className="text-[10px] text-[#475569] mt-1 text-right">
+        <p className="text-[10px] text-stone-400 mt-1 text-right">
           {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </p>
       </div>
-      <div className="w-7 h-7 rounded-full bg-[#2563EB] flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0 mt-1">
-        U
-      </div>
+      <div className="w-7 h-7 rounded-full bg-stone-700 flex items-center justify-center text-stone-200 text-[11px] font-bold flex-shrink-0 mt-0.5">U</div>
     </div>
   );
 }
 
 function AssistantBubble({ msg }: { msg: Message }) {
   return (
-    <div className="flex gap-3 group">
-      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#8B5CF6] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-1">
-        QA
-      </div>
+    <div className="flex gap-3">
+      <div className="w-7 h-7 flex items-center justify-center text-[#C2391B] text-lg font-bold flex-shrink-0 mt-0.5 select-none">✳</div>
       <div className="max-w-[80%] flex-1">
-        <div className="flex items-center gap-2 mb-1.5">
-          {msg.intent && <IntentBadge intent={msg.intent} />}
-          {msg.agent && (
-            <span className="text-[10px] text-[#475569]">
-              {AGENTS.find((a) => a.id === msg.agent)?.label ?? msg.agent}
+        <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-stone-700 leading-relaxed shadow-sm">
+          {msg.intent && msg.intent !== "general" && (
+            <span className="inline-block text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded bg-stone-100 text-stone-400 mb-2 mr-2"
+                  style={{ fontFamily: "Courier New, monospace" }}>
+              {msg.intent}
             </span>
           )}
+          <p className="whitespace-pre-wrap">{msg.content}</p>
+          {msg.citations && <CitationRow citations={msg.citations} />}
         </div>
-        <div className="bg-[#0D1426] border border-white/[0.07] rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-[#CBD5E1] leading-relaxed whitespace-pre-wrap">
-          {msg.content}
-          {msg.citations && <CitationsPanel citations={msg.citations} />}
-        </div>
-        <p className="text-[10px] text-[#475569] mt-1">
+        <p className="text-[10px] text-stone-400 mt-1">
           {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </p>
       </div>
@@ -138,7 +95,7 @@ function AssistantBubble({ msg }: { msg: Message }) {
 function ErrorBubble({ msg }: { msg: Message }) {
   return (
     <div className="flex justify-center">
-      <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm max-w-lg">
+      <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm max-w-lg">
         <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
@@ -151,14 +108,13 @@ function ErrorBubble({ msg }: { msg: Message }) {
 function TypingIndicator() {
   return (
     <div className="flex gap-3">
-      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#8B5CF6] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
-        QA
-      </div>
-      <div className="bg-[#0D1426] border border-white/[0.07] rounded-2xl rounded-tl-sm px-4 py-3">
+      <div className="w-7 h-7 flex items-center justify-center text-[#C2391B] text-lg font-bold flex-shrink-0">✳</div>
+      <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
         <div className="flex gap-1.5 items-center h-4">
-          <div className="w-1.5 h-1.5 rounded-full bg-[#3B82F6] animate-bounce" style={{ animationDelay: "0ms" }} />
-          <div className="w-1.5 h-1.5 rounded-full bg-[#3B82F6] animate-bounce" style={{ animationDelay: "150ms" }} />
-          <div className="w-1.5 h-1.5 rounded-full bg-[#3B82F6] animate-bounce" style={{ animationDelay: "300ms" }} />
+          {[0, 150, 300].map(d => (
+            <div key={d} className="w-1.5 h-1.5 rounded-full bg-stone-400 animate-bounce"
+                 style={{ animationDelay: `${d}ms` }} />
+          ))}
         </div>
       </div>
     </div>
@@ -167,22 +123,33 @@ function TypingIndicator() {
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function ChatPage() {
-  const [messages, setMessages]     = useState<Message[]>([]);
-  const [input, setInput]           = useState("");
-  const [agent, setAgent]           = useState("qa_assistant");
-  const [loading, setLoading]       = useState(false);
-  const [filters, setFilters]       = useState<Record<string, string>>({});
-  const [activeFilter, setActiveFilter] = useState<string | null>(null);
-  const [agentOpen, setAgentOpen]   = useState(false);
-  const bottomRef  = useRef<HTMLDivElement>(null);
+  const [messages, setMessages]   = useState<Message[]>([]);
+  const [input, setInput]         = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [modeValue, setModeValue] = useState("auto-detect");
+
+  // All 9 collections pre-seeded from KNOWLEDGE_BASE; counts filled from API
+  const [cols, setCols] = useState<CollectionState[]>(
+    KNOWLEDGE_BASE.map(k => ({ ...k, points: 0, checked: true }))
+  );
+
+  const bottomRef   = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll on new message
+  // Overlay live chunk counts from /api/collections
+  useEffect(() => {
+    api.listCollections().then(({ collections: live }) => {
+      setCols(prev => prev.map(c => {
+        const found = live.find(l => l.name === c.name);
+        return found ? { ...c, points: found.points } : c;
+      }));
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  // Auto-resize textarea
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -190,7 +157,14 @@ export default function ChatPage() {
     el.style.height = Math.min(el.scrollHeight, 140) + "px";
   }, [input]);
 
-  const currentAgent = AGENTS.find((a) => a.id === agent) ?? AGENTS[0];
+  const toggle   = (name: string) => setCols(p => p.map(c => c.name === name ? { ...c, checked: !c.checked } : c));
+  const setAll   = (v: boolean)   => setCols(p => p.map(c => ({ ...c, checked: v })));
+
+  const currentMode    = MODES.find(m => m.value === modeValue) ?? MODES[0];
+  const totalChunks    = cols.reduce((s, c) => s + c.points, 0);
+  const checkedCols    = cols.filter(c => c.checked).map(c => c.name);
+  const allChecked     = cols.every(c => c.checked);
+  const noneChecked    = cols.every(c => !c.checked);
 
   const sendMessage = useCallback(async (text?: string) => {
     const query = (text ?? input).trim();
@@ -198,248 +172,365 @@ export default function ChatPage() {
 
     setInput("");
     setLoading(true);
-
-    const userMsg: Message = {
+    setMessages(prev => [...prev, {
       id: uid(), role: "user", content: query, timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
+    }]);
 
     try {
-      const activeFilters = Object.fromEntries(
-        Object.entries(filters).filter(([, v]) => v.trim())
-      );
+      // Pass user-selected collections only when a subset is chosen.
+      // Empty array → backend auto-detects via IntentClassifier.
+      const collectionsFilter = (!noneChecked && !allChecked) ? checkedCols : [];
       const res: ChatResponse = await api.chat(
         query,
-        agent,
-        Object.keys(activeFilters).length ? activeFilters : undefined,
+        currentMode.agent,
+        undefined,
+        collectionsFilter,
       );
-      const aiMsg: Message = {
-        id: uid(),
-        role: "assistant",
-        content: res.answer,
+      setMessages(prev => [...prev, {
+        id: uid(), role: "assistant",
+        content:   res.answer,
         citations: res.citations,
-        agent: res.agent_id,
-        intent: res.intent,
+        intent:    res.intent,
+        mode:      currentMode.value,
         timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, aiMsg]);
+      }]);
     } catch (err) {
-      const errMsg: Message = {
-        id: uid(),
-        role: "error",
+      setMessages(prev => [...prev, {
+        id: uid(), role: "error",
         content: err instanceof Error
-          ? err.message.includes("500")
-            ? "Backend error — check that at least one LLM API key is set in backend/.env"
-            : err.message
+          ? (err.message.includes("500") ? "Backend error — check at least one LLM key is set" : err.message)
           : "Something went wrong. Please try again.",
         timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errMsg]);
+      }]);
     } finally {
       setLoading(false);
       textareaRef.current?.focus();
     }
-  }, [input, loading, agent, filters]);
+  }, [input, loading, checkedCols, noneChecked, allChecked, currentMode]);
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
-  const setFilter = (key: string, value: string) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const clearFilter = (key: string) => {
-    setFilters((prev) => { const n = { ...prev }; delete n[key]; return n; });
-  };
-
-  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+  const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col h-screen bg-[#080C18]">
+    <div className="flex h-screen overflow-hidden"
+         style={{ background: "#F5F3EE", fontFamily: "system-ui, -apple-system, sans-serif" }}>
 
-      {/* ── Top Bar ─────────────────────────────────────────────────────── */}
-      <header className="flex items-center gap-4 px-6 py-3 border-b border-white/[0.06] bg-[#080C18]/95 backdrop-blur-sm flex-shrink-0">
-        <Link
-          href="/"
-          className="flex items-center gap-2 text-[#475569] hover:text-[#94A3B8] transition-colors text-sm"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Dashboard
-        </Link>
+      {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
+      <aside className="flex flex-col flex-shrink-0 border-r overflow-y-auto"
+             style={{ width: 264, background: "#EDEAE3", borderColor: "#D6D1C8" }}>
 
-        <div className="w-px h-5 bg-white/[0.08]" />
-
-        {/* Agent selector */}
-        <div className="relative">
-          <button
-            onClick={() => setAgentOpen((o) => !o)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0D1426] border border-white/[0.08] hover:border-white/20 transition-colors text-sm"
-          >
-            <span className="w-2 h-2 rounded-full bg-[#10B981]" />
-            <span className="text-[#F1F5F9] font-medium">{currentAgent.label}</span>
-            <svg className={`w-3.5 h-3.5 text-[#475569] transition-transform ${agentOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          {agentOpen && (
-            <div className="absolute top-full left-0 mt-1.5 w-72 bg-[#0D1426] border border-white/[0.1] rounded-xl shadow-2xl shadow-black/50 z-50 overflow-hidden">
-              {AGENTS.map((a) => (
-                <button
-                  key={a.id}
-                  onClick={() => { setAgent(a.id); setAgentOpen(false); }}
-                  className={`w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-white/[0.04] transition-colors ${a.id === agent ? "bg-[#3B82F6]/10" : ""}`}
-                >
-                  <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${a.id === agent ? "bg-[#3B82F6]" : "bg-[#334155]"}`} />
-                  <div>
-                    <p className={`text-sm font-semibold ${a.id === agent ? "text-[#3B82F6]" : "text-[#F1F5F9]"}`}>{a.label}</p>
-                    <p className="text-xs text-[#64748B] mt-0.5">{a.desc}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Filter button */}
-        <button
-          onClick={() => setActiveFilter(activeFilter ? null : FILTER_KEYS[0])}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm transition-colors ${
-            activeFilterCount > 0
-              ? "bg-[#3B82F6]/10 border-[#3B82F6]/30 text-[#3B82F6]"
-              : "bg-[#0D1426] border-white/[0.08] text-[#94A3B8] hover:border-white/20"
-          }`}
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-          </svg>
-          Filters
-          {activeFilterCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded-md bg-[#3B82F6] text-white text-[10px] font-bold">
-              {activeFilterCount}
+        {/* Brand */}
+        <div className="px-5 pt-6 pb-4">
+          <div className="flex items-center justify-between">
+            <Link href="/">
+              <h1 className="font-bold text-stone-900 text-lg leading-tight cursor-pointer"
+                  style={{ fontFamily: "Georgia, 'Times New Roman', serif", letterSpacing: "-0.01em" }}>
+                QA Buddy
+              </h1>
+            </Link>
+            <span className="flex items-center gap-1.5 text-[10px] text-stone-500"
+                  style={{ fontFamily: "Courier New, monospace" }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+              online
             </span>
-          )}
-        </button>
-
-        <div className="ml-auto flex items-center gap-3">
-          <span className="text-xs text-[#334155]">{messages.length} messages</span>
-          {messages.length > 0 && (
-            <button
-              onClick={() => setMessages([])}
-              className="text-xs text-[#475569] hover:text-[#94A3B8] transition-colors"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* ── Filter Bar ────────────────────────────────────────────────────── */}
-      {activeFilter !== null && (
-        <div className="flex items-center gap-3 px-6 py-3 border-b border-white/[0.06] bg-[#0A0F1C] flex-shrink-0 flex-wrap">
-          {FILTER_KEYS.map((key) => (
-            <div key={key} className="flex items-center gap-2">
-              <label className="text-xs text-[#64748B] uppercase tracking-wide font-semibold">{key}</label>
-              <input
-                type="text"
-                placeholder={`e.g. ${key === "sprint" ? "Sprint-17" : key === "module" ? "login" : key === "framework" ? "playwright" : "high"}`}
-                value={filters[key] ?? ""}
-                onChange={(e) => setFilter(key, e.target.value)}
-                className="bg-[#0D1426] border border-white/[0.08] rounded-lg px-2.5 py-1 text-xs text-[#F1F5F9] placeholder-[#334155] focus:outline-none focus:border-[#3B82F6]/50 w-28"
-              />
-              {filters[key] && (
-                <button onClick={() => clearFilter(key)} className="text-[#475569] hover:text-[#94A3B8]">
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── Message Thread ────────────────────────────────────────────────── */}
-      <main className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center gap-6">
-            <div>
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#3B82F6] to-[#8B5CF6] flex items-center justify-center mx-auto mb-4 text-white font-black text-lg">
-                QA
-              </div>
-              <h2 className="text-xl font-bold text-[#F1F5F9] mb-1">{currentAgent.label}</h2>
-              <p className="text-sm text-[#64748B]">{currentAgent.desc}</p>
-            </div>
-            <div className="grid grid-cols-1 gap-2 w-full max-w-lg">
-              {STARTERS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => sendMessage(s)}
-                  className="text-left px-4 py-2.5 rounded-xl bg-[#0D1426] border border-white/[0.07] hover:border-[#3B82F6]/30 hover:bg-[#0D1426]/80 transition-all text-sm text-[#94A3B8] hover:text-[#F1F5F9]"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
           </div>
-        )}
-
-        {messages.map((msg) =>
-          msg.role === "user"      ? <UserBubble key={msg.id} msg={msg} /> :
-          msg.role === "assistant" ? <AssistantBubble key={msg.id} msg={msg} /> :
-                                     <ErrorBubble key={msg.id} msg={msg} />
-        )}
-
-        {loading && <TypingIndicator />}
-        <div ref={bottomRef} />
-      </main>
-
-      {/* ── Input Bar ─────────────────────────────────────────────────────── */}
-      <footer className="flex-shrink-0 px-6 py-4 border-t border-white/[0.06] bg-[#080C18]">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-end gap-3 bg-[#0D1426] border border-white/[0.1] rounded-2xl px-4 py-3 focus-within:border-[#3B82F6]/40 transition-colors">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder={`Ask ${currentAgent.label}… (Enter to send, Shift+Enter for newline)`}
-              rows={1}
-              className="flex-1 bg-transparent text-sm text-[#F1F5F9] placeholder-[#334155] resize-none focus:outline-none leading-relaxed max-h-36"
-              style={{ minHeight: "24px" }}
-            />
-            <button
-              onClick={() => sendMessage()}
-              disabled={!input.trim() || loading}
-              className="flex-shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#8B5CF6] flex items-center justify-center text-white disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
-            >
-              {loading ? (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              )}
-            </button>
-          </div>
-          <p className="text-[11px] text-[#334155] text-center mt-2">
-            Hybrid retrieval · Intent routing · bge-m3 embeddings · bge-reranker · Citations
+          <p className="text-[10px] tracking-widest uppercase text-stone-400 mt-0.5"
+             style={{ fontFamily: "Courier New, monospace" }}>
+            QA Knowledge System
           </p>
         </div>
-      </footer>
 
-      {/* Click outside to close agent dropdown */}
-      {agentOpen && (
-        <div className="fixed inset-0 z-40" onClick={() => setAgentOpen(false)} />
-      )}
+        <div className="border-t" style={{ borderColor: "#D6D1C8" }} />
+
+        {/* Knowledge Base */}
+        <div className="px-5 pt-4 pb-3">
+          <p className="text-[10px] tracking-widest uppercase text-stone-400 mb-3"
+             style={{ fontFamily: "Courier New, monospace" }}>
+            Knowledge Base
+          </p>
+          <ul className="space-y-2">
+            {cols.map(col => {
+              const notIndexed = col.points === 0;
+              return (
+                <li key={col.name}
+                    className="flex items-center gap-2 cursor-pointer select-none"
+                    onClick={() => toggle(col.name)}>
+                  {/* Checkbox */}
+                  <div className={`w-4 h-4 rounded-sm border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                    col.checked
+                      ? "border-stone-600 bg-stone-700"
+                      : "border-stone-300 bg-transparent"
+                  }`}>
+                    {col.checked && (
+                      <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 12 12" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M2 6l3 3 5-5" />
+                      </svg>
+                    )}
+                  </div>
+                  {/* Dot */}
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 transition-opacity"
+                        style={{ background: col.color, opacity: notIndexed ? 0.35 : 1 }} />
+                  {/* Label */}
+                  <span className={`text-[13px] flex-1 transition-colors leading-tight ${
+                    col.checked
+                      ? notIndexed ? "text-stone-400" : "text-stone-800"
+                      : "text-stone-400"
+                  }`}>
+                    {col.label}
+                  </span>
+                  {/* Count */}
+                  <span className={`text-[12px] tabular-nums font-medium flex-shrink-0 ${
+                    notIndexed ? "text-stone-300" : "text-stone-500"
+                  }`}>
+                    {col.points}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+
+          {/* Total + all/none */}
+          <div className="mt-4">
+            <p className="mb-2" style={{ fontFamily: "Courier New, monospace", fontSize: 11, color: "#78716C" }}>
+              total chunks{" "}
+              <span className="font-bold" style={{ color: "#C2391B" }}>{totalChunks}</span>
+            </p>
+            <div className="flex gap-2">
+              {[["all", true], ["none", false]].map(([lbl, val]) => (
+                <button key={lbl as string}
+                  onClick={() => setAll(val as boolean)}
+                  className="px-3 py-0.5 rounded-full border text-[11px] transition-colors"
+                  style={{
+                    fontFamily: "Courier New, monospace",
+                    background:   (val && allChecked) || (!val && noneChecked) ? "#1C1917" : "transparent",
+                    color:        (val && allChecked) || (!val && noneChecked) ? "#F5F5F4" : "#78716C",
+                    borderColor:  (val && allChecked) || (!val && noneChecked) ? "#1C1917" : "#C8C3BA",
+                  }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t" style={{ borderColor: "#D6D1C8" }} />
+
+        {/* Mode */}
+        <div className="px-5 py-4">
+          <p className="text-[10px] tracking-widest uppercase text-stone-400 mb-2"
+             style={{ fontFamily: "Courier New, monospace" }}>
+            Mode
+          </p>
+          <div className="relative">
+            <select
+              value={modeValue}
+              onChange={e => setModeValue(e.target.value)}
+              className="w-full appearance-none text-[13px] text-stone-700 border rounded-lg px-3 py-2 pr-7 focus:outline-none focus:ring-1 cursor-pointer transition-colors"
+              style={{ background: "#E5E0D8", borderColor: "#C8C3BA" }}>
+              {MODES.map(m => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+            <svg className="w-3.5 h-3.5 text-stone-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                 fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+          {/* Mode description */}
+          {currentMode.value !== "auto-detect" && (
+            <p className="text-[10px] text-stone-400 mt-1.5 leading-snug">
+              {currentMode.value === "answer"         && "direct Q&A from your knowledge base"}
+              {currentMode.value === "generate_tests" && "builds test cases from a feature or requirement"}
+              {currentMode.value === "coverage"       && "identifies untested requirements & gaps"}
+              {currentMode.value === "rca"            && "diagnoses failures from logs, commits & history"}
+            </p>
+          )}
+        </div>
+
+        <div className="border-t" style={{ borderColor: "#D6D1C8" }} />
+
+        {/* Ingest */}
+        <div className="px-5 py-4">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] tracking-widest uppercase text-stone-400"
+               style={{ fontFamily: "Courier New, monospace" }}>
+              Ingest
+            </p>
+            <Link href="/ingest"
+                  className="text-[11px] px-3 py-0.5 rounded-full border text-stone-500 hover:text-stone-800 hover:border-stone-500 transition-colors"
+                  style={{ borderColor: "#C8C3BA", fontFamily: "Courier New, monospace" }}>
+              open
+            </Link>
+          </div>
+        </div>
+
+        {/* Spacer + footer */}
+        <div className="mt-auto border-t" style={{ borderColor: "#D6D1C8" }} />
+        <div className="px-5 py-3 space-y-0.5">
+          {[["llm", "groq llama-3.3-70b"], ["search", "BM25 hybrid"]].map(([k, v]) => (
+            <p key={k} className="text-[10px]" style={{ fontFamily: "Courier New, monospace", color: "#A8A29E" }}>
+              <span style={{ color: "#78716C" }}>{k}</span>{" "}{v}
+            </p>
+          ))}
+          <div className="flex gap-1 pt-1.5 flex-wrap">
+            {["intent-routing", "citations"].map(tag => (
+              <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded border"
+                    style={{ fontFamily: "Courier New, monospace", color: "#A8A29E", borderColor: "#C8C3BA" }}>
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Main ─────────────────────────────────────────────────────────────── */}
+      <div className="flex flex-col flex-1 min-w-0 h-full">
+
+        {/* Top bar */}
+        <header className="flex items-center justify-between px-8 py-3 border-b flex-shrink-0"
+                style={{ background: "#F5F3EE", borderColor: "#D6D1C8" }}>
+          <p className="text-xs text-stone-400" style={{ fontFamily: "Courier New, monospace" }}>
+            ask{" "}
+            <span className="mx-1" style={{ color: "#C8C3BA" }}>→</span>
+            hybrid search{" "}
+            <span className="mx-1" style={{ color: "#C8C3BA" }}>→</span>
+            rerank{" "}
+            <span className="mx-1" style={{ color: "#C8C3BA" }}>→</span>
+            cited answer
+          </p>
+          <div className="flex items-center gap-2">
+            {hasMessages && (
+              <button onClick={() => setMessages([])}
+                      className="text-[11px] text-stone-400 hover:text-stone-600 transition-colors"
+                      style={{ fontFamily: "Courier New, monospace" }}>
+                clear
+              </button>
+            )}
+            <span className="flex items-center gap-1.5 text-[11px] text-stone-500"
+                  style={{ fontFamily: "Courier New, monospace" }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+              online
+            </span>
+          </div>
+        </header>
+
+        {/* Scrollable body */}
+        <main className="flex-1 overflow-y-auto">
+          {!hasMessages ? (
+            /* ── Hero / empty state ─────────────────────────────────── */
+            <div className="max-w-2xl mx-auto px-8 pt-14 pb-8">
+              <div className="text-5xl mb-5 leading-none select-none" style={{ color: "#C2391B" }}>✳</div>
+              <h2 className="text-[58px] font-bold mb-5 text-stone-900 leading-none"
+                  style={{ fontFamily: "Georgia, 'Times New Roman', serif", letterSpacing: "-0.02em" }}>
+                QA Buddy
+              </h2>
+              <p className="text-[15px] text-stone-600 leading-relaxed mb-8 max-w-[480px]">
+                One question, one{" "}
+                <span className="font-semibold" style={{ color: "#C2391B" }}>cited</span>
+                {" "}answer, grounded in your team&apos;s real QA knowledge: the Selenium &amp; Playwright
+                frameworks, ~5,000 test cases, JIRA history, PRDs, meeting notes, and Jenkins logs.
+              </p>
+
+              {/* Pipeline card */}
+              <div className="rounded-xl border p-5 mb-7 bg-white shadow-sm"
+                   style={{ borderColor: "#D6D1C8" }}>
+                <p className="text-[10px] tracking-widest uppercase text-stone-400 mb-4"
+                   style={{ fontFamily: "Courier New, monospace" }}>
+                  How your answer is fetched
+                </p>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-5">
+                  {[
+                    { n: 1, title: "Understand",    body: "your question is condensed and rewritten into search variants" },
+                    { n: 2, title: "Hybrid search",  body: "meaning (dense) + exact keywords (ids, exceptions, method names) across selected sources" },
+                    { n: 3, title: "Fuse & rerank",  body: "both result lists merge (RRF), a cross-encoder keeps the 6 most relevant chunks" },
+                    { n: 4, title: "Cited answer",   body: "GPT-4o-mini answers only from those chunks, citing [n] → file:line, ticket, or build" },
+                  ].map(({ n, title, body }) => (
+                    <div key={n} className="flex gap-3">
+                      <div className="w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 text-[12px] font-bold"
+                           style={{ borderColor: "#C2391B", color: "#C2391B" }}>
+                        {n}
+                      </div>
+                      <div>
+                        <p className="text-[13px] font-semibold text-stone-800 mb-0.5 leading-snug"
+                           style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+                          {title}
+                        </p>
+                        <p className="text-[12px] text-stone-500 leading-relaxed">{body}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Starter prompts */}
+              <div className="flex flex-wrap gap-2">
+                {STARTERS.map(s => (
+                  <button key={s}
+                    onClick={() => sendMessage(s)}
+                    className="px-4 py-2 rounded-full border text-[13px] text-stone-600 hover:border-stone-500 hover:text-stone-800 transition-colors bg-white shadow-sm"
+                    style={{ borderColor: "#D6D1C8" }}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* ── Message thread ───────────────────────────────────────── */
+            <div className="max-w-2xl mx-auto px-8 py-6 space-y-6">
+              {messages.map(msg =>
+                msg.role === "user"      ? <UserBubble      key={msg.id} msg={msg} /> :
+                msg.role === "assistant" ? <AssistantBubble key={msg.id} msg={msg} /> :
+                                           <ErrorBubble     key={msg.id} msg={msg} />
+              )}
+              {loading && <TypingIndicator />}
+              <div ref={bottomRef} />
+            </div>
+          )}
+        </main>
+
+        {/* ── Input bar ─────────────────────────────────────────────────────── */}
+        <footer className="flex-shrink-0 px-8 py-4 border-t"
+                style={{ background: "#F5F3EE", borderColor: "#D6D1C8" }}>
+          <div className="max-w-2xl mx-auto">
+            <div className="flex items-end gap-3 bg-white border rounded-2xl px-4 py-3 shadow-sm transition-colors focus-within:border-stone-400"
+                 style={{ borderColor: "#D6D1C8" }}>
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKey}
+                placeholder={currentMode.hint}
+                rows={1}
+                className="flex-1 bg-transparent text-[13px] text-stone-800 placeholder-stone-300 resize-none focus:outline-none leading-relaxed"
+                style={{ minHeight: "24px", maxHeight: "140px" }}
+              />
+              <button
+                onClick={() => sendMessage()}
+                disabled={!input.trim() || loading}
+                className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+                style={{ background: "#1C1917" }}>
+                {loading ? (
+                  <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                )}
+              </button>
+            </div>
+            <p className="text-[10px] text-stone-400 text-center mt-2"
+               style={{ fontFamily: "Courier New, monospace" }}>
+              enter to send · shift+enter for newline · answers always cite their sources
+            </p>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }

@@ -16,8 +16,16 @@ if TYPE_CHECKING:
 
 
 class Reranker:
+    """
+    Cross-encoder reranker. Disabled when RERANKER_ENABLED=false (default on
+    RAM-constrained machines) — falls back to RRF score order from hybrid search.
+    Enable in production with a GPU: RERANKER_ENABLED=true.
+    """
+
     def __init__(self):
-        self._model = None  # lazy-init (model load is expensive)
+        import os
+        self._enabled = os.getenv("RERANKER_ENABLED", "false").lower() in ("1", "true", "yes")
+        self._model = None
 
     def _get_model(self):
         if self._model is None:
@@ -33,21 +41,20 @@ class Reranker:
         chunks: list["RetrievedChunk"],
         top_k: int = 5,
     ) -> list["RetrievedChunk"]:
-        """Re-score chunks with cross-encoder, return top_k highest-scoring."""
         if not chunks:
             return []
 
-        try:
-            model = self._get_model()
-            pairs = [[query, c.text] for c in chunks]
-            scores = model.compute_score(pairs)
-            if isinstance(scores, float):
-                scores = [scores]
-            for chunk, score in zip(chunks, scores):
-                chunk.score = float(score)
-        except Exception:
-            # If reranker fails, fall back to original order
-            pass
+        if self._enabled:
+            try:
+                model = self._get_model()
+                pairs = [[query, c.text] for c in chunks]
+                scores = model.compute_score(pairs)
+                if isinstance(scores, float):
+                    scores = [scores]
+                for chunk, score in zip(chunks, scores):
+                    chunk.score = float(score)
+                chunks.sort(key=lambda c: c.score, reverse=True)
+            except Exception:
+                pass  # fall through to RRF order
 
-        chunks.sort(key=lambda c: c.score, reverse=True)
         return chunks[:top_k]

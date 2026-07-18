@@ -32,10 +32,8 @@ class HybridSearcher:
 
     def _get_qdrant(self):
         if self._qdrant is None:
-            from qdrant_client import QdrantClient
-            from config import get_settings
-            s = get_settings()
-            self._qdrant = QdrantClient(url=s.qdrant_url, api_key=s.qdrant_api_key or None)
+            from database.qdrant_client import get_qdrant_client
+            self._qdrant = get_qdrant_client()
         return self._qdrant
 
     def _get_embedder(self):
@@ -65,13 +63,14 @@ class HybridSearcher:
         all_results: list[RetrievedChunk] = []
         for col in target:
             try:
-                hits = client.search(
+                response = client.query_points(
                     collection_name=col,
-                    query_vector=query_vector,
+                    query=query_vector,
                     limit=top_k,
                     with_payload=True,
                     score_threshold=0.0,
                 )
+                hits = response.points
                 for rank, hit in enumerate(hits):
                     all_results.append(RetrievedChunk(
                         text=hit.payload.get("text", ""),
@@ -79,8 +78,10 @@ class HybridSearcher:
                         metadata=hit.payload,
                         collection=col,
                     ))
-            except Exception:
-                # Collection may not exist yet — skip silently
+            except Exception as e:
+                import traceback
+                print(f"⚠️  Search error in collection '{col}': {e}")
+                traceback.print_exc()
                 continue
 
         # Sort by RRF score descending

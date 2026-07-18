@@ -65,7 +65,7 @@ class IntentClassifier:
     _TEST_KEYWORDS    = {"test case", "tc-", "test step", "test data", "scenario", "bdd", "gherkin"}
     _PRD_KEYWORDS     = {"requirement", "prd", "brd", "srs", "acceptance criteria", "user story", "feature request"}
     _CI_KEYWORDS      = {"jenkins", "build", "pipeline", "ci", "cd", "deploy", "artifact", "stage"}
-    _LOG_KEYWORDS     = {"log", "trace", "stack trace", "exception", "crash", "stdout", "stderr"}
+    _LOG_KEYWORDS     = {" log ", "log:", "logs", "trace", "stack trace", "exception", "crash", "stdout", "stderr"}
     _MEETING_KEYWORDS = {"meeting", "decision", "action item", "discussed", "agreed", "standup", "retrospective"}
     _MIGRATION_KEYWORDS = {"migrate", "migration", "convert", "selenium to playwright", "rewrite", "port"}
 

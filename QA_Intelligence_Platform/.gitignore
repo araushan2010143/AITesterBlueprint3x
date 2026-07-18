@@ -46,7 +46,8 @@ out/
 .DS_Store
 Thumbs.db
 
-# Qdrant snapshots (large)
+# Qdrant — binary vector DB storage (never commit)
+qdrant_storage/
 *.snapshot
 
 # Logs

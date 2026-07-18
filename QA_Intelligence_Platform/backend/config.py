@@ -6,7 +6,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # Qdrant
+    # Qdrant — set QDRANT_LOCAL_PATH for embedded mode (no Docker needed)
+    # Leave blank to use QDRANT_URL (remote/Docker mode)
+    qdrant_local_path: str = ""
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str = ""
 
