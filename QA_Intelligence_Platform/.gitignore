@@ -53,3 +53,9 @@ qdrant_storage/
 # Logs
 *.log
 logs/
+
+# Exception: data/ folder is the knowledge base source — always commit it
+!data/**/*.pdf
+!data/**/*.log
+!data/**/*.xlsx
+!data/**/*.docx
