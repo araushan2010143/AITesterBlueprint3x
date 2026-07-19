@@ -1,0 +1,42 @@
+name: Deploy Backend → Hugging Face Spaces
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'QA_Intelligence_Platform/backend/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Push to HF Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ secrets.HF_USERNAME }}
+          HF_SPACE_NAME: qa-intelligence-api
+        run: |
+          git config --global user.email "ci@github.com"
+          git config --global user.name "GitHub Actions"
+
+          # Stage the backend dir as the HF Space root
+          mkdir /tmp/hf-space
+          cp -r QA_Intelligence_Platform/backend/. /tmp/hf-space/
+
+          # Use the HF-specific Dockerfile (build context = backend/)
+          cp /tmp/hf-space/Dockerfile.huggingface /tmp/hf-space/Dockerfile
+
+          cd /tmp/hf-space
+          git init
+          git add .
+          git commit -m "Deploy $(date -u '+%Y-%m-%d %H:%M UTC')"
+
+          git remote add hf \
+            https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME
+
+          git push hf HEAD:main --force
