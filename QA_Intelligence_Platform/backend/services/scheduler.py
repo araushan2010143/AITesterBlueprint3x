@@ -43,13 +43,14 @@ async def _run_auto_ingest() -> None:
 def start_scheduler(interval_hours: int = 1) -> AsyncIOScheduler:
     global _scheduler
     _scheduler = AsyncIOScheduler(timezone="UTC")
+    # next_run_time=now → runs immediately on startup, then every interval_hours
     _scheduler.add_job(
         _run_auto_ingest,
         trigger=IntervalTrigger(hours=interval_hours),
         id="auto_ingest",
         name="Hourly data folder ingest",
         replace_existing=True,
-        next_run_time=datetime.now(timezone.utc) + timedelta(hours=interval_hours),
+        next_run_time=datetime.now(timezone.utc),
     )
     _scheduler.start()
 

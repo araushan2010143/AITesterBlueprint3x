@@ -133,8 +133,8 @@ def run_once(data_dir: str | None = None) -> RunResult:
     Must be called from within the server process.
     """
     if data_dir is None:
-        here = os.path.dirname(os.path.abspath(__file__))          # backend/services/
-        root = os.path.dirname(os.path.dirname(os.path.dirname(here)))  # QA_Intelligence_Platform/
+        here = os.path.dirname(os.path.abspath(__file__))   # backend/services/
+        root = os.path.dirname(os.path.dirname(here))       # QA_Intelligence_Platform/
         data_dir = os.path.join(root, "data")
 
     result: RunResult = {
