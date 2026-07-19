@@ -5,14 +5,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl git \
     && rm -rf /var/lib/apt/lists/*
 
+# Upgrade pip + setuptools before anything else
+RUN pip install --upgrade pip setuptools wheel
+
 WORKDIR /app
 
 # Build context = QA_Intelligence_Platform/ (Render root dir)
 # so all COPY paths must be prefixed with backend/
 
-# Install Python deps first (layer cached separately from code)
-COPY backend/pyproject.toml .
-RUN pip install --no-cache-dir -e "." 2>&1
+# Install dependencies first (layer cached separately from code changes)
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download BAAI/bge-m3 and bge-reranker-large into the image
 # so cold starts are instant — no HuggingFace download at runtime
