@@ -7,12 +7,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python deps first (layer cache)
-COPY pyproject.toml .
+# Build context = QA_Intelligence_Platform/ (Render root dir)
+# so all COPY paths must be prefixed with backend/
+
+# Install Python deps first (layer cached separately from code)
+COPY backend/pyproject.toml .
 RUN pip install --no-cache-dir -e "." 2>&1
 
 # Pre-download BAAI/bge-m3 and bge-reranker-large into the image
-# so cold starts are instant (no HuggingFace download at runtime)
+# so cold starts are instant — no HuggingFace download at runtime
 RUN python - <<'EOF'
 from huggingface_hub import snapshot_download
 print("Downloading BAAI/bge-m3 ...")
@@ -23,7 +26,7 @@ print("Models cached.")
 EOF
 
 # Copy application code
-COPY . .
+COPY backend/ .
 
 # Render injects $PORT at runtime
 EXPOSE 8000
