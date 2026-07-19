@@ -2,8 +2,8 @@
  * API client — typed wrappers for all backend endpoints.
  * Every feature imports from here, never fetches directly.
  */
-export const BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "https://qa-intelligence-api.onrender.com";
+// Hardcoded — no process.env dependency so Vercel build config cannot break this.
+export const BASE = "https://qa-intelligence-api.onrender.com";
 
 export interface Citation {
   source: string;
