@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { api, type Citation } from "@/lib/api";
 import { KNOWLEDGE_BASE } from "@/lib/collections";
@@ -242,8 +242,34 @@ function AgentCard({ agent }: { agent: typeof AGENTS[0] }) {
   );
 }
 
+// ── Real-time backend status ───────────────────────────────────────────────────
+function useBackendStatus() {
+  const [status, setStatus] = useState<"checking" | "online" | "offline">("checking");
+  const [latency, setLatency] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      setStatus("checking");
+      const t0 = Date.now();
+      try {
+        await api.health();
+        if (!cancelled) { setStatus("online"); setLatency(Date.now() - t0); }
+      } catch {
+        if (!cancelled) { setStatus("offline"); setLatency(null); }
+      }
+    }
+    check();
+    const id = setInterval(check, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  return { status, latency };
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function AgentsPage() {
+  const { status, latency } = useBackendStatus();
   const agentSidebar = (
     <>
       {/* Agent list */}
@@ -285,8 +311,13 @@ export default function AgentsPage() {
           </p>
           <span className="flex items-center gap-1.5 text-[11px] text-stone-500"
                 style={{ fontFamily: "Courier New, monospace" }}>
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-            online
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              status === "online"   ? "bg-green-500" :
+              status === "offline"  ? "bg-red-500"   : "bg-yellow-400 animate-pulse"
+            }`} />
+            {status === "online"  ? `online${latency ? ` · ${latency}ms` : ""}` :
+             status === "offline" ? "offline — backend unreachable" :
+             "checking…"}
           </span>
         </header>
 

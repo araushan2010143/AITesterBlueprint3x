@@ -1,7 +1,24 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { api } from "@/lib/api";
+
+function useBackendOnline() {
+  const [online, setOnline] = useState<boolean | null>(null);
+  useEffect(() => {
+    let dead = false;
+    async function ping() {
+      try { await api.health(); if (!dead) setOnline(true); }
+      catch { if (!dead) setOnline(false); }
+    }
+    ping();
+    const id = setInterval(ping, 30_000);
+    return () => { dead = true; clearInterval(id); };
+  }, []);
+  return online;
+}
 
 const NAV_ITEMS = [
   { href: "/",          label: "Dashboard", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
@@ -21,6 +38,7 @@ interface Props {
 export function AppShell({ children, sidebar }: Props) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const online = useBackendOnline();
 
   function openPalette() {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
@@ -45,8 +63,11 @@ export function AppShell({ children, sidebar }: Props) {
             </Link>
             <span className="flex items-center gap-1.5 text-[10px] text-stone-500"
                   style={{ fontFamily: "Courier New, monospace" }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              online
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                online === true  ? "bg-green-500" :
+                online === false ? "bg-red-500"   : "bg-yellow-400 animate-pulse"
+              }`} />
+              {online === true ? "online" : online === false ? "offline" : "…"}
             </span>
           </div>
           <p className="text-[10px] tracking-widest uppercase text-stone-400 mt-0.5"

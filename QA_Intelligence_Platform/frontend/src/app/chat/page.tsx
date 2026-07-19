@@ -322,6 +322,30 @@ function TypingIndicator() {
   );
 }
 
+// ── Live backend status dot ────────────────────────────────────────────────────
+function BackendDot() {
+  const [ok, setOk] = useState<boolean | null>(null);
+  useEffect(() => {
+    let dead = false;
+    async function ping() {
+      try { await api.health(); if (!dead) setOk(true); }
+      catch { if (!dead) setOk(false); }
+    }
+    ping();
+    const id = setInterval(ping, 30_000);
+    return () => { dead = true; clearInterval(id); };
+  }, []);
+  return (
+    <span className="flex items-center gap-1.5 text-[11px] text-stone-500"
+          style={{ fontFamily: "Courier New, monospace" }}>
+      <span className={`w-1.5 h-1.5 rounded-full ${
+        ok === true ? "bg-green-500" : ok === false ? "bg-red-500" : "bg-yellow-400 animate-pulse"
+      }`} />
+      {ok === true ? "online" : ok === false ? "offline" : "checking…"}
+    </span>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function ChatPage() {
   const [messages, setMessages]   = useState<Message[]>([]);
@@ -678,11 +702,7 @@ export default function ChatPage() {
                 </button>
               </>
             )}
-            <span className="flex items-center gap-1.5 text-[11px] text-stone-500"
-                  style={{ fontFamily: "Courier New, monospace" }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              online
-            </span>
+            <BackendDot />
           </div>
         </header>
 

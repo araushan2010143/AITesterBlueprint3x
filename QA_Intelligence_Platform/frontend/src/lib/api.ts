@@ -2,9 +2,9 @@
  * API client — typed wrappers for all backend endpoints.
  * Every feature imports from here, never fetches directly.
  */
-// All calls go through Next.js rewrite /proxy/* → Render backend (server-side).
-// Same-origin from browser — no CORS, no env vars, no build-time config needed.
-export const BASE = "/proxy";
+// Direct URL — CORS is fully configured on the backend for *.vercel.app origins.
+// No proxy needed; browser calls Render directly and CORS headers are returned.
+export const BASE = "https://qa-intelligence-api.onrender.com";
 
 export interface Citation {
   source: string;
