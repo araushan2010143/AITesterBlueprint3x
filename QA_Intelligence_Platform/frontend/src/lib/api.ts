@@ -2,8 +2,9 @@
  * API client — typed wrappers for all backend endpoints.
  * Every feature imports from here, never fetches directly.
  */
-// Hardcoded — no process.env dependency so Vercel build config cannot break this.
-export const BASE = "https://qa-intelligence-api.onrender.com";
+// All calls go through Next.js rewrite /proxy/* → Render backend (server-side).
+// Same-origin from browser — no CORS, no env vars, no build-time config needed.
+export const BASE = "/proxy";
 
 export interface Citation {
   source: string;
