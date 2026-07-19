@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
 
 const NAV_ITEMS = [
   { href: "/",          label: "Dashboard", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
@@ -19,6 +20,7 @@ interface Props {
 
 export function AppShell({ children, sidebar }: Props) {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
 
   function openPalette() {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
@@ -62,8 +64,31 @@ export function AppShell({ children, sidebar }: Props) {
           </div>
         )}
 
+        {/* User + logout */}
+        {user && (
+          <div className="px-5 py-3 border-t flex-shrink-0 flex items-center gap-2"
+               style={{ borderColor: "#D6D1C8" }}>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium text-stone-700 truncate">{user.name}</p>
+              <p className="text-[10px] text-stone-400 truncate" style={{ fontFamily: "Courier New, monospace" }}>
+                {user.email}
+              </p>
+            </div>
+            <button
+              onClick={logout}
+              title="Sign out"
+              className="flex-shrink-0 text-stone-400 hover:text-stone-600 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* Nav footer */}
-        <div className="mt-auto border-t flex-shrink-0" style={{ borderColor: "#D6D1C8" }} />
+        <div className="border-t flex-shrink-0" style={{ borderColor: "#D6D1C8" }} />
         <nav className="px-4 py-3 flex-shrink-0">
           {/* Cmd+K shortcut hint */}
           <button

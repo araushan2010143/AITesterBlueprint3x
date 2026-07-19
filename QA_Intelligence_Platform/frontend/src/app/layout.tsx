@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import CommandPalette from "@/components/CommandPalette";
 import Toast from "@/components/Toast";
+import AuthProvider from "@/components/AuthProvider";
 
 export const metadata: Metadata = {
   title: "QA Buddy",
@@ -12,9 +13,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="min-h-screen antialiased" style={{ background: "#F5F3EE" }}>
-        {children}
-        <CommandPalette />
-        <Toast />
+        <AuthProvider>
+          {children}
+          <CommandPalette />
+          <Toast />
+        </AuthProvider>
       </body>
     </html>
   );

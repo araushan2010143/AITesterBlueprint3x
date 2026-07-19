@@ -59,10 +59,16 @@ export interface IngestResponse {
   filename: string;
 }
 
+function authHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const token = localStorage.getItem("qa_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -70,12 +76,24 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
 }
 
+export interface AuthToken { access_token: string; token_type: string; }
+export interface AuthUser  { id: number; email: string; name: string; created_at: string; }
+
 export const api = {
+  register: (email: string, password: string, name: string) =>
+    post<AuthUser>("/api/auth/register", { email, password, name }),
+
+  login: (email: string, password: string) =>
+    post<AuthToken>("/api/auth/login", { email, password }),
+
+  me: () => get<AuthUser>("/api/auth/me"),
+
+
   chat: (query: string, agent = "qa_assistant", filters?: Record<string, string>, collections?: string[]) =>
     post<ChatResponse>("/api/chat", { query, agent, filters, collections }),
 
@@ -101,7 +119,7 @@ export const api = {
     if (opts.module)    form.append("module",    opts.module);
     if (opts.feature)   form.append("feature",   opts.feature);
     if (opts.sprint)    form.append("sprint",    opts.sprint);
-    const res = await fetch(`${BASE}/api/ingest/file`, { method: "POST", body: form });
+    const res = await fetch(`${BASE}/api/ingest/file`, { method: "POST", body: form, headers: authHeaders() });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     return res.json();
   },

@@ -9,8 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import get_settings
 from database.db import init_db
-from api.routes import chat, search, ingest, agents, health, admin
+from api.routes import chat, search, ingest, agents, health, admin, auth
 from api.routes import collections
+import database.models  # noqa: F401 — ensures User table is created by init_db()
 
 
 @asynccontextmanager
@@ -66,12 +67,13 @@ def build_app() -> FastAPI:
     )
 
     app.include_router(health.router)
-    app.include_router(chat.router,        prefix="/api/chat",        tags=["Chat"])
-    app.include_router(search.router,      prefix="/api/search",      tags=["Search"])
-    app.include_router(ingest.router,      prefix="/api/ingest",      tags=["Ingest"])
-    app.include_router(agents.router,      prefix="/api/agents",      tags=["Agents"])
+    app.include_router(auth.router,        prefix="/api/auth",         tags=["Auth"])
+    app.include_router(chat.router,        prefix="/api/chat",         tags=["Chat"])
+    app.include_router(search.router,      prefix="/api/search",       tags=["Search"])
+    app.include_router(ingest.router,      prefix="/api/ingest",       tags=["Ingest"])
+    app.include_router(agents.router,      prefix="/api/agents",       tags=["Agents"])
     app.include_router(collections.router, prefix="/api/collections",  tags=["Collections"])
-    app.include_router(admin.router,       prefix="/api/admin",         tags=["Admin"])
+    app.include_router(admin.router,       prefix="/api/admin",        tags=["Admin"])
 
     return app
 
