@@ -275,13 +275,16 @@ const PIPELINE_STEPS = [
 ];
 
 function TypingIndicator() {
-  const [step, setStep] = useState(0);
+  const [step, setStep]     = useState(0);
+  const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
     const timers = PIPELINE_STEPS.slice(1).map(({ delay }, i) =>
       setTimeout(() => setStep(i + 1), delay)
     );
-    return () => timers.forEach(clearTimeout);
+    // elapsed counter — increments every second to show request is alive
+    const tick = setInterval(() => setElapsed(s => s + 1), 1000);
+    return () => { timers.forEach(clearTimeout); clearInterval(tick); };
   }, []);
 
   return (
@@ -302,8 +305,8 @@ function TypingIndicator() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M2 6l3 3 5-5" />
                 </svg>
               ) : i === step ? (
-                <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse"
-                      style={{ background: "#C2391B" }} />
+                // amber pulse = in progress (NOT red = not an error)
+                <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse bg-amber-400" />
               ) : (
                 <span className="w-2 h-2 rounded-full flex-shrink-0 bg-stone-200" />
               )}
@@ -313,10 +316,18 @@ function TypingIndicator() {
                       color: i < step ? "#16A34A" : i === step ? "#1C1917" : "#C8C3BA",
                     }}>
                 {label}
+                {i === step && i === PIPELINE_STEPS.length - 1 && elapsed > 0 && (
+                  <span className="ml-2 text-stone-400">{elapsed}s</span>
+                )}
               </span>
             </div>
           ))}
         </div>
+        {elapsed >= 8 && (
+          <p className="mt-2 text-[10px] text-stone-400" style={{ fontFamily: "Courier New, monospace" }}>
+            backend is responding — groq llm can take 8–15s
+          </p>
+        )}
       </div>
     </div>
   );
