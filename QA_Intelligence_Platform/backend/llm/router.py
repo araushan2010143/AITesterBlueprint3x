@@ -82,10 +82,14 @@ class LLMRouter:
 
         raise RuntimeError("All LLM providers failed")
 
+    # 30 s is well under the 45 s frontend AbortController — backend errors
+    # cleanly and returns a 500 before the browser gives up.
+    _TIMEOUT = 30.0
+
     def _call(self, provider: LLMProvider, messages: list[dict], max_tokens: int) -> str:
         if provider.name == "groq":
             from groq import Groq
-            client = Groq(api_key=provider.api_key)
+            client = Groq(api_key=provider.api_key, timeout=self._TIMEOUT)
             resp = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=messages,
@@ -95,7 +99,7 @@ class LLMRouter:
 
         elif provider.name == "openai":
             from openai import OpenAI
-            client = OpenAI(api_key=provider.api_key)
+            client = OpenAI(api_key=provider.api_key, timeout=self._TIMEOUT)
             resp = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=messages,
@@ -105,7 +109,7 @@ class LLMRouter:
 
         elif provider.name == "mistral":
             from mistralai import Mistral
-            client = Mistral(api_key=provider.api_key)
+            client = Mistral(api_key=provider.api_key, timeout_ms=int(self._TIMEOUT * 1000))
             resp = client.chat.complete(
                 model="mistral-large-latest",
                 messages=messages,
@@ -115,7 +119,7 @@ class LLMRouter:
 
         elif provider.name == "anthropic":
             import anthropic
-            client = anthropic.Anthropic(api_key=provider.api_key)
+            client = anthropic.Anthropic(api_key=provider.api_key, timeout=self._TIMEOUT)
             system = next((m["content"] for m in messages if m["role"] == "system"), "")
             user_msgs = [m for m in messages if m["role"] != "system"]
             resp = client.messages.create(
@@ -128,7 +132,7 @@ class LLMRouter:
 
         elif provider.name == "cohere":
             import cohere
-            client = cohere.ClientV2(api_key=provider.api_key)
+            client = cohere.ClientV2(api_key=provider.api_key, timeout=self._TIMEOUT)
             resp = client.chat(model="command-r-plus", messages=messages, max_tokens=max_tokens)
             return resp.message.content[0].text
 
@@ -137,7 +141,10 @@ class LLMRouter:
             genai.configure(api_key=provider.api_key)
             model = genai.GenerativeModel("gemini-1.5-flash")
             prompt = "\n".join(m["content"] for m in messages)
-            resp = model.generate_content(prompt)
+            resp = model.generate_content(
+                prompt,
+                request_options={"timeout": self._TIMEOUT},
+            )
             return resp.text
 
         raise ValueError(f"Unknown provider: {provider.name}")
