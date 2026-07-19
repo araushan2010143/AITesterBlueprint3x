@@ -205,5 +205,16 @@ def get_embedder() -> "HFInferenceEmbedder | OpenAIEmbedder | BGEEmbedder | Ligh
         print(f"🌐 Using OpenAIEmbedder (text-embedding-3-small, {OpenAIEmbedder._DIM}-dim)")
         return OpenAIEmbedder(api_key=s.openai_api_key)
 
+    try:
+        import FlagEmbedding  # noqa: F401
+    except ImportError:
+        raise RuntimeError(
+            "No embedding backend configured.\n"
+            "Set HF_API_KEY (free read token from huggingface.co/settings/tokens) "
+            "in your Render / deployment environment variables, "
+            "or set OPENAI_API_KEY to use OpenAI embeddings.\n"
+            "BGEEmbedder requires FlagEmbedding+torch which are not installed "
+            "in this deployment (requirements-api.txt)."
+        )
     print(f"🧠 Using BGEEmbedder ({s.embedding_model}, 1024-dim) — needs ~2.5 GB RAM")
     return BGEEmbedder(model_name=s.embedding_model, device=s.embedding_device)

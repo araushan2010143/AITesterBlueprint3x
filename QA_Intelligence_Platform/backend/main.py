@@ -24,8 +24,12 @@ async def lifespan(app: FastAPI):
     from database.qdrant_client import get_qdrant_client
     get_qdrant_client()
     emb = get_embedder()
-    emb.embed(["startup warmup"])  # trigger any lazy PyTorch init once
-    print("✅ Embedder and Qdrant ready", flush=True)
+    try:
+        emb.embed(["startup warmup"])
+        print("✅ Embedder and Qdrant ready", flush=True)
+    except Exception as exc:
+        print(f"❌ Embedder warmup failed: {exc}", flush=True)
+        raise
 
     # Start hourly auto-ingest scheduler
     from services.scheduler import start_scheduler, stop_scheduler
