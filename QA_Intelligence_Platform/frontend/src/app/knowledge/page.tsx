@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, BASE } from "@/lib/api";
 import { KNOWLEDGE_BASE } from "@/lib/collections";
 import { AppShell } from "@/components/AppShell";
 
@@ -31,7 +31,7 @@ export default function KnowledgePage() {
     api.listCollections()
       .then(r => { setStats(r.collections); setLoaded(true); })
       .catch(() => setLoaded(true));
-    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/status`)
+    fetch(`${BASE}/api/admin/ingest/status`)
       .then(r => r.json()).then(setIngest).catch(() => {});
   }, []);
 
@@ -39,12 +39,12 @@ export default function KnowledgePage() {
     setTriggering(true);
     try {
       await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/trigger`,
+        `${BASE}/api/admin/ingest/trigger`,
         { method: "POST" }
       );
       setTimeout(async () => {
         try {
-          const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/status`);
+          const r = await fetch(`${BASE}/api/admin/ingest/status`);
           setIngest(await r.json());
         } finally {
           setTriggering(false);

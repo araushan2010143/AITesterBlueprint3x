@@ -2,7 +2,8 @@
  * API client — typed wrappers for all backend endpoints.
  * Every feature imports from here, never fetches directly.
  */
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+export const BASE =
+  process.env.NEXT_PUBLIC_API_URL ?? "https://qa-intelligence-api.onrender.com";
 
 export interface Citation {
   source: string;

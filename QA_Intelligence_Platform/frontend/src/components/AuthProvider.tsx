@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { getUser, getToken, isAuthenticated, saveAuth, clearAuth, type AuthUser } from "@/lib/auth";
-import { api } from "@/lib/api";
+import { api, BASE } from "@/lib/api";
 
 interface AuthCtx {
   user: AuthUser | null;
@@ -82,7 +82,7 @@ function LoginGate({ onLogin }: { onLogin: (u: AuthUser) => void }) {
         // Fetch user info
         const u = await (async () => {
           const res = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/auth/me`,
+            `${BASE}/api/auth/me`,
             { headers: { Authorization: `Bearer ${t.access_token}` } },
           );
           return res.json();

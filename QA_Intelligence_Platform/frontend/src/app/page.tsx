@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, BASE } from "@/lib/api";
 import { KNOWLEDGE_BASE } from "@/lib/collections";
 
 const SUGGESTED_PROMPTS = [
@@ -87,7 +87,7 @@ export default function HomePage() {
           api.listCollections()
             .then(r => { setStats(r.collections); setLoaded(true); })
             .catch(() => setLoaded(true));
-          fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/status`)
+          fetch(`${BASE}/api/admin/ingest/status`)
             .then(r => r.json()).then(setIngest).catch(() => {});
         })
         .catch(() => {
@@ -117,7 +117,7 @@ export default function HomePage() {
   useEffect(() => {
     const t = setInterval(() => {
       setTick(n => n + 1);
-      fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/status`)
+      fetch(`${BASE}/api/admin/ingest/status`)
         .then(r => r.json()).then(setIngest).catch(() => {});
     }, 30_000);
     return () => clearInterval(t);
@@ -138,7 +138,7 @@ export default function HomePage() {
     setTriggerState("running");
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/trigger`,
+        `${BASE}/api/admin/ingest/trigger`,
         { method: "POST" }
       );
       if (!res.ok) throw new Error(`${res.status}`);
@@ -146,7 +146,7 @@ export default function HomePage() {
       // Poll status a few times so the bar updates as the background job progresses
       [2000, 5000, 10000, 20000].forEach(delay =>
         setTimeout(() => {
-          fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/status`)
+          fetch(`${BASE}/api/admin/ingest/status`)
             .then(r => r.json()).then(setIngest).catch(() => {});
         }, delay)
       );

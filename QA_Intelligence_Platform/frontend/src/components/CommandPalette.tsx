@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { BASE } from "@/lib/api";
 
 interface Command {
   id: string;
@@ -40,7 +41,7 @@ const ACTION_COMMANDS: Command[] = [
     category: "Action",
     action: async () => {
       await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/admin/ingest/trigger`,
+        `${BASE}/api/admin/ingest/trigger`,
         { method: "POST" }
       );
     },
