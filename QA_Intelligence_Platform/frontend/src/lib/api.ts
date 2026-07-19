@@ -66,20 +66,56 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+const TIMEOUT_MS = 45_000;
+
+function withTimeout(signal?: AbortSignal): { signal: AbortSignal; clear: () => void } {
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  // if a caller signal fires, mirror it
+  signal?.addEventListener("abort", () => controller.abort());
+  return { signal: controller.signal, clear: () => clearTimeout(tid) };
+}
+
+async function handleResponse<T>(res: Response): Promise<T> {
+  if (res.ok) return res.json();
+  // Surface backend detail message when available
+  const body = await res.text().catch(() => "");
+  let detail = "";
+  try { detail = JSON.parse(body).detail ?? ""; } catch { detail = body; }
+  throw new Error(detail || `${res.status} ${res.statusText}`);
+}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
+  const { signal, clear } = withTimeout();
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(body),
+      signal,
+    });
+    return handleResponse<T>(res);
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError")
+      throw new Error("Request timed out — backend is slow or waking up. Please try again.");
+    throw err;
+  } finally {
+    clear();
+  }
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
+  const { signal, clear } = withTimeout();
+  try {
+    const res = await fetch(`${BASE}${path}`, { headers: authHeaders(), signal });
+    return handleResponse<T>(res);
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError")
+      throw new Error("Request timed out — backend is slow or waking up. Please try again.");
+    throw err;
+  } finally {
+    clear();
+  }
 }
 
 export interface AuthToken { access_token: string; token_type: string; }
@@ -120,8 +156,12 @@ export const api = {
     if (opts.module)    form.append("module",    opts.module);
     if (opts.feature)   form.append("feature",   opts.feature);
     if (opts.sprint)    form.append("sprint",    opts.sprint);
-    const res = await fetch(`${BASE}/api/ingest/file`, { method: "POST", body: form, headers: authHeaders() });
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    return res.json();
+    const { signal, clear } = withTimeout();
+    try {
+      const res = await fetch(`${BASE}/api/ingest/file`, { method: "POST", body: form, headers: authHeaders(), signal });
+      return handleResponse<IngestResponse>(res);
+    } finally {
+      clear();
+    }
   },
 };
