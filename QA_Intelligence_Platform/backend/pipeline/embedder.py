@@ -1,22 +1,85 @@
 """
-Embedder — three modes, auto-selected by priority:
+Embedder — four modes, auto-selected by priority:
 
-  1. OpenAIEmbedder   (OPENAI_API_KEY set, 1024-dim)
-       text-embedding-3-small via API. Zero local RAM. ~30s for 1000 chunks.
-       Activated automatically when OPENAI_API_KEY is present in .env.
+  1. HFInferenceEmbedder  (HF_API_KEY set, 1024-dim)               ← FREE, zero RAM
+       BAAI/bge-m3 via HF Inference API. Recommended for free-tier deployments.
+       Get a free token at huggingface.co/settings/tokens.
 
-  2. BGEEmbedder      (default, 1024-dim)
-       BAAI/bge-m3 via FlagEmbedding. Requires ~2.5 GB RAM.
+  2. OpenAIEmbedder       (OPENAI_API_KEY set, 1024-dim)
+       text-embedding-3-small via OpenAI API. Zero local RAM.
 
-  3. LightweightEmbedder  (USE_LIGHTWEIGHT_EMBEDDER=true, 384-dim)
+  3. BGEEmbedder          (default, 1024-dim)
+       BAAI/bge-m3 via FlagEmbedding locally. Requires ~2.5 GB RAM.
+
+  4. LightweightEmbedder  (USE_LIGHTWEIGHT_EMBEDDER=true, 384-dim)
        sentence-transformers/all-MiniLM-L6-v2. Requires ~200 MB RAM.
 
-Priority: OpenAI > BGE > Lightweight.
-Force override: USE_LIGHTWEIGHT_EMBEDDER=true skips OpenAI check.
+Priority: HF API > OpenAI > BGE local > Lightweight.
+Force override: USE_LIGHTWEIGHT_EMBEDDER=true skips all API checks.
 """
 from __future__ import annotations
 import os
 from functools import lru_cache
+
+
+class HFInferenceEmbedder:
+    """
+    BAAI/bge-m3 via Hugging Face Inference API — zero local RAM, 1024-dim.
+    Same dimension as BGEEmbedder so Qdrant collections are compatible.
+    Free HF token: huggingface.co/settings/tokens (read role is enough).
+    """
+    _MODEL = "BAAI/bge-m3"
+    _DIM = 1024
+    _BATCH = 8  # stay under free-tier rate limits
+
+    def __init__(self, api_key: str) -> None:
+        self._api_key = api_key
+
+    def _pool_and_normalize(self, raw) -> list[list[float]]:
+        import numpy as np
+        arr = np.array(raw, dtype=np.float32)
+        # HF API returns (batch, seq_len, hidden) for encoder models
+        # mean-pool the sequence dimension, then L2-normalize
+        if arr.ndim == 3:
+            vecs = arr.mean(axis=1)
+        elif arr.ndim == 2:
+            vecs = arr
+        else:
+            vecs = arr.reshape(1, -1)
+        norms = np.linalg.norm(vecs, axis=1, keepdims=True)
+        vecs = vecs / np.where(norms == 0, 1.0, norms)
+        return vecs.tolist()
+
+    def _call_api(self, batch: list[str]) -> list[list[float]]:
+        import httpx
+        from tenacity import retry, stop_after_attempt, wait_exponential
+
+        @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30))
+        def _post():
+            resp = httpx.post(
+                f"https://api-inference.huggingface.co/models/{self._MODEL}",
+                headers={"Authorization": f"Bearer {self._api_key}"},
+                json={"inputs": batch, "options": {"wait_for_model": True}},
+                timeout=60.0,
+            )
+            resp.raise_for_status()
+            return self._pool_and_normalize(resp.json())
+
+        return _post()
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        results = []
+        for i in range(0, len(texts), self._BATCH):
+            results.extend(self._call_api(texts[i: i + self._BATCH]))
+        return results
+
+    def embed_with_sparse(self, texts: list[str]) -> dict:
+        # HF Inference API returns dense only; sparse weights not available via REST
+        return {"dense": self.embed(texts), "sparse": [{} for _ in texts]}
+
+    @property
+    def dimension(self) -> int:
+        return self._DIM
 
 
 class BGEEmbedder:
@@ -125,7 +188,7 @@ class OpenAIEmbedder:
 
 
 @lru_cache(maxsize=1)
-def get_embedder() -> "BGEEmbedder | LightweightEmbedder | OpenAIEmbedder":
+def get_embedder() -> "HFInferenceEmbedder | OpenAIEmbedder | BGEEmbedder | LightweightEmbedder":
     """Singleton embedder — chosen once per process."""
     if os.getenv("USE_LIGHTWEIGHT_EMBEDDER", "").lower() in ("1", "true", "yes"):
         print("⚡ Using LightweightEmbedder (all-MiniLM-L6-v2, 384-dim)")
@@ -134,9 +197,13 @@ def get_embedder() -> "BGEEmbedder | LightweightEmbedder | OpenAIEmbedder":
     from config import get_settings
     s = get_settings()
 
+    if s.hf_api_key:
+        print(f"🤗 Using HFInferenceEmbedder (BAAI/bge-m3 via API, {HFInferenceEmbedder._DIM}-dim)")
+        return HFInferenceEmbedder(api_key=s.hf_api_key)
+
     if s.openai_api_key:
         print(f"🌐 Using OpenAIEmbedder (text-embedding-3-small, {OpenAIEmbedder._DIM}-dim)")
         return OpenAIEmbedder(api_key=s.openai_api_key)
 
-    print(f"🧠 Using BGEEmbedder ({s.embedding_model}, 1024-dim)")
+    print(f"🧠 Using BGEEmbedder ({s.embedding_model}, 1024-dim) — needs ~2.5 GB RAM")
     return BGEEmbedder(model_name=s.embedding_model, device=s.embedding_device)

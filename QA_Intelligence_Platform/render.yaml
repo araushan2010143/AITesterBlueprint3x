@@ -3,11 +3,16 @@ services:
     name: qa-intelligence-api
     env: docker
     dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
-    plan: standard          # 2 GB RAM — required for bge-m3 + bge-reranker-large
+    dockerContext: .
+    plan: free               # HF Inference API handles embeddings — no local ML models
     region: oregon
     healthCheckPath: /health
     envVars:
+      # ── Embeddings (HF Inference API — zero RAM, free) ─────────────────────
+      # Get a read token at huggingface.co/settings/tokens
+      - key: HF_API_KEY
+        sync: false
+
       # ── LLM (at least GROQ_API_KEY required) ───────────────────────────────
       - key: GROQ_API_KEY
         sync: false
@@ -17,8 +22,6 @@ services:
         sync: false
 
       # ── Qdrant Cloud (sign up free at cloud.qdrant.io) ─────────────────────
-      # Leave QDRANT_LOCAL_PATH empty to use Qdrant Cloud
-      # OR set QDRANT_LOCAL_PATH=/data/qdrant to use embedded (data lost on restart)
       - key: QDRANT_URL
         sync: false
       - key: QDRANT_API_KEY
@@ -28,7 +31,7 @@ services:
 
       # ── App config ──────────────────────────────────────────────────────────
       - key: JWT_SECRET
-        generateValue: true   # Render auto-generates a secure random value
+        generateValue: true
       - key: UPLOAD_DIR
         value: /tmp/uploads
       - key: FILE_REGISTRY_DB
@@ -37,5 +40,3 @@ services:
         value: sqlite:////tmp/qa_platform.db
       - key: RATE_LIMIT_DISABLED
         value: "false"
-      - key: EMBEDDING_DEVICE
-        value: cpu

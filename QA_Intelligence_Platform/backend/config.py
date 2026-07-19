@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     embedding_device: str = "cpu"
     reranker_model: str = "BAAI/bge-reranker-large"
 
+    # HF Inference API — activates HFInferenceEmbedder (zero local RAM, free tier)
+    # Get a free read token at huggingface.co/settings/tokens
+    hf_api_key: str = ""
+
     # LLM providers
     groq_api_key: str = ""
     openai_api_key: str = ""
