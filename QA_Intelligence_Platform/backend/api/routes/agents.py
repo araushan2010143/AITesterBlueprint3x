@@ -40,7 +40,13 @@ def run_agent(agent_id: str, req: AgentRunRequest):
     if AgentClass is None:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
     agent = AgentClass()
-    result = agent.run(req.query, context=req.context)
+    try:
+        result = agent.run(req.query, context=req.context)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}")
     return AgentRunResponse(
         answer=result.answer,
         citations=result.citations,

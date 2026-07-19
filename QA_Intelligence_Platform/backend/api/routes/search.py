@@ -1,6 +1,6 @@
 """Structured search endpoint — hybrid retrieval with metadata filters."""
 from __future__ import annotations
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Any
 
@@ -37,12 +37,18 @@ def search(req: SearchRequest):
     """
     from knowledge import RetrievalEngine
     engine = RetrievalEngine()
-    result = engine.retrieve(
-        query=req.query,
-        metadata_filters=req.filters,
-        top_k=req.top_k,
-        collections_override=req.collections or [],
-    )
+    try:
+        result = engine.retrieve(
+            query=req.query,
+            metadata_filters=req.filters,
+            top_k=req.top_k,
+            collections_override=req.collections or [],
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}")
     return SearchResponse(
         results=[
             SearchResult(

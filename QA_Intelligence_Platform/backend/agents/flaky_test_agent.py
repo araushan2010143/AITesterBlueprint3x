@@ -22,9 +22,16 @@ Cite sources for every claim."""
     def run(self, query: str, context: dict | None = None, collections: list[str] | None = None) -> AgentResponse:
         result = self._retrieve(query, top_k=5, collections=collections)
 
+        ctx = result.context.strip()
+        user_content = (
+            f"Context:\n{ctx}\n\nTest in question: {query}"
+            if ctx else
+            f"Test in question: {query}\n\n"
+            "(No knowledge base context available — analyze from your test reliability expertise.)"
+        )
         messages = [
             {"role": "system", "content": self._SYSTEM},
-            {"role": "user",   "content": f"Context:\n{result.context}\n\nTest in question: {query}"},
+            {"role": "user",   "content": user_content},
         ]
         answer = self._llm.chat(messages)
 

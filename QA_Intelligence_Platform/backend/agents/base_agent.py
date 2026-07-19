@@ -33,8 +33,10 @@ class BaseAgent(ABC):
 
     def _build_system_prompt(self) -> str:
         return (
-            "You are an expert QA engineer and software architect. "
-            "Answer based only on the provided context. "
-            "Always cite your sources. "
-            "If the context doesn't contain enough information, say so clearly."
+            "You are an expert QA engineer and software architect with deep knowledge of "
+            "test automation, Selenium, Playwright, JIRA, CI/CD pipelines, and QA best practices. "
+            "When knowledge base context is provided, prioritize it and cite your sources. "
+            "When no context is available (empty knowledge base or retrieval unavailable), "
+            "draw on your QA expertise to give a thorough, accurate answer — and note that "
+            "no specific project context was found."
         )

@@ -58,7 +58,12 @@ class HybridSearcher:
         # If no specific collections, search all existing ones
         target = collections if collections else list_existing_collections(client)
 
-        query_vector = embedder.embed([query])[0]
+        try:
+            query_vector = embedder.embed([query])[0]
+        except Exception as emb_err:
+            print(f"⚠️  Embedder unavailable ({type(emb_err).__name__}): {emb_err}", flush=True)
+            print("    Set HF_API_KEY or OPENAI_API_KEY on Render to enable retrieval.", flush=True)
+            return []
 
         all_results: list[RetrievedChunk] = []
         for col in target:

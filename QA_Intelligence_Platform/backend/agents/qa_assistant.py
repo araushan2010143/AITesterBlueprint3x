@@ -15,13 +15,18 @@ class QAAssistant(BaseAgent):
     def run(self, query: str, context: dict | None = None, collections: list[str] | None = None) -> AgentResponse:
         result = self._retrieve(query, filters=context, collections=collections)
 
+        ctx = result.context.strip()
+        if ctx:
+            user_content = f"Context:\n{ctx}\n\nQuestion: {query}\n\nAnswer with citations."
+        else:
+            user_content = (
+                f"Question: {query}\n\n"
+                "No knowledge base context was retrieved (knowledge base may be empty or "
+                "the retrieval service is not configured). Answer from your QA expertise."
+            )
         messages = [
             {"role": "system", "content": self._build_system_prompt()},
-            {"role": "user",   "content": (
-                f"Context:\n{result.context}\n\n"
-                f"Question: {query}\n\n"
-                "Answer with citations."
-            )},
+            {"role": "user",   "content": user_content},
         ]
         answer = self._llm.chat(messages)
 
