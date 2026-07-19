@@ -8,9 +8,11 @@ import { AppShell } from "@/components/AppShell";
 const SOURCE_TYPES = [
   { value: "code",          label: "Code",          ext: ".java .ts .py .js .go .cs" },
   { value: "pdf",           label: "PDF",           ext: ".pdf" },
+  { value: "pptx",          label: "Presentation",  ext: ".pptx .ppt" },
   { value: "markdown",      label: "Markdown",      ext: ".md .mdx" },
-  { value: "text",          label: "Text / XML",    ext: ".txt .xml .yaml .json .properties" },
+  { value: "text",          label: "Text / XML",    ext: ".txt .xml .yaml .json .docx" },
   { value: "csv",           label: "CSV",           ext: ".csv" },
+  { value: "excel",         label: "Excel",         ext: ".xlsx .xls" },
   { value: "logs",          label: "Logs",          ext: ".log .out" },
   { value: "meeting_notes", label: "Meeting Notes", ext: ".txt .md .docx" },
 ];
@@ -18,30 +20,41 @@ const SOURCE_TYPES = [
 // Auto-detect source type from file extension
 function detectSourceType(filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-  if (["java", "ts", "tsx", "py", "js", "go", "cs", "rb"].includes(ext)) return "code";
-  if (ext === "pdf")  return "pdf";
-  if (["md", "mdx"].includes(ext))  return "markdown";
+  if (["java", "ts", "tsx", "py", "js", "jsx", "go", "cs", "rb", "kt"].includes(ext)) return "code";
+  if (ext === "pdf")              return "pdf";
+  if (["pptx", "ppt"].includes(ext)) return "pptx";
+  if (["md", "mdx"].includes(ext)) return "markdown";
   if (["log", "out"].includes(ext)) return "logs";
-  if (ext === "csv")  return "csv";
+  if (ext === "csv")              return "csv";
+  if (["xlsx", "xls"].includes(ext)) return "excel";
   return "text";
 }
 
-// Suggest the best collection from filename keywords only — never from file content.
-// Returns a collection name + whether this was a strong signal or a sensible default.
+// Mirror of the backend resolve_collection() rules — frontend uses this for UX hints only.
+// Backend is always authoritative; this just pre-selects the right collection for the user.
 function suggestCollection(filename: string): { collection: string; strong: boolean } {
-  const f = filename.toLowerCase();
+  const f   = filename.toLowerCase();
   const ext = f.split(".").pop() ?? "";
-  if (/test.?case|testcase|tc[-_]/.test(f))        return { collection: "testcases",    strong: true };
-  if (/\bselenium\b/.test(f))                       return { collection: "selenium",     strong: true };
-  if (/\bplaywright\b/.test(f))                     return { collection: "playwright",   strong: true };
-  if (/jira|ticket|issue|kan[-_]/.test(f))          return { collection: "jira",         strong: true };
-  if (/meeting|standup|sprint.?plan|retro/.test(f)) return { collection: "meeting_notes",strong: true };
-  if (/prd|brd|srs|frd|requirement/.test(f))        return { collection: "prd",          strong: true };
-  if (/jenkins|build|console|pipeline/.test(f))     return { collection: "logs",         strong: true };
-  if (/company|policy|onboard|handbook/.test(f))    return { collection: "company_docs", strong: true };
-  // Soft fallback by file type — PDFs and Markdown that don't match a specific pattern
-  // belong in company_docs, not in a framework-specific collection.
-  if (["pdf", "md", "mdx", "txt", "docx"].includes(ext)) return { collection: "company_docs", strong: false };
+
+  // Strong keyword signals
+  if (/test.?case|testcase|tc[-_]\d/.test(f))       return { collection: "testcases",     strong: true };
+  if (/\bselenium\b/.test(f))                        return { collection: "selenium",      strong: true };
+  if (/\bplaywright\b/.test(f))                      return { collection: "playwright",    strong: true };
+  if (/\bjira\b|ticket[-_]|kan[-_]/.test(f))         return { collection: "jira",          strong: true };
+  if (/meeting|standup|sprint.?plan|retro/.test(f))  return { collection: "meeting_notes", strong: true };
+  if (/prd|brd|srs|frd|requirement/.test(f))         return { collection: "prd",           strong: true };
+  if (/jenkins|build.?log|console.?log/.test(f))     return { collection: "logs",          strong: true };
+  if (/company|policy|onboard|handbook/.test(f))     return { collection: "company_docs",  strong: true };
+
+  // Extension rules — structural, unambiguous
+  if (["pptx", "ppt", "key"].includes(ext))          return { collection: "company_docs",  strong: true };
+  if (["xlsx", "xls"].includes(ext))                 return { collection: "company_docs",  strong: true };
+  if (["log", "out"].includes(ext))                  return { collection: "logs",          strong: true };
+
+  // Document extensions → soft default (user may want to override)
+  if (["pdf", "docx", "doc", "md", "mdx", "txt"].includes(ext))
+    return { collection: "company_docs", strong: false };
+
   return { collection: "company_docs", strong: false };
 }
 
@@ -80,24 +93,27 @@ export default function IngestPage() {
       const names = new Set(prev.map(f => f.name));
       return [...prev, ...arr.filter(f => !names.has(f.name))];
     });
-    // Auto-switch collection when a single file is added.
-    // Strong signals (filename keywords) override the current selection.
-    // Soft fallbacks (extension-based) only update when the user hasn't manually picked.
     if (arr.length === 1) {
       const { collection: suggested, strong } = suggestCollection(arr[0].name);
       if (strong) {
+        // Strong signal (keyword or structural extension like pptx) — always override
         setCollection(suggested);
         setAutoCollection(true);
         setAutoCollectionStrong(true);
       } else {
-        // Soft default: apply only if no manual pick has been made yet
-        if (!autoCollection) {
-          setCollection(suggested);
-          setAutoCollection(true);
-          setAutoCollectionStrong(false);
-        }
+        // Soft default — apply unless user already made a deliberate manual pick
+        // Use functional updater to read current autoCollection without stale closure
+        setAutoCollection(prev => {
+          if (!prev) {
+            setCollection(suggested);
+            setAutoCollectionStrong(false);
+            return true;
+          }
+          return prev;
+        });
       }
     } else {
+      // Multiple files — clear auto hint, keep whatever collection is selected
       setAutoCollection(false);
       setAutoCollectionStrong(false);
     }
