@@ -18,20 +18,19 @@ async def lifespan(app: FastAPI):
     import os
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     init_db()
-    # Pre-warm embedder + Qdrant in startup (single-threaded) so concurrent
-    # requests never race on first initialization.
-    from pipeline.embedder import get_embedder
-    from database.qdrant_client import get_qdrant_client
-    get_qdrant_client()
-    emb = get_embedder()
+
+    # Best-effort warmup — never crash startup; embedder + Qdrant init lazily
+    # on first real request if this fails (e.g. env vars not set yet).
     try:
-        emb.embed(["startup warmup"])
+        from pipeline.embedder import get_embedder
+        from database.qdrant_client import get_qdrant_client
+        get_qdrant_client()
+        get_embedder().embed(["warmup"])
         print("✅ Embedder and Qdrant ready", flush=True)
     except Exception as exc:
-        print(f"❌ Embedder warmup failed: {exc}", flush=True)
-        raise
+        print(f"⚠️  Startup warmup skipped ({type(exc).__name__}: {exc})", flush=True)
+        print("    Ensure HF_API_KEY, QDRANT_URL, QDRANT_API_KEY are set.", flush=True)
 
-    # Start hourly auto-ingest scheduler
     from services.scheduler import start_scheduler, stop_scheduler
     start_scheduler(interval_hours=1)
     yield
