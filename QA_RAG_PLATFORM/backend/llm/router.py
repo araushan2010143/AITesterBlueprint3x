@@ -44,6 +44,25 @@ def _is_quota_or_rate(exc: Exception) -> bool:
     return any(k in msg for k in _QUOTA_KEYWORDS)
 
 
+def _is_connection_error(exc: Exception) -> bool:
+    """Return True for network/timeout errors — try next provider, don't mute."""
+    try:
+        from openai import APIConnectionError, APITimeoutError
+        if isinstance(exc, (APIConnectionError, APITimeoutError)):
+            return True
+    except ImportError:
+        pass
+    try:
+        import httpx
+        if isinstance(exc, (httpx.ConnectError, httpx.TimeoutException, httpx.RemoteProtocolError)):
+            return True
+    except ImportError:
+        pass
+    msg = str(exc).lower()
+    return any(k in msg for k in ("connection error", "connection timeout", "connect timeout",
+                                   "timed out", "network", "apiconnectionerror", "apitimeouterror"))
+
+
 def _is_transient(exc: Exception) -> bool:
     """Return True for one-off generation failures — try next provider, don't mute."""
     msg = str(exc).lower()
@@ -124,6 +143,10 @@ class LLMRouter:
                     p.mute()
                     last_exc = exc
                     continue          # try next provider (provider muted)
+                if _is_connection_error(exc):
+                    logger.warning("⚠️  Provider '%s' connection error (%s), trying next", p.name, type(exc).__name__)
+                    last_exc = exc
+                    continue          # try next provider — network issue, don't mute
                 if _is_transient(exc):
                     logger.warning("⚠️  Provider '%s' transient error (%s), trying next", p.name, type(exc).__name__)
                     last_exc = exc

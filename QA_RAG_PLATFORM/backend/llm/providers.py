@@ -29,7 +29,12 @@ def make_openai_compat(
     """
     from openai import OpenAI
 
-    client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
+    _TIMEOUT = 30.0
+    client = (
+        OpenAI(api_key=api_key, base_url=base_url, timeout=_TIMEOUT)
+        if base_url
+        else OpenAI(api_key=api_key, timeout=_TIMEOUT)
+    )
 
     def call(
         messages: List[Dict[str, str]],
@@ -78,7 +83,7 @@ def make_cohere_provider(api_key: str, model: str = "command-r-plus") -> Callabl
     """
     import cohere
 
-    client = cohere.Client(api_key=api_key)
+    client = cohere.Client(api_key=api_key, timeout=30)
 
     def _to_cohere_history(messages: List[Dict[str, str]]):
         """Convert OpenAI-style messages to Cohere chat_history + message."""
