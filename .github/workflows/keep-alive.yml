@@ -18,11 +18,4 @@ jobs:
             echo "Warning: QA Intelligence API returned $STATUS (may be waking up)"
           fi
 
-      - name: Ping QA RAG Platform API
-        run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 50 \
-            https://qa-rag-platform-api-staging.onrender.com/health || echo "000")
-          echo "QA RAG Platform: $STATUS"
-          if [ "$STATUS" != "200" ]; then
-            echo "Warning: QA RAG Platform returned $STATUS (may be waking up)"
-          fi
+      # QA RAG Platform keep-alive moved to araushan2010143/qa-rag-platform repo
