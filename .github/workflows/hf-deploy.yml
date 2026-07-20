@@ -21,14 +21,17 @@ jobs:
           HF_USERNAME: ${{ secrets.HF_USERNAME }}
           HF_SPACE_NAME: qa-intelligence-api
         run: |
+          if [ -z "$HF_TOKEN" ] || [ -z "$HF_USERNAME" ]; then
+            echo "HF_TOKEN or HF_USERNAME not configured — skipping Hugging Face deploy."
+            echo "Add them under Settings → Secrets and variables → Actions to enable."
+            exit 0
+          fi
+
           git config --global user.email "ci@github.com"
           git config --global user.name "GitHub Actions"
 
-          # Stage the backend dir as the HF Space root
           mkdir /tmp/hf-space
           cp -r QA_Intelligence_Platform/backend/. /tmp/hf-space/
-
-          # Use the HF-specific Dockerfile (build context = backend/)
           cp /tmp/hf-space/Dockerfile.huggingface /tmp/hf-space/Dockerfile
 
           cd /tmp/hf-space
