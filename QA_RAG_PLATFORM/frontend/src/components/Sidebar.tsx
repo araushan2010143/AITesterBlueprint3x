@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import {
-  LayoutDashboard, Upload, Search, Zap, FileText,
+  LayoutDashboard, Database, Search, Zap, FileText,
   ChevronLeft, ChevronRight, Clock, RefreshCw, ScanSearch, BarChart2,
   Users, LogOut, LogIn, Plug, GitBranch, Shield, Webhook, BookOpen, Settings,
 } from "lucide-react";
@@ -14,7 +14,7 @@ import { getUser, clearSession, isLoggedIn } from "@/lib/auth";
 
 const MAIN_NAV = [
   { href: "/",           label: "Dashboard",  icon: LayoutDashboard },
-  { href: "/upload",     label: "Upload",     icon: Upload          },
+  { href: "/ingest",     label: "Ingest",     icon: Database        },
   { href: "/search",     label: "Explorer",   icon: Search          },
   { href: "/ai",         label: "AI Agents",  icon: Zap             },
   { href: "/scanner",    label: "Scanner",    icon: ScanSearch      },
