@@ -206,54 +206,71 @@ def health():
 @app.get("/api/debug/network")
 def debug_network():
     """
-    Diagnostic endpoint — tests raw network reachability of LLM API hosts.
-    Helps distinguish DNS failure vs SSL error vs firewall vs bad API key.
-    Does NOT make any LLM call — just checks TCP+TLS connectivity.
+    Diagnostic endpoint — tests raw network reachability of LLM API hosts
+    using both urllib (stdlib, no httpx) and httpx to isolate the root cause.
     """
-    import socket
-    import httpx
+    import socket, ssl, urllib.request
 
-    endpoints = [
-        ("Groq",    "api.groq.com",    443),
-        ("Mistral", "api.mistral.ai",  443),
-        ("OpenAI",  "api.openai.com",  443),
-        ("Cohere",  "api.cohere.com",  443),
-        ("Gemini",  "generativelanguage.googleapis.com", 443),
+    hosts = [
+        ("Groq",    "api.groq.com"),
+        ("Mistral", "api.mistral.ai"),
+        ("OpenAI",  "api.openai.com"),
+        ("Cohere",  "api.cohere.com"),
+        ("Gemini",  "generativelanguage.googleapis.com"),
     ]
 
     results = {}
-    for name, host, port in endpoints:
+    for name, host in hosts:
         entry: dict = {}
-        # Step 1: DNS resolution
+
+        # 1. DNS
         try:
-            ip = socket.gethostbyname(host)
-            entry["dns"] = ip
-        except socket.gaierror as e:
-            entry["dns"] = f"FAILED: {e}"
+            entry["dns"] = socket.gethostbyname(host)
+        except Exception as e:
+            entry["dns"] = f"FAIL: {e}"
             results[name] = entry
             continue
 
-        # Step 2: TLS handshake via httpx (no auth, just HTTPS GET)
+        # 2. TCP connect (raw socket, no SSL)
         try:
-            with httpx.Client(timeout=10.0, verify=True) as client:
-                r = client.get(f"https://{host}/", follow_redirects=False)
-            entry["tls"] = "ok"
-            entry["http_status"] = r.status_code
-        except httpx.ConnectError as e:
-            entry["tls"] = f"ConnectError: {e}"
-        except httpx.TimeoutException as e:
-            entry["tls"] = f"Timeout: {e}"
+            with socket.create_connection((host, 443), timeout=8) as s:
+                entry["tcp"] = "ok"
         except Exception as e:
-            entry["tls"] = f"{type(e).__name__}: {e}"
+            entry["tcp"] = f"FAIL: {type(e).__name__}: {e}"
+            results[name] = entry
+            continue
+
+        # 3. TLS via urllib (Python stdlib, no httpx dependency)
+        try:
+            ctx = ssl.create_default_context()
+            req = urllib.request.Request(f"https://{host}/", headers={"User-Agent": "diag/1.0"})
+            with urllib.request.urlopen(req, context=ctx, timeout=8) as r:
+                entry["urllib_tls"] = f"ok (HTTP {r.status})"
+        except urllib.error.HTTPError as e:
+            entry["urllib_tls"] = f"ok (HTTP {e.code})"
+        except Exception as e:
+            entry["urllib_tls"] = f"FAIL: {type(e).__name__}: {e}"
+
+        # 4. httpx TLS
+        try:
+            import httpx
+            with httpx.Client(timeout=8.0, verify=True) as client:
+                r = client.get(f"https://{host}/", follow_redirects=False)
+            entry["httpx_tls"] = f"ok (HTTP {r.status_code})"
+        except Exception as e:
+            cause = getattr(e, "__cause__", None)
+            entry["httpx_tls"] = f"FAIL: {type(e).__name__}: {e}" + (f" ← {type(cause).__name__}: {cause}" if cause else "")
 
         results[name] = entry
 
-    # Also try a minimal Groq API call with the configured key
+    # 5. Real Groq API call
     groq_test: dict = {}
     try:
         from backend.config import get_settings
         s = get_settings()
-        if s.groq_api_key:
+        if not s.groq_api_key:
+            groq_test = {"status": "skipped", "reason": "GROQ_API_KEY not set"}
+        else:
             from openai import OpenAI
             client = OpenAI(api_key=s.groq_api_key, base_url="https://api.groq.com/openai/v1", timeout=15.0)
             resp = client.chat.completions.create(
@@ -262,17 +279,17 @@ def debug_network():
                 max_tokens=5,
             )
             groq_test = {"status": "ok", "response": resp.choices[0].message.content}
-        else:
-            groq_test = {"status": "skipped", "reason": "GROQ_API_KEY not set"}
     except Exception as e:
         cause = getattr(e, "__cause__", None) or getattr(e, "__context__", None)
+        cause2 = getattr(cause, "__cause__", None) if cause else None
         groq_test = {
             "status": "error",
             "error": f"{type(e).__name__}: {e}",
             "cause": f"{type(cause).__name__}: {cause}" if cause else None,
+            "root_cause": f"{type(cause2).__name__}: {cause2}" if cause2 else None,
         }
 
-    return {"network": results, "groq_api_test": groq_test}
+    return {"code_version": "debug-v2", "network": results, "groq_api_test": groq_test}
 
 
 if __name__ == "__main__":
