@@ -84,7 +84,14 @@ def run_action(action: str, req: AIActionRequest):
     except Exception as e:
         import traceback, logging
         logging.getLogger(__name__).error("Unhandled pipeline error: %s", traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Pipeline error: {type(e).__name__}: {str(e)[:300]}"
+        # Include cause chain so callers see the real httpx/network error, not just the wrapper
+        cause = getattr(e, "__cause__", None) or getattr(e, "__context__", None)
+        cause_info = (
+            f" ← {type(cause).__name__}: {str(cause)[:200]}" if cause else ""
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Pipeline error: {type(e).__name__}: {str(e)[:300]}{cause_info}",
         )
     total_ms = round((time.perf_counter() - t0) * 1000, 1)
 

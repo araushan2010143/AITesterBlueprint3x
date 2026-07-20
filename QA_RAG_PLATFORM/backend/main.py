@@ -203,6 +203,78 @@ def health():
     }
 
 
+@app.get("/api/debug/network")
+def debug_network():
+    """
+    Diagnostic endpoint — tests raw network reachability of LLM API hosts.
+    Helps distinguish DNS failure vs SSL error vs firewall vs bad API key.
+    Does NOT make any LLM call — just checks TCP+TLS connectivity.
+    """
+    import socket
+    import httpx
+
+    endpoints = [
+        ("Groq",    "api.groq.com",    443),
+        ("Mistral", "api.mistral.ai",  443),
+        ("OpenAI",  "api.openai.com",  443),
+        ("Cohere",  "api.cohere.com",  443),
+        ("Gemini",  "generativelanguage.googleapis.com", 443),
+    ]
+
+    results = {}
+    for name, host, port in endpoints:
+        entry: dict = {}
+        # Step 1: DNS resolution
+        try:
+            ip = socket.gethostbyname(host)
+            entry["dns"] = ip
+        except socket.gaierror as e:
+            entry["dns"] = f"FAILED: {e}"
+            results[name] = entry
+            continue
+
+        # Step 2: TLS handshake via httpx (no auth, just HTTPS GET)
+        try:
+            with httpx.Client(timeout=10.0, verify=True) as client:
+                r = client.get(f"https://{host}/", follow_redirects=False)
+            entry["tls"] = "ok"
+            entry["http_status"] = r.status_code
+        except httpx.ConnectError as e:
+            entry["tls"] = f"ConnectError: {e}"
+        except httpx.TimeoutException as e:
+            entry["tls"] = f"Timeout: {e}"
+        except Exception as e:
+            entry["tls"] = f"{type(e).__name__}: {e}"
+
+        results[name] = entry
+
+    # Also try a minimal Groq API call with the configured key
+    groq_test: dict = {}
+    try:
+        from backend.config import get_settings
+        s = get_settings()
+        if s.groq_api_key:
+            from openai import OpenAI
+            client = OpenAI(api_key=s.groq_api_key, base_url="https://api.groq.com/openai/v1", timeout=15.0)
+            resp = client.chat.completions.create(
+                model=s.groq_model,
+                messages=[{"role": "user", "content": "Say OK"}],
+                max_tokens=5,
+            )
+            groq_test = {"status": "ok", "response": resp.choices[0].message.content}
+        else:
+            groq_test = {"status": "skipped", "reason": "GROQ_API_KEY not set"}
+    except Exception as e:
+        cause = getattr(e, "__cause__", None) or getattr(e, "__context__", None)
+        groq_test = {
+            "status": "error",
+            "error": f"{type(e).__name__}: {e}",
+            "cause": f"{type(cause).__name__}: {cause}" if cause else None,
+        }
+
+    return {"network": results, "groq_api_test": groq_test}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)
