@@ -30,6 +30,7 @@ def make_openai_compat(
     from openai import OpenAI
 
     _TIMEOUT = 30.0
+    api_key = api_key.strip()  # guard against trailing whitespace from env vars
     client = (
         OpenAI(api_key=api_key, base_url=base_url, timeout=_TIMEOUT)
         if base_url
@@ -83,6 +84,7 @@ def make_cohere_provider(api_key: str, model: str = "command-r-plus") -> Callabl
     """
     import cohere
 
+    api_key = api_key.strip()  # guard against trailing whitespace from env vars
     client = cohere.Client(api_key=api_key, timeout=30)
 
     def _to_cohere_history(messages: List[Dict[str, str]]):
