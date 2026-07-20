@@ -10,7 +10,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 _PUBLIC_PATHS = frozenset({"/", "/health", "/api/docs", "/api/redoc", "/openapi.json"})
-_PUBLIC_PREFIXES = ("/api/docs", "/api/redoc", "/openapi.json", "/api/llm/status")
+_PUBLIC_PREFIXES = ("/api/docs", "/api/redoc", "/openapi.json", "/api/llm/status", "/api/debug")
 
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
