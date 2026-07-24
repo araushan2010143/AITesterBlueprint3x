@@ -4,9 +4,8 @@
  */
 // Direct URL — CORS is fully configured on the backend for *.vercel.app origins.
 // No proxy needed; browser calls backend directly and CORS headers are returned.
-export const BASE =
-  process.env.NEXT_PUBLIC_API_URL ??
-  "https://araushan2010143-qa-intelligence-api.hf.space";
+// Set NEXT_PUBLIC_API_URL in Vercel environment variables to point to the backend.
+export const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export interface Citation {
   source: string;
