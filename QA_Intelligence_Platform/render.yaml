@@ -2,11 +2,13 @@ services:
   - type: web
     name: qa-intelligence-api
     env: docker
+    rootDir: QA_Intelligence_Platform   # monorepo: Docker context = QA_Intelligence_Platform/
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
     plan: free               # HF Inference API handles embeddings — no local ML models
     region: oregon
     healthCheckPath: /health
+    autoDeploy: true
     envVars:
       # ── Embeddings (HF Inference API — zero RAM, free) ─────────────────────
       # Get a read token at huggingface.co/settings/tokens

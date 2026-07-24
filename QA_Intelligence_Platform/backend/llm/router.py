@@ -25,6 +25,9 @@ class LLMProvider:
     api_key: str
     _muted_until: float = field(default=0.0, init=False, repr=False)
 
+    def __post_init__(self) -> None:
+        self.api_key = self.api_key.strip()  # guard against trailing whitespace in env vars
+
     def available(self) -> bool:
         return bool(self.api_key) and time.time() > self._muted_until
 
