@@ -96,14 +96,18 @@ class HFInferenceEmbedder:
         return {"dense": self.embed(texts), "sparse": [{} for _ in texts]}
 
     def embed_with_fallback(self, texts: list[str]) -> list[list[float]]:
-        """Try HF API; on failure fall back to OpenAI (same 1024-dim) if key is set."""
+        """Try HF API; on failure fall back to Cohere then OpenAI (both 1024-dim)."""
         try:
             return self.embed(texts)
         except Exception as hf_exc:
             import os
+            cohere_key = os.getenv("COHERE_API_KEY", "")
+            if cohere_key:
+                print(f"[HFEmbedder] HF failed, falling back to Cohere: {hf_exc}")
+                return CohereEmbedder(cohere_key).embed(texts)
             oai_key = os.getenv("OPENAI_API_KEY", "")
             if oai_key:
-                print(f"[HFEmbedder] Falling back to OpenAI: {hf_exc}")
+                print(f"[HFEmbedder] HF failed, falling back to OpenAI: {hf_exc}")
                 return OpenAIEmbedder(oai_key).embed(texts)
             raise
 
@@ -181,6 +185,41 @@ class LightweightEmbedder:
         return 384
 
 
+class CohereEmbedder:
+    """
+    Cohere embed-multilingual-v3.0 — 1024-dim, free tier 5 M tokens/month.
+    Same dimension as HFInferenceEmbedder / OpenAIEmbedder — Qdrant collections compatible.
+    Free key: dashboard.cohere.com (no credit card needed).
+    Auto-activated when COHERE_API_KEY is set.
+    """
+    _MODEL = "embed-multilingual-v3.0"
+    _DIM   = 1024
+    _BATCH = 96  # Cohere allows up to 96 texts per request
+
+    def __init__(self, api_key: str) -> None:
+        import cohere
+        self._client = cohere.Client(api_key)
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        results = []
+        for i in range(0, len(texts), self._BATCH):
+            batch = texts[i: i + self._BATCH]
+            resp = self._client.embed(
+                texts=batch,
+                model=self._MODEL,
+                input_type="search_document",
+            )
+            results.extend(resp.embeddings)
+        return results
+
+    def embed_with_sparse(self, texts: list[str]) -> dict:
+        return {"dense": self.embed(texts), "sparse": [{} for _ in texts]}
+
+    @property
+    def dimension(self) -> int:
+        return self._DIM
+
+
 class OpenAIEmbedder:
     """
     text-embedding-3-small via OpenAI API.
@@ -230,6 +269,10 @@ def get_embedder() -> "HFInferenceEmbedder | OpenAIEmbedder | BGEEmbedder | Ligh
     if s.hf_api_key:
         print(f"🤗 Using HFInferenceEmbedder (BAAI/bge-m3 via API, {HFInferenceEmbedder._DIM}-dim)")
         return HFInferenceEmbedder(api_key=s.hf_api_key)
+
+    if s.cohere_api_key:
+        print(f"🟣 Using CohereEmbedder (embed-multilingual-v3.0, {CohereEmbedder._DIM}-dim)")
+        return CohereEmbedder(api_key=s.cohere_api_key)
 
     if s.openai_api_key:
         print(f"🌐 Using OpenAIEmbedder (text-embedding-3-small, {OpenAIEmbedder._DIM}-dim)")
