@@ -3,8 +3,10 @@
  * Every feature imports from here, never fetches directly.
  */
 // Direct URL — CORS is fully configured on the backend for *.vercel.app origins.
-// No proxy needed; browser calls Render directly and CORS headers are returned.
-export const BASE = "https://qa-intelligence-api.onrender.com";
+// No proxy needed; browser calls backend directly and CORS headers are returned.
+export const BASE =
+  process.env.NEXT_PUBLIC_API_URL ??
+  "https://araushan2010143-qa-intelligence-api.hf.space";
 
 export interface Citation {
   source: string;

@@ -1,5 +1,8 @@
 {
   "framework": "nextjs",
   "buildCommand": "npm run build",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "env": {
+    "NEXT_PUBLIC_API_URL": "https://araushan2010143-qa-intelligence-api.hf.space"
+  }
 }

@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'QA_Intelligence_Platform/backend/**'
+  workflow_dispatch:   # allow manual trigger from GitHub Actions tab
 
 jobs:
   deploy:
@@ -32,7 +33,31 @@ jobs:
 
           mkdir /tmp/hf-space
           cp -r QA_Intelligence_Platform/backend/. /tmp/hf-space/
+
+          # Rename Dockerfile.huggingface → Dockerfile (HF Space uses this)
           cp /tmp/hf-space/Dockerfile.huggingface /tmp/hf-space/Dockerfile
+          rm /tmp/hf-space/Dockerfile.huggingface
+
+          # Generate required HF Space README with space metadata
+          cat > /tmp/hf-space/README.md << 'HFREADME'
+          ---
+          title: QA Intelligence API
+          emoji: 🤖
+          colorFrom: blue
+          colorTo: purple
+          sdk: docker
+          pinned: false
+          app_port: 8000
+          ---
+
+          # QA Intelligence Platform — Backend API
+
+          FastAPI backend for the QA Intelligence Platform.
+          Provides chat, semantic search, RAG, agents, and ingest endpoints.
+
+          **Frontend:** [qabuddy-app.vercel.app](https://qabuddy-app.vercel.app)
+          **Docs:** `/api/docs`
+          HFREADME
 
           cd /tmp/hf-space
           git init
