@@ -201,6 +201,7 @@ class CohereEmbedder:
         self._client = cohere.Client(api_key)
 
     def embed(self, texts: list[str]) -> list[list[float]]:
+        import time
         results = []
         for i in range(0, len(texts), self._BATCH):
             batch = texts[i: i + self._BATCH]
@@ -210,6 +211,9 @@ class CohereEmbedder:
                 input_type="search_document",
             )
             results.extend(resp.embeddings)
+            # Trial key: 100K tokens/min. Sleep between batches to stay under limit.
+            if i + self._BATCH < len(texts):
+                time.sleep(2)
         return results
 
     def embed_with_sparse(self, texts: list[str]) -> dict:
