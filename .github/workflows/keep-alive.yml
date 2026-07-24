@@ -12,7 +12,7 @@ jobs:
       - name: Ping QA Intelligence Platform API (Render — account 2)
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 50 \
-            https://qa-intelligence-api.onrender.com/health || echo "000")
+            https://qa-intelligence-api-1tcq.onrender.com/health || echo "000")
           echo "QA Intelligence Platform: $STATUS"
           if [ "$STATUS" != "200" ]; then
             echo "Warning: QA Intelligence API returned $STATUS (may be waking up)"

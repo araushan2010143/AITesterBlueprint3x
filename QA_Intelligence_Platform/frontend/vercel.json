@@ -3,6 +3,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "env": {
-    "NEXT_PUBLIC_API_URL": "https://qa-intelligence-api-YOUR_KOYEB_URL.koyeb.app"
+    "NEXT_PUBLIC_API_URL": "https://qa-intelligence-api-1tcq.onrender.com"
   }
 }
