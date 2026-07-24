@@ -203,7 +203,13 @@ async def ingest_file(
     }
 
     chunks = chunk_document(text, source_type, base_metadata)
-    result = Indexer().index(chunks, final_collection)
+    try:
+        result = Indexer().index(chunks, final_collection)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    except Exception as exc:
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}")
 
     return IngestResponse(
         indexed=result["indexed"],
