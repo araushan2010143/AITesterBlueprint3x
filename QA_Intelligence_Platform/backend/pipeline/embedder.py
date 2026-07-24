@@ -52,6 +52,7 @@ class HFInferenceEmbedder:
 
     def _call_api(self, batch: list[str]) -> list[list[float]]:
         import urllib.request
+        import urllib.error
         import json as _json
         from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -70,9 +71,17 @@ class HFInferenceEmbedder:
                 },
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                body = _json.loads(resp.read())
-            return self._pool_and_normalize(body)
+            try:
+                with urllib.request.urlopen(req, timeout=90) as resp:
+                    body = _json.loads(resp.read())
+                return self._pool_and_normalize(body)
+            except urllib.error.HTTPError as e:
+                body = e.read().decode("utf-8", errors="replace")
+                print(f"[HFEmbedder] HTTP {e.code} {e.reason}: {body[:300]}")
+                raise RuntimeError(f"HF API HTTP {e.code}: {body[:200]}") from e
+            except urllib.error.URLError as e:
+                print(f"[HFEmbedder] URLError: {e.reason}")
+                raise RuntimeError(f"HF API network error: {e.reason}") from e
 
         return _post()
 
@@ -85,6 +94,18 @@ class HFInferenceEmbedder:
     def embed_with_sparse(self, texts: list[str]) -> dict:
         # HF Inference API returns dense only; sparse weights not available via REST
         return {"dense": self.embed(texts), "sparse": [{} for _ in texts]}
+
+    def embed_with_fallback(self, texts: list[str]) -> list[list[float]]:
+        """Try HF API; on failure fall back to OpenAI (same 1024-dim) if key is set."""
+        try:
+            return self.embed(texts)
+        except Exception as hf_exc:
+            import os
+            oai_key = os.getenv("OPENAI_API_KEY", "")
+            if oai_key:
+                print(f"[HFEmbedder] Falling back to OpenAI: {hf_exc}")
+                return OpenAIEmbedder(oai_key).embed(texts)
+            raise
 
     @property
     def dimension(self) -> int:

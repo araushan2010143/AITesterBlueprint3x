@@ -74,11 +74,15 @@ class Indexer:
 
         texts    = [c.text for c, _ in to_index]
         try:
-            vectors = embedder.embed(texts)
+            from pipeline.embedder import HFInferenceEmbedder
+            if isinstance(embedder, HFInferenceEmbedder):
+                vectors = embedder.embed_with_fallback(texts)
+            else:
+                vectors = embedder.embed(texts)
         except Exception as exc:
             raise RuntimeError(
                 f"Embedding failed ({type(exc).__name__}: {exc}). "
-                "Set HF_API_KEY (free HF read token) on Render if OpenAI is rate-limited."
+                "Set HF_API_KEY (free HF read token) on Render, or ensure OPENAI_API_KEY is set."
             ) from exc
 
         from qdrant_client.models import PointStruct
