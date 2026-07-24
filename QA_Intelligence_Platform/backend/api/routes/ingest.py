@@ -77,6 +77,12 @@ def resolve_collection(filename: str, source_type: str, requested: str) -> str:
     if re.search(r"jenkins|build.?log|console.?log|pipeline",  f): return "logs"
     if re.search(r"company|policy|onboard|handbook|runbook",   f): return "company_docs"
 
+    # ── 1.5 Source-type overrides for unambiguous semantic types ─────────────────
+    # Jira JSON files (e.g. sample_tickets.json) have no jira keyword in their name
+    # but source_type="jira" makes intent unambiguous — promote before extension rules.
+    if source_type == "jira":
+        return "jira"
+
     # ── 2. Extension rules ─────────────────────────────────────────────────────
 
     # Presentations → always company_docs, never a code collection
