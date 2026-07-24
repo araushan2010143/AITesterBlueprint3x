@@ -2,10 +2,11 @@
  * API client — typed wrappers for all backend endpoints.
  * Every feature imports from here, never fetches directly.
  */
-// Direct URL — CORS is fully configured on the backend for *.vercel.app origins.
-// No proxy needed; browser calls backend directly and CORS headers are returned.
-// Set NEXT_PUBLIC_API_URL in Vercel environment variables to point to the backend.
-export const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+// All calls go through Next.js /proxy/* rewrite (same-origin → Vercel → Render).
+// This avoids CORS issues when Render returns 503 during cold start/restart —
+// a same-origin 503 is readable by the browser; a cross-origin 503 is silently
+// dropped as "TypeError: Failed to fetch".
+export const BASE = "/proxy";
 
 export interface Citation {
   source: string;
