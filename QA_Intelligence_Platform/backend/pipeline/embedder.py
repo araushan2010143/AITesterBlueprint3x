@@ -51,19 +51,28 @@ class HFInferenceEmbedder:
         return vecs.tolist()
 
     def _call_api(self, batch: list[str]) -> list[list[float]]:
-        import httpx
+        import urllib.request
+        import json as _json
         from tenacity import retry, stop_after_attempt, wait_exponential
 
-        @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30))
+        # Use stdlib urllib — avoids httpx async-context issues on Render/uvicorn.
+        @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10))
         def _post():
-            resp = httpx.post(
+            payload = _json.dumps(
+                {"inputs": batch, "options": {"wait_for_model": True}}
+            ).encode()
+            req = urllib.request.Request(
                 f"https://api-inference.huggingface.co/models/{self._MODEL}",
-                headers={"Authorization": f"Bearer {self._api_key}"},
-                json={"inputs": batch, "options": {"wait_for_model": True}},
-                timeout=60.0,
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {self._api_key}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
             )
-            resp.raise_for_status()
-            return self._pool_and_normalize(resp.json())
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                body = _json.loads(resp.read())
+            return self._pool_and_normalize(body)
 
         return _post()
 
