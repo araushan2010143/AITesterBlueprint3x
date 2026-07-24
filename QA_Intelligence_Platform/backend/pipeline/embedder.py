@@ -202,18 +202,28 @@ class CohereEmbedder:
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         import time
+        import cohere
         results = []
         for i in range(0, len(texts), self._BATCH):
             batch = texts[i: i + self._BATCH]
-            resp = self._client.embed(
-                texts=batch,
-                model=self._MODEL,
-                input_type="search_document",
-            )
-            results.extend(resp.embeddings)
-            # Trial key: 100K tokens/min. Sleep between batches to stay under limit.
+            for attempt in range(4):
+                try:
+                    resp = self._client.embed(
+                        texts=batch,
+                        model=self._MODEL,
+                        input_type="search_document",
+                    )
+                    results.extend(resp.embeddings)
+                    break
+                except cohere.TooManyRequestsError:
+                    wait = 60 * (attempt + 1)
+                    print(f"[Cohere] 429 rate limit — waiting {wait}s (attempt {attempt+1})")
+                    time.sleep(wait)
+            else:
+                raise RuntimeError("Cohere rate limit exceeded after 4 retries")
+            # 20s between batches keeps token rate well under 100K/min on trial key
             if i + self._BATCH < len(texts):
-                time.sleep(2)
+                time.sleep(20)
         return results
 
     def embed_with_sparse(self, texts: list[str]) -> dict:
