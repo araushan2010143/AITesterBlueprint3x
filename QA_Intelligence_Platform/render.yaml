@@ -1,21 +1,23 @@
 services:
   - type: web
     name: qa-intelligence-api
-    env: docker
-    rootDir: QA_Intelligence_Platform   # monorepo: Docker context = QA_Intelligence_Platform/
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: .
-    plan: free               # HF Inference API handles embeddings — no local ML models
+    runtime: python
+    rootDir: QA_Intelligence_Platform/backend
+    buildCommand: pip install -r requirements-api.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: free
     region: oregon
     healthCheckPath: /health
     autoDeploy: true
     envVars:
-      # ── Embeddings (HF Inference API — zero RAM, free) ─────────────────────
-      # Get a read token at huggingface.co/settings/tokens
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+
+      # ── Embeddings (HF Inference API — zero RAM, free) ──────────────────
       - key: HF_API_KEY
         sync: false
 
-      # ── LLM (at least GROQ_API_KEY required) ───────────────────────────────
+      # ── LLM (GROQ_API_KEY required at minimum) ──────────────────────────
       - key: GROQ_API_KEY
         sync: false
       - key: OPENAI_API_KEY
@@ -23,7 +25,7 @@ services:
       - key: ANTHROPIC_API_KEY
         sync: false
 
-      # ── Qdrant Cloud (sign up free at cloud.qdrant.io) ─────────────────────
+      # ── Qdrant Cloud ─────────────────────────────────────────────────────
       - key: QDRANT_URL
         sync: false
       - key: QDRANT_API_KEY
@@ -31,7 +33,7 @@ services:
       - key: QDRANT_LOCAL_PATH
         value: ""
 
-      # ── App config ──────────────────────────────────────────────────────────
+      # ── App config ───────────────────────────────────────────────────────
       - key: JWT_SECRET
         generateValue: true
       - key: UPLOAD_DIR
