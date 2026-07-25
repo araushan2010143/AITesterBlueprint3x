@@ -13,6 +13,18 @@ def list_collections():
     return {"collections": get_collection_stats(get_qdrant_client())}
 
 
+@router.delete("/{name}")
+def delete_collection(name: str):
+    """Delete a Qdrant collection and all its vectors."""
+    from database.qdrant_client import get_qdrant_client
+    from collections_module.manager import delete_collection as _del
+    ok = _del(get_qdrant_client(), name)
+    if not ok:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Collection '{name}' not found")
+    return {"deleted": name}
+
+
 @router.get("/schema")
 def list_schemas():
     """Return the expected schema for each collection."""
