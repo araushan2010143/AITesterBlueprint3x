@@ -89,8 +89,11 @@ class Indexer:
         points = []
         for (chunk, sha), vector in zip(to_index, vectors):
             payload = {**chunk.metadata, "text": chunk.text, "sha256": sha}
+            # Deterministic UUID from SHA256 → Qdrant upsert updates instead of
+            # inserting a new duplicate when SQLite registry is wiped on redeploy.
+            point_id = str(uuid.UUID(sha[:32]))
             points.append(PointStruct(
-                id=str(uuid.uuid4()),
+                id=point_id,
                 vector=vector,
                 payload=payload,
             ))
