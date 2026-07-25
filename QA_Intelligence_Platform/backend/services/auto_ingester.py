@@ -215,7 +215,12 @@ def run_once(data_dir: str | None = None) -> RunResult:
                 text   = _read_text(dest, source_type)
                 meta   = {"filename": fname, "path": filepath, "source": collection}
                 chunks = chunk_document(text, source_type, meta)
-                res    = indexer.index(chunks, collection)
+                # Use the same routing authority as the ingest endpoint so that
+                # filename-keyword rules (e.g. test_cases.csv → testcases) always
+                # override the folder-based default collection hint.
+                from api.routes.ingest import resolve_collection
+                final_col = resolve_collection(fname, source_type, collection)
+                res    = indexer.index(chunks, final_col)
 
                 result["chunks_indexed"] += res.get("indexed", 0)
                 result["chunks_skipped"] += res.get("skipped", 0)
